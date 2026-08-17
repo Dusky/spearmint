@@ -1,0 +1,54 @@
+/* Design tokens — transcribed from the handoff's token table.
+   Colour never decorates: if something is coloured, it changed. */
+
+:root {
+  /* Surfaces */
+  --sim-void: #070806;          /* canvas background; also blueprint thumbnails */
+  --surface: #1e1e1d;           /* HUD and panel background */
+  --surface-raised: #2f2e2b;    /* selected tool row */
+  --surface-hover: #252523;     /* tool row hover */
+  --overlay: rgba(30, 30, 29, 0.96); /* panels floating over the canvas — never a blur */
+
+  /* Borders */
+  --border: #33322f;            /* panel outer border, unowned spawner pips */
+  --border-subtle: #2b2a28;     /* internal rules */
+  --border-panel: #3a3936;      /* inspector / notice borders, empty blueprint slot */
+  --border-row: #262523;        /* capability row separators */
+  --border-notice: #57482c;     /* problem notice border */
+
+  /* Text */
+  --text-primary: #eae9e5;      /* values, selected labels */
+  --text-secondary: #c9c7c0;    /* unselected labels, prose; also the yield bar fill */
+  --text-muted: #98968f;        /* units, secondary numerics */
+  --text-faint: #7c7a73;        /* field labels */
+  --text-faint-dim: #75736c;    /* hints, meta */
+  --text-faint-dimmer: #6b6963; /* section labels, hotkeys, glyph outlines */
+  --text-hotkey-active: #8b8982;/* hotkey on the selected tool row, notice action hint */
+  --text-on-light: #1b1b1a;     /* marquee label tab */
+
+  /* Signals — the only two colours in the interface */
+  --signal-attention: #e0a23d;  /* out-of-range value, problem notice accent */
+  --signal-running: #8faf7e;    /* gold rate, running status, tick indicator */
+
+  /* Material swatches */
+  --material-wall: #5c5850;
+  --material-insulator: #c3bdac;
+  --material-heater: #a8442a;
+  --material-cooler: #3e6b8a;
+
+  /* Sim particle palette — walls, sand, water, wet sand */
+  --particle-wall: #5c5850;
+  --particle-sand: #c8a24a;
+  --particle-water: #3e7fa8;
+  --particle-wet-sand: #8a7a52;
+
+  /* Type — mono for data, grotesk for labels */
+  --font-ui: 'Archivo', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* Frame metrics */
+  --top-bar-height: 54px;
+  --status-bar-height: 36px;
+  --tool-column-width: 150px;
+  --bar-padding-x: 18px;
+}

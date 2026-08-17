@@ -1,0 +1,690 @@
+/* The HUD shell. Values are transcribed from the handoff; where it gives a pixel
+   number, that number appears here literally.
+
+   Two deliberate departures, both called for by the handoff:
+   - The frame is edge-to-edge and fluid. The prototype's 1160px width, outer border
+     and 5px radius existed only because it sat on a page.
+   - No transitions anywhere. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Components toggle visibility with the `hidden` attribute. Several of them also set
+   `display`, and a class selector outranks the UA stylesheet's [hidden] rule — so
+   state this once, here, rather than per component. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  /* The sim is a workbench: no text selection, no overscroll, no touch gestures. */
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+.hud {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface);
+}
+
+/* ── Top bar ──────────────────────────────────────────────────────────── */
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: var(--top-bar-height);
+  padding: 0 var(--bar-padding-x);
+  gap: 32px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.top-bar__group {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.top-bar__group--gold {
+  align-items: baseline;
+  gap: 10px;
+}
+
+.top-bar__divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+}
+
+.top-bar__spacer {
+  flex: 1;
+}
+
+.top-bar__status {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-faint-dim);
+}
+
+.field-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  color: var(--text-faint);
+}
+
+.gold-value {
+  font-family: var(--font-mono);
+  font-size: 23px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.gold-rate {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--signal-running);
+}
+
+.spawner-pips {
+  display: flex;
+  gap: 4px;
+}
+
+.spawner-pip {
+  width: 9px;
+  height: 18px;
+  border-radius: 1px;
+  background: var(--border);
+}
+
+.spawner-pip--owned {
+  background: var(--text-secondary);
+}
+
+.spawner-count {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.tick-rate {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-muted);
+}
+
+.tick-rate__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--signal-running);
+}
+
+/* ── Body ─────────────────────────────────────────────────────────────── */
+
+.body {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Tool column ──────────────────────────────────────────────────────── */
+
+.tool-column {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  /* content-box on purpose: the handoff's 150px is the column, and the 1px border
+     sits outside it. Under border-box the four 26px swatches lose their last pixel
+     and wrap to a second row. */
+  box-sizing: content-box;
+  width: var(--tool-column-width);
+  padding: 12px 0;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.section-label {
+  padding: 0 14px 9px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  color: var(--text-faint-dimmer);
+}
+
+.tool-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 14px;
+  border-left: 2px solid transparent;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+.tool-row:hover {
+  background: var(--surface-hover);
+}
+
+.tool-row--selected,
+.tool-row--selected:hover {
+  background: var(--surface-raised);
+  border-left-color: var(--text-primary);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tool-row__hotkey {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-faint-dimmer);
+}
+
+.tool-row--selected .tool-row__hotkey {
+  color: var(--text-hotkey-active);
+}
+
+/* Glyphs are CSS boxes — no icon font, no SVG. */
+.glyph {
+  flex: none;
+}
+
+.glyph--draw {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--text-primary);
+}
+
+.glyph--erase {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  border: 1px solid var(--text-faint-dimmer);
+}
+
+.glyph--belt {
+  width: 16px;
+  height: 9px;
+  border-radius: 1px;
+  background: var(--text-faint-dimmer);
+}
+
+.glyph--spawner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--text-faint-dimmer);
+}
+
+.glyph--teleport {
+  width: 14px;
+  height: 14px;
+  background: var(--text-faint-dimmer);
+  transform: rotate(45deg);
+}
+
+.glyph--blueprint {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  border: 1px dashed var(--text-faint-dimmer);
+}
+
+.tool-column__rule {
+  margin: 14px 14px 10px;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 14px 12px;
+}
+
+.swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 3px;
+  cursor: default;
+}
+
+.swatch--selected {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 1px;
+}
+
+.material-caption {
+  padding: 0 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint-dim);
+}
+
+/* Load-bearing: live particle state is never persisted, so every machine must be
+   self-starting. Permanent chrome, not a dismissible tip. */
+.self-start-note {
+  margin-top: auto;
+  padding: 14px 14px 2px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-faint-dimmer);
+}
+
+/* ── Viewport ─────────────────────────────────────────────────────────── */
+
+.viewport {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: var(--sim-void);
+  overflow: hidden;
+}
+
+.viewport__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--sim-void);
+  image-rendering: pixelated;
+}
+
+/* One 9x9 tile at 4x zoom = 36px. Offset follows the camera. */
+.tile-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(234, 233, 229, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(234, 233, 229, 0.07) 1px, transparent 1px);
+}
+
+/* ── Selection marquee ────────────────────────────────────────────────── */
+
+.marquee {
+  position: absolute;
+  border: 1px solid rgba(234, 233, 229, 0.85);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.marquee__label {
+  position: absolute;
+  left: 0;
+  top: -26px;
+  padding: 3px 8px;
+  border-radius: 2px 2px 0 0;
+  background: var(--text-primary);
+  color: var(--text-on-light);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* ── Inspector ────────────────────────────────────────────────────────── */
+
+.inspector {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  width: 272px;
+  background: var(--overlay);
+  border: 1px solid var(--border-panel);
+  border-radius: 4px;
+}
+
+.inspector__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 13px 9px;
+}
+
+.inspector__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.inspector__status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--signal-running);
+}
+
+.inspector__status--stalled {
+  color: var(--signal-attention);
+}
+
+.inspector__yield {
+  padding: 0 13px 12px;
+}
+
+.inspector__yield-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.inspector__yield-best {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-faint-dim);
+}
+
+.inspector__yield-value {
+  display: block;
+  margin-bottom: 7px;
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.inspector__yield-unit {
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+.inspector__bar {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+}
+
+.inspector__bar-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px;
+  background: var(--text-secondary);
+}
+
+/* The best-observed mark overhangs the track 3px top and bottom. */
+.inspector__bar-best {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: var(--text-faint-dimmer);
+}
+
+.inspector__rule {
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.inspector__measurements {
+  padding: 11px 13px;
+}
+
+.measurement {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.measurement__key {
+  color: var(--text-faint);
+}
+
+.measurement__value {
+  color: var(--text-primary);
+}
+
+/* The only highlight. No icon, no badge. */
+.measurement__value--out-of-range {
+  color: var(--signal-attention);
+}
+
+.inspector__diagnosis {
+  padding: 11px 13px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+/* ── Problem notice ───────────────────────────────────────────────────── */
+
+/* Informational, not an alarm: clogging is emergent physics, not a rule. */
+.notice {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--overlay);
+  border: 1px solid var(--border-notice);
+  border-left: 2px solid var(--signal-attention);
+  border-radius: 3px;
+  cursor: default;
+}
+
+.notice__message {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.notice__hint {
+  padding-left: 4px;
+  border-left: 1px solid var(--border-panel);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-hotkey-active);
+}
+
+/* ── Status bar ───────────────────────────────────────────────────────── */
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: var(--status-bar-height);
+  padding: 0 var(--bar-padding-x);
+  gap: 26px;
+  border-top: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint-dimmer);
+}
+
+.status-bar__spacer {
+  flex: 1;
+}
+
+/* ── Drawers (Capability, Blueprints) ─────────────────────────────────── */
+
+/* In-game these are overlays, not a second row. The prototype laid them out flat
+   only so every state was visible at once. */
+.drawer {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.drawer__title {
+  padding: 13px 15px 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.drawer__title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 13px 15px 4px;
+}
+
+.drawer__title-row .drawer__title {
+  padding: 0;
+}
+
+.drawer__count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-faint-dim);
+}
+
+.drawer__subtitle {
+  padding: 0 15px 12px;
+  font-size: 12px;
+  color: var(--text-faint-dim);
+}
+
+.drawer__rule {
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+/* Capability */
+
+.capability {
+  width: 376px;
+}
+
+.capability__list {
+  padding: 6px 15px 12px;
+}
+
+.capability-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border-row);
+}
+
+.capability-row:last-child {
+  border-bottom: none;
+}
+
+/* Unaffordable is the whole row at .45 — not greyed text, not disabled styling. */
+.capability-row--unaffordable {
+  opacity: 0.45;
+}
+
+.capability-row__text {
+  flex: 1;
+}
+
+.capability-row__title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.capability-row__description {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-faint-dim);
+}
+
+.capability-row__price {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+/* Blueprints */
+
+.blueprints {
+  width: 340px;
+}
+
+.blueprints__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px 15px 15px;
+}
+
+.blueprint-card__thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 70px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  background: var(--sim-void);
+}
+
+/* The canvas keeps its intrinsic aspect ratio inside the box: thumbnails are the
+   blueprint's real construct data, so they are never stretched to fit. */
+.blueprint-card__thumb canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  image-rendering: pixelated;
+}
+
+.blueprint-card__name {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.blueprint-card__meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint-dim);
+}
+
+.blueprint-slot--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 70px;
+  border: 1px dashed var(--border-panel);
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--text-faint-dimmer);
+}
+
+.swatch--wall { background: var(--material-wall); }
+.swatch--insulator { background: var(--material-insulator); }
+.swatch--heater { background: var(--material-heater); }
+.swatch--cooler { background: var(--material-cooler); }
