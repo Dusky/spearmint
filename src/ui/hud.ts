@@ -1,5 +1,6 @@
 import { createBlueprintsDrawer } from './drawers/blueprints';
 import { createCapabilityDrawer } from './drawers/capability';
+import { createGhost } from './ghost';
 import { createInspector } from './inspector';
 import { createMarquee } from './marquee';
 import { createNotice } from './notice';
@@ -26,13 +27,14 @@ export function createHud(surface: SimSurface, actions: Actions): Component {
   const statusBar = createStatusBar();
 
   // Everything below is positioned over the canvas.
+  const ghost = createGhost(viewport.root);
   const marquee = createMarquee(viewport.root);
   const inspector = createInspector();
   const notice = createNotice({ dismiss: actions.dismissNotice });
   const capability = createCapabilityDrawer(actions);
   const blueprints = createBlueprintsDrawer();
 
-  const overlays = [marquee, inspector, notice, capability, blueprints];
+  const overlays = [ghost, marquee, inspector, notice, capability, blueprints];
   viewport.root.append(...overlays.map((component) => component.root));
 
   const components: readonly Component[] = [topBar, toolColumn, viewport, statusBar, ...overlays];

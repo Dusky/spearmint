@@ -15,6 +15,8 @@ export interface ViewportActions {
   pickMaterialAt(world: Vec2): void;
   /** A drag with the draw or erase tool. `straight` is shift being held. */
   paint(from: Vec2, to: Vec2, straight: boolean): void;
+  /** What the pointer is doing to the world, for the ghost. */
+  setStroke(anchor: Vec2 | null, painting: boolean): void;
 }
 
 /**
@@ -37,6 +39,8 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
   /** Where the pointer is in client space, so world coords can be recomputed when the
    *  camera moves under a stationary cursor — pressing `F` is exactly that case. */
   let pointerClient: Vec2 | null = null;
+  /** The last world position the pointer reported, for resuming a stroke cleanly. */
+  let lastWorld: Vec2 | null = null;
   /** Where the stroke began. Only the shift-constrained line anchors to it. */
   let strokeStart: Vec2 | null = null;
   /** The last position painted to. A free stroke follows the path the pointer took, so
@@ -61,19 +65,38 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
   });
   observer.observe(root);
 
+  /** Tells the store what the pointer is doing to the world, so the ghost can draw it.
+   *  Called on transitions only: the cursor is already in state and the anchor does not
+   *  move within a stroke, so there is nothing to update per frame. */
+  const reportStroke = (): void => {
+    actions.setStroke(dragging === 'paint' && straight ? strokeStart : null, dragging === 'paint');
+  };
+
   // Panning is a modifier on the pointer, so the key state lives with the pointer
   // handlers rather than in the store — nothing else in the HUD reacts to it.
   window.addEventListener('keydown', (event) => {
     if (event.code === 'Space') spaceHeld = true;
-    if (event.key === 'Shift') straight = true;
+    if (event.key === 'Shift' && !straight) {
+      // Taking shift mid-stroke stops painting and starts previewing.
+      straight = true;
+      reportStroke();
+    }
   });
   window.addEventListener('keyup', (event) => {
     if (event.code === 'Space') spaceHeld = false;
-    if (event.key === 'Shift') straight = false;
+    if (event.key === 'Shift' && straight) {
+      straight = false;
+      // Resume freehand from where the pointer is now, not from where the constrained
+      // stroke began — otherwise letting go of shift paints back across the world.
+      strokePrevious = lastWorld ?? strokePrevious;
+      reportStroke();
+    }
   });
   window.addEventListener('blur', () => {
     spaceHeld = false;
     straight = false;
+    // Losing focus mid-stroke would otherwise leave the preview hanging over the world.
+    reportStroke();
   });
 
   root.addEventListener('pointerdown', (event) => {
@@ -95,7 +118,10 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
       dragging = 'paint';
       strokeStart = world;
       strokePrevious = world;
-      actions.press(world);
+      reportStroke();
+      // A constrained stroke shows itself and commits on release, so pressing must not
+      // lay its first tile. Everything else acts on the press as before.
+      if (!straight) actions.press(world);
     }
     root.setPointerCapture(event.pointerId);
   });
@@ -103,6 +129,7 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
   root.addEventListener('pointermove', (event) => {
     pointerClient = { x: event.clientX, y: event.clientY };
     const world = toWorld(event);
+    lastWorld = world;
     actions.moveCursor(world);
 
     if (dragging === 'pan' && lastPointer) {
@@ -111,18 +138,24 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
         -(event.clientX - lastPointer.x) / camera.zoom,
         -(event.clientY - lastPointer.y) / camera.zoom,
       );
-    } else if (dragging === 'paint' && strokeStart && strokePrevious) {
-      // A constrained stroke is defined relative to where it began; a free one is not.
-      actions.paint(straight ? strokeStart : strokePrevious, world, straight);
+    } else if (dragging === 'paint' && strokePrevious && !straight) {
+      // Free strokes paint as they go, along the path the pointer took. A constrained
+      // one only previews here — it commits once, on release.
+      actions.paint(strokePrevious, world, false);
       strokePrevious = world;
     }
     lastPointer = { x: event.clientX, y: event.clientY };
   });
 
   const endDrag = (event: PointerEvent): void => {
+    // The constrained stroke has been a preview until now. This is the commit.
+    if (dragging === 'paint' && straight && strokeStart && lastWorld) {
+      actions.paint(strokeStart, lastWorld, true);
+    }
     dragging = null;
     strokeStart = null;
     strokePrevious = null;
+    reportStroke();
     lastPointer = null;
     if (root.hasPointerCapture(event.pointerId)) root.releasePointerCapture(event.pointerId);
   };

@@ -38,3 +38,18 @@ export const ENTITIES: readonly EntityInfo[] = (entityData.entities as RawEntity
 export function entityForTool(tool: string): EntityInfo | undefined {
   return ENTITIES.find((entity) => entity.tool === tool);
 }
+
+/** Tools that do something without placing a machine. Everything else has to exist in
+ *  the data to be real. */
+const TOOLS_WITHOUT_MACHINES = ['draw', 'erase'];
+
+/**
+ * Whether this tool actually does anything yet.
+ *
+ * Derived rather than listed: a tool is built when it draws, erases, or resolves to a
+ * machine in `data/entities.json`. Adding a belt there makes the belt tool live with no
+ * edit here — and until then the tool column can say so rather than pretending.
+ */
+export function isToolBuilt(tool: string): boolean {
+  return TOOLS_WITHOUT_MACHINES.includes(tool) || entityForTool(tool) !== undefined;
+}

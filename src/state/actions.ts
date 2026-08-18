@@ -3,8 +3,9 @@
  *  will eventually own stays visible in one file. */
 
 import { spawnerSlotPrice, TILE_CELLS } from '../constants';
-import { canBeEmitted, elementByName, EMPTY_ELEMENT } from '../sim/elements';
-import { entityForTool } from '../sim/entities';
+import { constrainToAxis, placementRefusal, strokeTiles, toTile } from './build';
+import { elementByName, EMPTY_ELEMENT } from '../sim/elements';
+import { entityForTool, isToolBuilt } from '../sim/entities';
 import { MATERIALS } from './types';
 import type { Store } from './store';
 import type { DrawerName, GameState, Material, NoticeId, Tool, Vec2 } from './types';
@@ -18,8 +19,6 @@ export interface SimBridge {
   removeEntity(index: number): boolean;
   countOfKind(kind: number): number;
 }
-
-const toTile = (cell: number): number => Math.floor(cell / TILE_CELLS);
 
 /** Materials are element names, so these resolve straight out of the data file. */
 const MATERIAL_ELEMENTS: Record<Material, number> = Object.fromEntries(
@@ -36,8 +35,10 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
   };
 
   return {
-    /** Selection is instant, no transition. */
+    /** Selection is instant, no transition. A tool that does nothing yet cannot be
+     *  selected — being visibly not built is better than silently ignoring clicks. */
     selectTool(tool: Tool): void {
+      if (!isToolBuilt(tool)) return;
       patchUi({ selectedTool: tool });
     },
 
@@ -101,21 +102,19 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
      * the player buy their way out with geometry.
      */
     placeMachine(world: Vec2): void {
-      const { economy, ui } = store.state;
+      const { ui } = store.state;
       const machine = entityForTool(ui.selectedTool);
       if (!machine) return;
 
-      const emitting = ui.selectedTool === 'spawner';
-      if (emitting && economy.spawnersOwned >= economy.spawnersMax) return;
+      // The same rule the ghost previews, so what you see is what happens.
+      if (placementRefusal(store.state) !== null) return;
 
       // An emitter works on the selected material; a collector eats whatever falls in,
       // so it carries none.
       let element = EMPTY_ELEMENT;
-      if (emitting) {
+      if (ui.selectedTool === 'spawner') {
         element = MATERIAL_ELEMENTS[ui.selectedMaterial];
         if (element === undefined) return;
-        // A wall emitter is nonsense: solids do not flow, so there is nothing to emit.
-        if (!canBeEmitted(elementByName(ui.selectedMaterial))) return;
       }
 
       if (!sim.placeEntity(machine.id, toTile(world.x), toTile(world.y), element)) return;
@@ -191,6 +190,18 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
       patchUi({ selection: null });
     },
 
+    /**
+     * Reports what the pointer is doing to the world, so the ghost can draw it.
+     *
+     * `anchor` is where a shift-constrained stroke began — that stroke previews and
+     * commits on release, so the ghost is the only thing showing it until then.
+     */
+    setStroke(anchor: Vec2 | null, painting: boolean): void {
+      const { ui } = store.state;
+      if (ui.strokeAnchor === anchor && ui.painting === painting) return;
+      patchUi({ strokeAnchor: anchor, painting });
+    },
+
     toggleTileGrid(): void {
       patchUi({ showTileGrid: !store.state.ui.showTileGrid });
     },
@@ -235,18 +246,10 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
         selectedTool === 'erase' ? EMPTY_ELEMENT : MATERIAL_ELEMENTS[selectedMaterial];
       if (element === undefined) return;
 
-      const start = { x: toTile(from.x), y: toTile(from.y) };
-      let end = { x: toTile(to.x), y: toTile(to.y) };
-      if (straight) {
-        // Resolved in tile space, so a constrained stroke lands on the grid like any
-        // other.
-        end =
-          Math.abs(end.x - start.x) >= Math.abs(end.y - start.y)
-            ? { x: end.x, y: start.y }
-            : { x: start.x, y: end.y };
-      }
-
-      sim.paintTiles(start, end, element);
+      // Resolved in tile space, so a constrained stroke lands on the grid like any
+      // other.
+      const { start, end } = strokeTiles(from, to);
+      sim.paintTiles(start, straight ? constrainToAxis(start, end) : end, element);
     },
 
     /** alt+click: adopt the material already under the cursor. */

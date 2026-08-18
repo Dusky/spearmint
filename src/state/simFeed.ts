@@ -1,6 +1,6 @@
 import { elementByName } from '../sim/elements';
 import { entityForTool } from '../sim/entities';
-import { READOUT_HZ } from '../constants';
+import { RATE_WINDOW_MS, READOUT_HZ } from '../constants';
 import type { GameState } from './types';
 import type { Sim } from '../sim/wasm';
 import type { Store } from './store';
@@ -24,11 +24,15 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
   const water = elementByName('water').id;
   const wetSand = elementByName('wetSand').id;
   const emitterKind = entityForTool('spawner')?.id ?? 0;
+  const collectorKind = entityForTool('collector')?.id ?? 0;
 
   let last = performance.now();
   let tickDebt = 0;
   let sinceReadout = 0;
-  let previousCollected = 0;
+  /** Recent revenue samples, for a rate measured over a window rather than over one
+   *  readout. A single 250ms sample reads zero often enough in a working factory to
+   *  make both the rate and the panel's diagnosis flicker. */
+  const revenue: { at: number; collected: number }[] = [];
   let frame = 0;
 
   const loop = (now: number): void => {
@@ -45,7 +49,6 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
 
     sinceReadout += elapsed;
     if (sinceReadout < readoutMs) return;
-    const seconds = sinceReadout / 1000;
     sinceReadout = 0;
 
     const sandCells = sim.count(sand);
@@ -56,8 +59,11 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
     // product out of the world. Spending is the client's ledger until there is a
     // server (spec 8.1), so the balance is the difference.
     const collected = sim.collected;
-    const goldRate = (collected - previousCollected) / seconds;
-    previousCollected = collected;
+    revenue.push({ at: now, collected });
+    while (revenue.length > 1 && now - (revenue[0]?.at ?? now) > RATE_WINDOW_MS) revenue.shift();
+    const oldest = revenue[0] ?? { at: now, collected };
+    const span = (now - oldest.at) / 1000;
+    const goldRate = span > 0 ? (collected - oldest.collected) / span : 0;
 
     store.update((state) => ({
       ...state,
@@ -67,6 +73,7 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
         gold: collected - state.economy.spent,
         goldRate,
         spawnersOwned: sim.countOfKind(emitterKind),
+        collectorsOwned: sim.countOfKind(collectorKind),
       },
       readout: {
         yieldCurrent: washable > 0 ? wetCells / washable : 0,

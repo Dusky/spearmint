@@ -2,6 +2,7 @@ import { MATERIALS, TOOLS } from '../state/types';
 import type { Component } from './component';
 import type { GameState, Material, Tool } from '../state/types';
 import { canBeEmitted, elementByName } from '../sim/elements';
+import { isToolBuilt } from '../sim/entities';
 import { TILE_CELLS } from '../constants';
 import { el, setClass } from './dom';
 
@@ -31,13 +32,18 @@ export function createToolColumn(actions: ToolColumnActions): Component {
   const swatches = new Map<Material, HTMLElement>();
 
   const rows = TOOLS.map((tool, index) => {
-    const row = el('div', { class: 'tool-row' }, [
+    // Unbuilt tools are shown rather than hidden — the shape of the game is part of the
+    // design — but they do not respond, because a tool that silently ignores clicks is
+    // worse than one that is visibly not finished.
+    const built = isToolBuilt(tool);
+    const row = el('div', { class: built ? 'tool-row' : 'tool-row tool-row--unbuilt' }, [
       // Glyphs are plain CSS boxes — no icon font, no SVG.
       el('div', { class: `glyph glyph--${tool}` }),
       el('span', {}, [TOOL_LABELS[tool]]),
       // Hotkeys are the row order.
       el('span', { class: 'tool-row__hotkey' }, [String(index + 1)]),
     ]);
+    if (!built) row.title = 'not built yet';
     row.addEventListener('pointerdown', () => actions.selectTool(tool));
     toolRows.set(tool, row);
     return row;

@@ -266,6 +266,13 @@ body {
   border: 1px dashed var(--text-faint-dimmer);
 }
 
+/* A tool that does not exist yet. Same .45 the capability drawer uses for something
+   you cannot have. */
+.tool-row--unbuilt {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .tool-column__rule {
   margin: 14px 14px 10px;
   height: 1px;
@@ -344,6 +351,23 @@ body {
 }
 
 /* ── Selection marquee ────────────────────────────────────────────────── */
+
+/* What the next click will do, drawn before it does it. Quieter than the marquee,
+   which marks something that exists — this marks something that does not yet. */
+.ghost {
+  position: absolute;
+  border: 1px solid rgba(234, 233, 229, 0.5);
+  background: rgba(234, 233, 229, 0.06);
+  pointer-events: none;
+}
+
+/* Refused placement. Dashed rather than red: nothing has gone wrong, the click simply
+   will not do anything. */
+.ghost--refused {
+  border-style: dashed;
+  border-color: rgba(234, 233, 229, 0.26);
+  background: none;
+}
 
 .marquee {
   position: absolute;

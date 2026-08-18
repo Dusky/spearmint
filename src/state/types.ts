@@ -59,6 +59,9 @@ export interface EconomyState {
   readonly goldRate: number;
   readonly spawnersOwned: number;
   readonly spawnersMax: number;
+  /** Collectors are uncapped — the cap that matters is on input (spec 3.4) — but the
+   *  panel needs to know whether there is one at all to explain flat gold. */
+  readonly collectorsOwned: number;
   /** Gold spent on capacity. Kept rather than folded into `gold` because the sim owns
    *  revenue and the economy owns the ledger — the split the server will inherit. */
   readonly spent: number;
@@ -164,6 +167,14 @@ export interface UiState {
   /** Last known cursor position in world cells. Retained when the pointer leaves the
    *  viewport so the status bar readout does not blank out mid-drag. */
   readonly cursor: Vec2;
+  /** Where a shift-constrained stroke started, while one is in progress.
+   *
+   *  A constrained stroke previews rather than painting as it goes, so something has to
+   *  hold the anchor for the ghost to draw from. Null the rest of the time. */
+  readonly strokeAnchor: Vec2 | null;
+  /** Suppresses the ghost while a free stroke is being painted — the paint is the
+   *  feedback then, and a box under the cursor is just noise. */
+  readonly painting: boolean;
   /** Which overlay drawer is open. Only one at a time. */
   readonly openDrawer: DrawerName | null;
 }

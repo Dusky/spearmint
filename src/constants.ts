@@ -12,6 +12,11 @@ export const DEFAULT_ZOOM = 4;
  *  updates. */
 export const READOUT_HZ = 4;
 
+/** How far back the gold rate looks. Long enough that a working factory never reads
+ *  zero between mouthfuls — the panel treats a zero rate as "product is not reaching a
+ *  collector", and that has to mean it. */
+export const RATE_WINDOW_MS = 2000;
+
 /** Spawner slots the player starts with. The cap on spawners is the game's only hard
  *  limit on production (spec 3.4). */
 export const BASE_SPAWNERS = 5;

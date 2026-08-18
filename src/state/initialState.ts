@@ -113,6 +113,8 @@ export function initialState(): GameState {
         zoom: DEFAULT_ZOOM,
       },
       cursor: { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 },
+      strokeAnchor: null,
+      painting: false,
       openDrawer: null,
     },
     // Gold, the rate and the spawner count are all measured from the simulation once
@@ -122,6 +124,7 @@ export function initialState(): GameState {
       gold: 0,
       goldRate: 0,
       spawnersOwned: 0,
+      collectorsOwned: 0,
       spawnersMax: BASE_SPAWNERS,
       spent: 0,
       blueprintSlots: 4,

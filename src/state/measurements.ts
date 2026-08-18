@@ -60,6 +60,14 @@ export function diagnose(state: GameState): string {
   if (readout.water === 0) {
     return 'No water. Sand alone cannot be washed.';
   }
+  // Gold before contact: product that exists and is not being sold is the more
+  // actionable problem, and the one with no feedback anywhere else on screen.
+  if (readout.wetSand > 0 && state.economy.collectorsOwned === 0) {
+    return 'Washed sand is piling up with nowhere to go. Gold only moves when product reaches a collector.';
+  }
+  if (readout.wetSand > 0 && state.economy.goldRate === 0) {
+    return 'Product is not reaching a collector. Check that it can fall in, and that the collector has a floor under it — anything that falls through is gone.';
+  }
   if (readout.contactArea === 0) {
     return readout.wetSand > 0
       ? 'Sand and water have stopped touching — washed sand has settled between them. Keep them mixing, or take the product out.'
