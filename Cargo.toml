@@ -7,3 +7,13 @@ version = "0.1.0"
 edition = "2021"
 license = "UNLICENSED"
 publish = false
+
+# The sim is integer-heavy and the determinism tests run tens of millions of cell
+# visits, which an unoptimised build turns into minutes. Optimising the dev and test
+# profiles keeps `cargo test` quick while leaving `debug-assertions` on — and those
+# assertions include integer overflow checks, which matter more here than usual.
+[profile.dev]
+opt-level = 2
+
+[profile.test]
+opt-level = 2

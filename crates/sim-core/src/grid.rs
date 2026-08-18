@@ -4,6 +4,7 @@
 //! boundary: a typed array the renderer can view directly without copying per frame.
 
 use crate::elements::{ElementId, EMPTY};
+use crate::field::{Bounds, CellField};
 
 /// Cells outside the grid behave as immovable boundary, so a closed world stays closed
 /// and nothing falls out of it. Milestone 2 replaces this with real chunk neighbours.
@@ -52,50 +53,66 @@ impl Grid {
         }
     }
 
-    /// `None` outside the grid — callers must decide what the boundary means rather
-    /// than silently reading empty space.
-    pub fn get(&self, x: i32, y: i32) -> Option<ElementId> {
-        self.index(x, y).map(|index| self.cells[index])
-    }
-
-    /// Returns false if the position is outside the grid.
-    pub fn set(&mut self, x: i32, y: i32, id: ElementId) -> bool {
-        match self.index(x, y) {
-            Some(index) => {
-                self.cells[index] = id;
-                true
-            }
-            None => false,
-        }
-    }
-
-    pub fn fill_rect(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, id: ElementId) {
-        for y in y0..=y1 {
-            for x in x0..=x1 {
-                self.set(x, y, id);
-            }
-        }
-    }
-
     pub fn count_of(&self, id: ElementId) -> usize {
         self.cells.iter().filter(|&&cell| cell == id).count()
     }
 
-    /// Exchanges two cells. Movement is *always* a swap and never a write-plus-clear,
-    /// so no rule can create or destroy a particle by accident (spec 1.1).
-    pub fn swap(&mut self, a: usize, b: usize) {
+    fn swap_indices(&mut self, a: usize, b: usize) {
         self.cells.swap(a, b);
     }
 
-    pub fn is_moved(&self, index: usize) -> bool {
+    fn moved_at(&self, index: usize) -> bool {
         self.moved[index / 64] & (1 << (index % 64)) != 0
     }
 
-    pub fn mark_moved(&mut self, index: usize) {
+    fn mark_moved_at(&mut self, index: usize) {
         self.moved[index / 64] |= 1 << (index % 64);
     }
+}
 
-    pub fn clear_moved(&mut self) {
+/// The reference implementation. A fixed rectangle with impassable edges — which is
+/// what makes the closed-box conservation test meaningful, and what the chunked world
+/// is measured against.
+impl CellField for Grid {
+    fn get(&self, x: i32, y: i32) -> Option<ElementId> {
+        self.index(x, y).map(|index| self.cells[index])
+    }
+
+    fn set(&mut self, x: i32, y: i32, id: ElementId) {
+        if let Some(index) = self.index(x, y) {
+            self.cells[index] = id;
+        }
+    }
+
+    fn swap(&mut self, ax: i32, ay: i32, bx: i32, by: i32) {
+        if let (Some(a), Some(b)) = (self.index(ax, ay), self.index(bx, by)) {
+            self.swap_indices(a, b);
+        }
+    }
+
+    fn is_moved(&self, x: i32, y: i32) -> bool {
+        self.index(x, y).is_some_and(|index| self.moved_at(index))
+    }
+
+    fn mark_moved(&mut self, x: i32, y: i32) {
+        if let Some(index) = self.index(x, y) {
+            self.mark_moved_at(index);
+        }
+    }
+
+    fn clear_moved(&mut self) {
         self.moved.fill(0);
+    }
+
+    fn bounds(&self) -> Option<Bounds> {
+        if self.width == 0 || self.height == 0 {
+            return None;
+        }
+        Some(Bounds {
+            min_x: 0,
+            min_y: 0,
+            max_x: self.width as i32 - 1,
+            max_y: self.height as i32 - 1,
+        })
     }
 }

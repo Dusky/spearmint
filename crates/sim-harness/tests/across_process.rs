@@ -54,3 +54,16 @@ fn more_ticks_change_the_world() {
     ]);
     assert_ne!(early.trim(), later.trim());
 }
+
+/// The two storage backends must agree through the binary as well, not only inside a
+/// test process — this is the same claim `chunk_equivalence.rs` makes, checked
+/// end-to-end against the tool a verifier would actually run.
+#[test]
+fn chunked_and_flat_agree() {
+    let base = [
+        "--seed", "0x4f2a11", "--ticks", "800", "--width", "96", "--height", "72",
+    ];
+    let chunked = run(&base);
+    let flat = run(&[&base[..], &["--flat"]].concat());
+    assert_eq!(chunked.trim(), flat.trim(), "storage changed the world");
+}

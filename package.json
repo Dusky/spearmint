@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "sim:test": "cargo test --workspace",
     "sim:check": "cargo clippy --workspace --all-targets -- -D warnings",
-    "sim:run": "cargo run --release -p sim-harness --bin sim-hash --"
+    "sim:run": "cargo run --release -p sim-harness --bin sim-hash --",
+    "sim:bench": "cargo run --release -p sim-harness --bin sim-hash -- --ticks 10000 --width 160 --height 120"
   },
   "devDependencies": {
     "typescript": "^5.6.3",

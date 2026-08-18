@@ -4,18 +4,18 @@
 //! contain has to be placed at tick zero — which is also what makes the conservation
 //! test meaningful: a closed box with a known census.
 //!
-//! Both the in-process tests and the `sim-hash` binary build the world from here. If
-//! they built it separately the cross-process comparison would prove nothing.
+//! One placement routine feeds both the flat and the chunked builder. If they laid out
+//! their worlds separately, the equivalence test between them could pass or fail for
+//! setup reasons rather than for anything to do with chunking.
 
-use crate::elements::ElementTable;
+use crate::elements::{ElementId, ElementTable, EMPTY};
+use crate::field::CellField;
 use crate::rng;
-use crate::world::World;
+use crate::world::{FlatWorld, World};
 
-/// Builds a closed box with some structure in it and a charge of sand and water.
-///
-/// Placement is hashed from the seed rather than drawn from a stream, so the same seed
-/// gives the same world on any machine, in any order.
-pub fn sandbox(width: u32, height: u32, seed: u64, table: &ElementTable) -> World {
+/// Places the sandbox: a closed box with some structure in it and a charge of sand and
+/// water, hashed from the seed rather than drawn from a stream.
+fn build(width: u32, height: u32, seed: u64, table: &ElementTable, field: &mut dyn CellField) {
     let wall = table
         .id_of("wall")
         .expect("scene requires a `wall` element");
@@ -26,30 +26,37 @@ pub fn sandbox(width: u32, height: u32, seed: u64, table: &ElementTable) -> Worl
         .id_of("water")
         .expect("scene requires a `water` element");
 
-    let mut world = World::new(width, height, seed, table.clone());
-    let grid = world.grid_mut();
     let right = width as i32 - 1;
     let bottom = height as i32 - 1;
 
-    // A one-cell frame. Nothing enters or leaves.
-    grid.fill_rect(0, 0, right, 0, wall);
-    grid.fill_rect(0, bottom, right, bottom, wall);
-    grid.fill_rect(0, 0, 0, bottom, wall);
-    grid.fill_rect(right, 0, right, bottom, wall);
+    let fill = |field: &mut dyn CellField, x0: i32, y0: i32, x1: i32, y1: i32, id: ElementId| {
+        for y in y0..=y1 {
+            for x in x0..=x1 {
+                field.set(x, y, id);
+            }
+        }
+    };
 
-    // Two ledges and a divider, so material has to find its way around something
-    // rather than settling into one flat layer.
+    // A one-cell frame. Nothing enters or leaves — which on an infinite canvas is the
+    // only reason the chunked world stays bounded too.
+    fill(field, 0, 0, right, 0, wall);
+    fill(field, 0, bottom, right, bottom, wall);
+    fill(field, 0, 0, 0, bottom, wall);
+    fill(field, right, 0, right, bottom, wall);
+
+    // Two ledges and a divider, so material has to find its way around something rather
+    // than settling into one flat layer.
     let third = right / 3;
     let two_thirds = 2 * right / 3;
-    grid.fill_rect(2, bottom / 2, third, bottom / 2, wall);
-    grid.fill_rect(two_thirds, bottom / 3, right - 2, bottom / 3, wall);
-    grid.fill_rect(third + 4, bottom / 2, third + 4, bottom - 1, wall);
+    fill(field, 2, bottom / 2, third, bottom / 2, wall);
+    fill(field, two_thirds, bottom / 3, right - 2, bottom / 3, wall);
+    fill(field, third + 4, bottom / 2, third + 4, bottom - 1, wall);
 
     // A charge of material across the top third, mixed by position hash.
     let fill_bottom = bottom / 3;
     for y in 1..fill_bottom {
         for x in 1..right {
-            if grid.get(x, y) != Some(crate::elements::EMPTY) {
+            if field.get(x, y) != Some(EMPTY) {
                 continue;
             }
             // Coarse blocks rather than per-cell noise, so the two materials arrive in
@@ -62,9 +69,21 @@ pub fn sandbox(width: u32, height: u32, seed: u64, table: &ElementTable) -> Worl
             } else {
                 continue;
             };
-            grid.set(x, y, id);
+            field.set(x, y, id);
         }
     }
+}
 
+/// The sandbox on chunked storage.
+pub fn sandbox(width: u32, height: u32, seed: u64, table: &ElementTable) -> World {
+    let mut world = World::new(seed, table.clone());
+    build(width, height, seed, table, world.field_mut());
+    world
+}
+
+/// The same sandbox on the flat reference storage.
+pub fn sandbox_flat(width: u32, height: u32, seed: u64, table: &ElementTable) -> FlatWorld {
+    let mut world = FlatWorld::new(width, height, seed, table.clone());
+    build(width, height, seed, table, world.field_mut());
     world
 }

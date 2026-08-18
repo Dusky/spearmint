@@ -18,7 +18,9 @@
 #![deny(clippy::float_arithmetic)]
 #![warn(missing_debug_implementations)]
 
+pub mod chunk;
 pub mod elements;
+pub mod field;
 pub mod fixed;
 pub mod grid;
 pub mod hash;
@@ -28,7 +30,9 @@ pub mod scene;
 pub mod step;
 pub mod world;
 
+pub use chunk::ChunkMap;
 pub use elements::{DataError, Element, ElementId, ElementTable, State, EMPTY};
+pub use field::{Bounds, CellField};
 pub use fixed::Fixed;
 pub use grid::Grid;
-pub use world::World;
+pub use world::{FlatWorld, World};

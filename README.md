@@ -7,13 +7,13 @@ client was built from.
 
 Two pieces exist so far, and they are not yet connected to each other:
 
-- **The simulation core** (`crates/sim-core`) — Milestone 1 of spec §10. Headless,
-  deterministic, and proven so. Sand, water and wall; no belts, no economy, no
-  rendering.
+- **The simulation core** (`crates/sim-core`) — Milestone 1 and 2a of spec §10.
+  Headless, deterministic, and proven so, now on sparse chunks over an unbounded
+  canvas. Sand, water and wall; no belts, no economy, no rendering.
 - **The HUD shell** (`src/`) — the interface from the design handoff, real and typed,
   with a placeholder standing in for the world behind it.
 
-Wiring them together is Milestone 2's job and has deliberately not been started: §10 is
+Wiring them together is Milestone 2d's job and has deliberately not been started: §10 is
 explicit that nothing lands on top of the sim until its determinism test passes
 reliably.
 
@@ -58,6 +58,33 @@ crate carries its own JSON reader, which never interprets a number — it hands 
 raw text, and `Fixed::parse` converts it with integer arithmetic. That also keeps the
 core free of the dependency tree and platform coupling §8.3 rules out.
 
+### Chunking (Milestone 2a)
+
+Storage is sparse chunks keyed by position — 16×16 tiles each, defined in tiles rather
+than pixels so tile and chunk alignment cannot drift (§2.4). A chunk that never held
+anything is not stored, which is what makes the unbounded canvas of §2.1 affordable.
+
+**Chunking is storage and nothing else.** The tick still sweeps global rows bottom-up
+across the whole live region, exactly as the flat grid does, so chunk layout cannot
+influence the outcome. That is the point: it makes this step provably transparent, and
+it quarantines the genuinely risky change — sleeping, where *what gets visited* stops
+being a function of the world alone — into its own milestone.
+
+The gate is `chunk_equivalence.rs`: a chunked world and a flat one must agree cell for
+cell, across chunk seams, negative coordinates, and several seeds. Both run the *same*
+tick loop, generic over the `CellField` trait — two implementations of the rules
+agreeing would prove much less.
+
+That equivalence turns out to rest on the Milestone 1 RNG decision. The chunked sweep
+covers whole chunks, so it visits empty cells the flat sweep never sees; those cost
+nothing and change nothing, because an empty cell is skipped without consuming any
+randomness. With a streaming PRNG, every one of those extra visits would shift the
+sequence and the two worlds would diverge on the first tick.
+
+Sweeping whole chunks costs about 3× the flat world for the same scene. Dirty rects in
+2b are the answer; the fix for the other half — a tree lookup per cell access — is
+already in, as a one-entry chunk cache.
+
 ### What "deterministic" is backed by
 
 | Guarantee | How it is held |
@@ -70,9 +97,14 @@ core free of the dependency tree and platform coupling §8.3 rules out.
 | Rules never name an element | Physics dispatches on `state` — powder, liquid, solid — so adding an element is a data edit (§3.2) |
 
 The world hash is FNV-1a, hand-rolled: `DefaultHasher` seeds itself from system entropy
-per process and would fail the cross-process test for reasons unrelated to the sim.
-Debug and release builds produce identical hashes, and a pinned golden hash makes any
-change to the rules a decision rather than an accident.
+per process and would fail the cross-process test for reasons unrelated to the sim. It
+is canonical — keyed by absolute position, skipping empty cells — so a chunked world and
+a flat one can be compared directly despite storing their cells nothing alike.
+
+Debug and release builds produce identical hashes. A pinned golden hash makes any change
+to the rules a decision rather than an accident, and it is pinned against the flat
+world's original *structural* fingerprint: the move to chunked storage had to leave that
+number untouched, which is how the refactor was shown to change no behaviour.
 
 `sim-hash` is the harness binary. It exists for the cross-process test, for looking at a
 headless world (`--dump` prints it as text), and as the shape the server-side replay
@@ -104,11 +136,13 @@ crates/
     src/rng.rs              stateless position hash — the reason chunks can sleep later
     src/json.rs             minimal reader; numbers stay raw text
     src/elements.rs         element table + schema validation
-    src/grid.rs             flat cell bytes + a moved-this-tick bitset
+    src/field.rs            CellField: the storage interface the rules are written to
+    src/chunk.rs            sparse chunks over an unbounded canvas — the real storage
+    src/grid.rs             one flat array with hard edges — the reference oracle
     src/step.rs             the tick rules, dispatched on state and never on identity
-    src/world.rs            World: step, census, hash
-    src/scene.rs            the deterministic starting world tests and harness share
-    tests/                  determinism, conservation, no-floats, data, parsing
+    src/world.rs            World (chunked) and FlatWorld (reference)
+    src/scene.rs            the starting world both backends are built from
+    tests/                  determinism, chunk equivalence, conservation, no-floats
   sim-harness/              `sim-hash`: runs it headless, prints hashes, dumps worlds
 
 src/
@@ -205,21 +239,21 @@ was built first by request, then the core. Nothing in the client constrains the 
 the HUD reaches the world only through `SimSurface` and a readout struct — and nothing
 in the sim knows the client exists.
 
-Milestone 1's gate is now met, so Milestone 2 is unblocked: chunking, dirty-rect
-updates, viewport-gated sleeping, eviction, and the WebGL2 renderer that finally
-connects the two halves.
+Milestone 1's gate is met, and so is 2a's. What remains of Milestone 2: dirty rects and
+viewport-gated sleeping (2b), eviction once §2.4's open question is answered (2c), and
+the WebGL2 renderer that finally connects the two halves (2d).
 
-### Carried into Milestone 2
+### Carried forward
 
-Things Milestone 1 settled provisionally, that chunking will have to confront:
+Settled provisionally, and still open:
 
-- **Scan order across chunk boundaries.** Determinism today rests on one fixed
-  bottom-up sweep. Chunked updates need a fixed, reproducible order *between* chunks
-  and a defined rule for particles crossing a boundary mid-tick. The position-hashed
-  RNG removes one hazard here but not this one.
-- **The world is a fixed grid with immovable edges.** `Grid` treats out-of-bounds as
-  solid boundary, which is what makes the closed-box conservation test meaningful. The
-  infinite canvas of §2.1 replaces this.
+- **Scan order across chunk boundaries** is deferred rather than solved. 2a sidesteps it
+  entirely by keeping iteration a single global sweep, so there is no per-chunk order to
+  get wrong. Dirty rects and sleeping (2b) reintroduce the problem for real, and that is
+  where it has to be answered.
+- **Eviction is blocked on a design decision**, not an implementation one. It makes
+  world state depend on camera history, which collides with replay verification — see
+  §2.4 of the spec.
 - **Liquids spread one cell per tick** and never rise. Enough to level out and to let
   powders sink through, and slower than a real flow model; revisit when flow rate is
   something the game cares about.
@@ -227,3 +261,7 @@ Things Milestone 1 settled provisionally, that chunking will have to confront:
   are parsed, validated and stored, but nothing reads them until reactions exist.
 - **The `gas` state has rules for nothing.** No gas element is defined, so the tick
   loop leaves it alone rather than guessing at buoyancy.
+- **The flat world is kept deliberately.** It is the oracle the chunked world is
+  measured against, and its hard edges are what make "nothing escaped" a meaningful
+  claim — on an infinite canvas there is nowhere for escape to be observed. It should
+  outlive its apparent redundancy.
