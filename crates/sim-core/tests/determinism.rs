@@ -93,10 +93,13 @@ fn stepping_is_resumable() {
 #[test]
 fn golden_hash_is_unchanged() {
     const GOLDEN_SEED: u64 = 0x4f2a11;
-    // Pinned in Milestone 1, against the flat reference world and its structural
-    // fingerprint. Deliberately unchanged by the move to chunked storage: if chunking
-    // is transparent, this number must not move.
-    const GOLDEN: u64 = 0xb87b_be3a_234b_320d;
+    // Pinned against the flat reference world and its structural fingerprint.
+    //
+    // Re-pinned once, in the commit that stopped submerged liquid flowing sideways —
+    // a deliberate change to the rules, which is exactly the kind this test exists to
+    // make visible. It survived the move to chunked storage untouched, because that
+    // changed no behaviour.
+    const GOLDEN: u64 = 0x4b2e_a284_c154_8c1b;
 
     let actual = flat_structural_hash_after(GOLDEN_SEED, 128, 96, TICKS);
     assert_eq!(

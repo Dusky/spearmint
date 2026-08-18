@@ -147,6 +147,21 @@ fn step_liquid<F: CellField + ?Sized>(
         return;
     }
 
+    // Submerged liquid does not flow sideways.
+    //
+    // Without this, a cell deep inside a body of water still shuffles laterally, and
+    // every such move leaves a void behind. Gravity refills voids from above at the
+    // same rate they are created, so the body settles at about three-quarters density
+    // forever instead of packing. Restricting lateral flow to the surface lets the bulk
+    // fill in, and leaves spreading — which only the surface does anyway — intact.
+    if field
+        .get(x, y - 1)
+        .and_then(|above| table.get(above))
+        .is_some_and(|above| matches!(above.state, State::Liquid))
+    {
+        return;
+    }
+
     // One cell per tick. Slower to level out than a multi-cell scan, and cheaper and
     // simpler to reason about; revisit when flow rate is something the game cares about.
     let lateral = if rng::coin_flip(seed, tick, x, y, SALT_LATERAL) {
