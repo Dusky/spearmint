@@ -243,6 +243,15 @@ body {
   border: 1px solid var(--text-faint-dimmer);
 }
 
+/* A hopper: wide mouth, narrow throat. */
+.glyph--collector {
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 13px solid var(--text-faint-dimmer);
+}
+
 .glyph--teleport {
   width: 14px;
   height: 14px;
@@ -609,6 +618,19 @@ body {
 /* Unaffordable is the whole row at .45 — not greyed text, not disabled styling. */
 .capability-row--unaffordable {
   opacity: 0.45;
+}
+
+/* A row that actually buys something says so by responding to the pointer. */
+.capability-row--action {
+  cursor: pointer;
+}
+
+.capability-row--action:hover:not(.capability-row--unaffordable) {
+  background: var(--row-hover, rgba(234, 233, 229, 0.05));
+}
+
+.capability-row--unaffordable.capability-row--action {
+  cursor: default;
 }
 
 .capability-row__text {

@@ -13,7 +13,14 @@ use sim_core::scene;
 #[test]
 fn entity_types_load_from_data() {
     let rules = common::rules();
-    assert_eq!(rules.entities.len(), 1, "one machine so far: the emitter");
+    assert_eq!(rules.entities.len(), 2, "two machines: the emitter and the collector");
+
+    let collector = rules
+        .entities
+        .get(common::collector_kind())
+        .expect("the collector should be defined");
+    assert_eq!(collector.behaviour, sim_core::Behaviour::Collect);
+    assert!(collector.rate > 0, "a collector that eats nothing is useless");
 
     let emitter = rules
         .entities
@@ -35,7 +42,7 @@ fn an_entity_occupies_its_footprint() {
     assert_eq!(entity.top(), 4 * TILE_CELLS as i32);
     // It emits from the row below its own tile, so its sprite can fill the tile without
     // the emitted matter appearing inside it.
-    assert_eq!(entity.mouth(), 5 * TILE_CELLS as i32);
+    assert_eq!(entity.mouth(definition), 5 * TILE_CELLS as i32);
 
     assert!(entity.covers(definition, 3, 4));
     assert!(!entity.covers(definition, 3, 5));
@@ -129,7 +136,7 @@ fn an_emitter_reports_being_blocked() {
     for offset in 0..TILE_CELLS as i32 {
         world
             .field_mut()
-            .set(entity.left() + offset, entity.mouth(), wall);
+            .set(entity.left() + offset, entity.mouth(definition), wall);
     }
     assert!(entity.is_blocked(definition, world.field()));
 

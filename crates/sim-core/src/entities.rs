@@ -27,12 +27,17 @@ pub type EntityKind = u8;
 pub enum Behaviour {
     /// Introduces matter into the world. Spawners are the game's only input (spec 3.4).
     Emit,
+    /// Takes matter out of the world and pays for it. The one licensed sink: spec 1.1
+    /// allows the physics rules themselves to destroy a particle, and a machine that
+    /// consumes what falls into it is such a rule.
+    Collect,
 }
 
 impl Behaviour {
     fn parse(text: &str) -> Option<Behaviour> {
         match text {
             "emit" => Some(Behaviour::Emit),
+            "collect" => Some(Behaviour::Collect),
             _ => None,
         }
     }
@@ -69,10 +74,28 @@ impl Entity {
         self.tile_y * TILE_CELLS as i32
     }
 
-    /// The row an emitter's material appears in: immediately below its own tile, so the
-    /// sprite can fill the tile without emitted matter appearing inside it.
-    pub const fn mouth(&self) -> i32 {
-        (self.tile_y + 1) * TILE_CELLS as i32
+    /// The row an emitter's material appears in: immediately below its footprint, so
+    /// the sprite can fill the tile without emitted matter appearing inside it.
+    pub fn mouth(&self, definition: &EntityType) -> i32 {
+        (self.tile_y + definition.height_tiles as i32) * TILE_CELLS as i32
+    }
+
+    /// The cells inside the machine, which is where a collector takes from.
+    ///
+    /// A machine is not matter (spec 4.1), so nothing rests on top of one: material
+    /// falls straight *through* the tile. A collector therefore eats what is inside it
+    /// rather than what is stacked above it. Build it into a floor and it is a hopper;
+    /// leave the bottom open and product falls past, which is a routing mistake the
+    /// player can watch happen.
+    pub fn body(&self, definition: &EntityType) -> (i32, i32, i32, i32) {
+        let left = self.left();
+        let top = self.top();
+        (
+            left,
+            top,
+            left + definition.width_tiles as i32 * TILE_CELLS as i32 - 1,
+            top + definition.height_tiles as i32 * TILE_CELLS as i32 - 1,
+        )
     }
 
     /// Whether this covers a tile, accounting for a footprint wider than one.
@@ -83,17 +106,26 @@ impl Entity {
             && tile_y < self.tile_y + definition.height_tiles as i32
     }
 
-    /// Nothing can come out, because every cell it would emit into is occupied.
+    /// The machine cannot do its job, which for an emitter means every cell it would
+    /// emit into is occupied and for a collector means there is nothing to eat.
     ///
     /// Not a failure state — back-pressure is physical here as it is on belts (spec
-    /// 4.2), and a machine that has backed up into its own input is worth showing.
+    /// 4.2), and a machine that has backed up into its own input, or is being fed
+    /// nothing at all, is worth showing.
     pub fn is_blocked<F: CellField + ?Sized>(&self, definition: &EntityType, field: &F) -> bool {
-        if definition.behaviour != Behaviour::Emit {
-            return false;
+        match definition.behaviour {
+            Behaviour::Emit => {
+                let mouth = self.mouth(definition);
+                let span = definition.width_tiles as i32 * TILE_CELLS as i32;
+                (0..span).all(|offset| field.get(self.left() + offset, mouth) != Some(EMPTY))
+            }
+            Behaviour::Collect => {
+                let (x0, y0, x1, y1) = self.body(definition);
+                (y0..=y1).all(|y| {
+                    (x0..=x1).all(|x| field.get(x, y).unwrap_or(EMPTY) == EMPTY)
+                })
+            }
         }
-        let mouth = self.mouth();
-        let span = definition.width_tiles as i32 * TILE_CELLS as i32;
-        (0..span).all(|offset| field.get(self.left() + offset, mouth) != Some(EMPTY))
     }
 }
 
@@ -208,7 +240,8 @@ fn parse_entity(entry: &Json<'_>) -> Result<EntityType, DataError> {
     })
 }
 
-/// Runs every machine, in placement order.
+/// Runs every machine, in placement order, and returns what the collectors earned this
+/// tick.
 ///
 /// This is the one place behaviour dispatches. Adding a belt means adding an arm here
 /// and a row in the data file, and touching nothing else.
@@ -219,15 +252,18 @@ pub fn tick<F: CellField + ?Sized>(
     elements: &ElementTable,
     seed: u64,
     tick: u64,
-) {
+) -> u64 {
+    let mut earned = 0;
     for (index, entity) in entities.iter().enumerate() {
         let Some(definition) = types.get(entity.kind) else {
             continue;
         };
         match definition.behaviour {
             Behaviour::Emit => emit(field, entity, definition, elements, seed, tick, index),
+            Behaviour::Collect => earned += collect(field, entity, definition, elements),
         }
     }
+    earned
 }
 
 /// Introduces matter. A machine cannot force material into an occupied cell, so a
@@ -251,7 +287,7 @@ fn emit<F: CellField + ?Sized>(
         return;
     }
     let left = entity.left();
-    let mouth = entity.mouth();
+    let mouth = entity.mouth(definition);
     let span = definition.width_tiles * TILE_CELLS;
 
     for grain in 0..definition.rate {
@@ -268,4 +304,52 @@ fn emit<F: CellField + ?Sized>(
             field.mark_active(x, mouth);
         }
     }
+}
+
+/// Takes matter out of the world, and returns what it was worth.
+///
+/// A collector eats whatever falls into its mouth and pays each element's declared
+/// value, which is zero for everything that is not product. That is the whole reason
+/// routing matters: dumping unwashed sand into a collector destroys it for nothing.
+///
+/// Left to right, up to `rate` cells a tick — no randomness, because there is nothing
+/// here for it to decide.
+fn collect<F: CellField + ?Sized>(
+    field: &mut F,
+    entity: &Entity,
+    definition: &EntityType,
+    elements: &ElementTable,
+) -> u64 {
+    let (x0, y0, x1, y1) = entity.body(definition);
+
+    let mut earned = 0;
+    let mut taken = 0;
+    // Bottom row first: material that has fallen furthest into the machine is the
+    // material about to fall out of it.
+    for y in (y0..=y1).rev() {
+        for x in x0..=x1 {
+            if taken == definition.rate {
+                return earned;
+            }
+            let Some(id) = field.get(x, y) else {
+                continue;
+            };
+            let Some(element) = elements.get(id) else {
+                continue;
+            };
+            // Solids are structure, not throughput. A collector that ate walls would be
+            // a demolition tool, and erase already is one.
+            if id == EMPTY || element.state == State::Solid {
+                continue;
+            }
+
+            field.set(x, y, EMPTY);
+            // Removing a cell is not a move, so nothing else reports it — and a pile
+            // that stops being told it is settling stops feeding the collector.
+            field.mark_active(x, y);
+            earned += u64::from(element.value);
+            taken += 1;
+        }
+    }
+    earned
 }

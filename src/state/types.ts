@@ -7,7 +7,19 @@
  *    (§1.1) and there is no offline accrual to feed (§6), so the interface
  *    reports physical conditions and never a rate of production. */
 
-export const TOOLS = ['draw', 'erase', 'belt', 'spawner', 'teleport', 'blueprint'] as const;
+/* Collector sits next to spawner: they are the two ends of the loop and the two tools
+ * that currently do anything. That pushes teleport and blueprint down a key each from
+ * the handoff's 1-6, which is the lesser evil against a live tool below three dead
+ * ones. */
+export const TOOLS = [
+  'draw',
+  'erase',
+  'belt',
+  'spawner',
+  'collector',
+  'teleport',
+  'blueprint',
+] as const;
 export type Tool = (typeof TOOLS)[number];
 
 /**
@@ -41,11 +53,15 @@ export interface TileRect {
 
 /** Server-owned. Everything here is progression state, not physics. */
 export interface EconomyState {
+  /** The balance: everything collectors have earned, less what has been spent. */
   readonly gold: number;
   /** Gold per second, as observed by the client. Display only. */
   readonly goldRate: number;
   readonly spawnersOwned: number;
   readonly spawnersMax: number;
+  /** Gold spent on capacity. Kept rather than folded into `gold` because the sim owns
+   *  revenue and the economy owns the ledger — the split the server will inherit. */
+  readonly spent: number;
   readonly blueprintSlots: number;
   readonly purchasedUpgrades: readonly UpgradeId[];
 }

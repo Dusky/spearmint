@@ -376,6 +376,15 @@ pub extern "C" fn sim_entity_tile_y(index: u32) -> i32 {
 /// This is contact area in the literal sense — not a modelled parameter but a count of
 /// where the reaction can actually happen, which is what makes yield a property of the
 /// machine's shape (spec 3.3).
+/// Everything collectors have taken out of the world, in gold.
+///
+/// Revenue, not balance: what has been spent is progression state and belongs to the
+/// economy (spec 8.1), which the client holds until there is a server.
+#[no_mangle]
+pub extern "C" fn sim_collected() -> u32 {
+    with_state(0, |state| state.world.collected() as u32)
+}
+
 #[no_mangle]
 pub extern "C" fn sim_contact_area() -> u32 {
     with_state(0, |state| {

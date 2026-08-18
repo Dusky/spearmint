@@ -1,6 +1,7 @@
 # Vertical slice — scope
 
-**Status:** proposed, not started. Deliberately cuts across the milestone order in
+**Status:** built, unplayed. All six steps below are done; what is missing is the
+evidence they were built to produce. Deliberately cuts across the milestone order in
 [`SPEC.md`](SPEC.md) §10.
 
 ## Why
@@ -52,6 +53,20 @@ Sequenced so the riskiest and most informative parts come first.
 
 Steps 1–3 already produce a partial answer. If drawing into a live sim is unpleasant,
 stop there.
+
+**Built.** All six. The loop runs: draw a basin, spawn sand and water, watch them mix,
+and a collector set into the floor takes the product out for gold that buys more spawner
+capacity. Two things the build settled that the scope did not anticipate:
+
+- **A machine is not matter, so nothing rests on one.** A collector is fed by what falls
+  *into* it, and an open-bottomed one lets product fall straight through. Building it a
+  pocket of wall is the player's job, and getting that wrong is visible.
+- **Only product pays.** Value is a property of the element (`data/elements.json`), so a
+  collector under an unmixed stream destroys raw sand for nothing. Routing has a cost
+  for being wrong, which is what makes it a decision.
+
+What remains is the part no amount of building substitutes for: sitting down with it and
+finding out whether tuning a washer is satisfying or fiddly.
 
 ## Decisions
 
@@ -114,10 +129,9 @@ is provisional, and it sits behind a seam built for replacing it.
 
 ## Questions this will force
 
-- **Does selling destroy matter?** A collector converts product into gold, which means
-  particles leave the world. §1.1 says particles are never destroyed "outside of the
-  physics rules themselves" — a sink is arguably such a rule, but it is the first place
-  the pillar meets the economy and it should be decided rather than assumed.
+- ~~**Does selling destroy matter?**~~ **Answered: yes, and it is accounted for.** See
+  §1.1 — the pillar rules out *summarising*, not a machine consuming what falls into it.
+  A test asserts every cell that leaves the world was collected.
 - **What does a spawner look like to the player?** §3.4 makes spawners the entire input
   cap but says nothing about their form, footprint, or how output purity reads.
 - **What holds the world up?** (§3.6) The slice needs a floor. A scene-level container

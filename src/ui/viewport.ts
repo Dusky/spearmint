@@ -73,6 +73,11 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
 
   root.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
+    // Overlays — drawers, the inspector, the notice — are children of the viewport so
+    // they can sit over the canvas, which means their presses bubble here. A press on
+    // the HUD is not a press on the world, and before there was anything to click in a
+    // drawer this quietly placed machines underneath one.
+    if (event.target !== surface.canvas) return;
     const world = toWorld(event);
     lastPointer = { x: event.clientX, y: event.clientY };
     pointerClient = lastPointer;

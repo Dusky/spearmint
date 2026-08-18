@@ -2,7 +2,7 @@
  *  the components share one vocabulary, and the shape of what the sim and the server
  *  will eventually own stays visible in one file. */
 
-import { TILE_CELLS } from '../constants';
+import { spawnerSlotPrice, TILE_CELLS } from '../constants';
 import { canBeEmitted, elementByName, EMPTY_ELEMENT } from '../sim/elements';
 import { entityForTool } from '../sim/entities';
 import { MATERIALS } from './types';
@@ -70,7 +70,8 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
     press(world: Vec2): void {
       switch (store.state.ui.selectedTool) {
         case 'spawner':
-          this.placeSpawner(world);
+        case 'collector':
+          this.placeMachine(world);
           return;
         case 'erase':
           // Erase should erase. Removing an entity here rather than inventing a
@@ -85,26 +86,66 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
     },
 
     /**
-     * Places a spawner emitting the selected material.
+     * Places whatever machine the selected tool builds.
      *
-     * Spawner count is the game's only hard cap on production (spec 3.4), so this
-     * refuses past the limit rather than letting the player buy their way out with
-     * geometry.
+     * One path for every machine: the tool names it and the data says the rest, which
+     * is the whole point of entities being a table rather than a set of special cases.
+     * The only tool-specific rule is the spawner cap — spawner count is the game's one
+     * hard limit on production (spec 3.4), so this refuses past it rather than letting
+     * the player buy their way out with geometry.
      */
-    placeSpawner(world: Vec2): void {
+    placeMachine(world: Vec2): void {
       const { economy, ui } = store.state;
-      if (economy.spawnersOwned >= economy.spawnersMax) return;
-
-      const element = MATERIAL_ELEMENTS[ui.selectedMaterial];
       const machine = entityForTool(ui.selectedTool);
-      if (element === undefined || !machine) return;
-      // A wall emitter is nonsense: solids do not flow, so there is nothing to emit.
-      if (!canBeEmitted(elementByName(ui.selectedMaterial))) return;
+      if (!machine) return;
+
+      const emitting = ui.selectedTool === 'spawner';
+      if (emitting && economy.spawnersOwned >= economy.spawnersMax) return;
+
+      // An emitter works on the selected material; a collector eats whatever falls in,
+      // so it carries none.
+      let element = EMPTY_ELEMENT;
+      if (emitting) {
+        element = MATERIAL_ELEMENTS[ui.selectedMaterial];
+        if (element === undefined) return;
+        // A wall emitter is nonsense: solids do not flow, so there is nothing to emit.
+        if (!canBeEmitted(elementByName(ui.selectedMaterial))) return;
+      }
 
       if (!sim.placeEntity(machine.id, toTile(world.x), toTile(world.y), element)) return;
+      this.countMachines();
+    },
+
+    /**
+     * Buys one more spawner slot.
+     *
+     * The only thing gold does. Capacity, never placement (spec 3.4): where a spawner
+     * sits is free to change, and how many you may run is what costs.
+     */
+    buySpawnerSlot(): void {
+      const { economy } = store.state;
+      const price = spawnerSlotPrice(economy.spawnersMax);
+      if (economy.gold < price) return;
+
       store.update((state) => ({
         ...state,
-        economy: { ...state.economy, spawnersOwned: sim.countOfKind(machine.id) },
+        economy: {
+          ...state.economy,
+          gold: state.economy.gold - price,
+          spent: state.economy.spent + price,
+          spawnersMax: state.economy.spawnersMax + 1,
+        },
+      }));
+    },
+
+    /** Re-reads how many spawners exist. The sim is the register; the store mirrors it. */
+    countMachines(): void {
+      const spawner = entityForTool('spawner');
+      if (!spawner) return;
+      const spawnersOwned = sim.countOfKind(spawner.id);
+      store.update((state) => ({
+        ...state,
+        economy: { ...state.economy, spawnersOwned },
       }));
     },
 
@@ -121,14 +162,7 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
       if (index === null) return false;
 
       sim.removeEntity(index);
-      const machine = entityForTool('spawner');
-      store.update((state) => ({
-        ...state,
-        economy: {
-          ...state.economy,
-          spawnersOwned: machine ? sim.countOfKind(machine.id) : state.economy.spawnersOwned,
-        },
-      }));
+      this.countMachines();
       return true;
     },
 

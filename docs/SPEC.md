@@ -36,6 +36,18 @@ machine is something you drew.
    Particles are not created, destroyed, or summarised outside of the physics rules
    themselves. This constraint is load-bearing — see §2.4 and §6.
 
+**Selling destroys matter, and that is allowed.** The first place this pillar met the
+economy was the collector, and the question it forced — *does selling destroy matter?* —
+is answered yes. A collector consumes what falls into it and pays for it: it is a machine
+in the world, subject to gravity like everything else, and consuming what enters it is
+exactly the sort of rule the pillar leaves room for. What the pillar rules out is
+*summarising* — no offline accrual, no throughput number standing in for particles, no
+sink that pays for matter it never physically received.
+
+The line between the two is accounting, so it gets a test rather than a promise: every
+cell that leaves the world is on the books, pinned by
+`crates/sim-core/tests/collector.rs`.
+
 ---
 
 ## 2. World model
@@ -348,6 +360,17 @@ gold from feeling like an arbitrary second resource.
 Gold sinks: spawners, spawner upgrades, teleporters and teleporter range, blueprint
 slots, copy/paste unlocks, late-game buildings.
 
+**Built so far: spawner capacity, and nothing else.** One sink is legible where three
+would be noise, and it is the one the design already argues for — §3.4 makes spawner
+count the only hard limit on production, so widening it is the largest thing gold can do.
+The price doubles per slot.
+
+**Revenue is measured, the ledger is not.** The simulation counts what collectors have
+taken out of the world; what has been spent is progression state and stays with the
+economy, which §8.1 puts on the server. The client holds the difference. That split means
+a replay can be checked for how much it *earned* without the server having to trust the
+client's arithmetic.
+
 ### 5.3 Byproduct progression **[DECIDED]**
 
 Production chains emit byproducts that are useless at the tier where they first appear
@@ -458,6 +481,13 @@ hash + resource totals) mean the server never replays from tick zero.
 
 This makes the sim core's isolation a hard architectural requirement: no rendering, no
 platform APIs, no I/O inside it.
+
+**Gap, found while building the collector.** Nothing about the entity layer is in any
+hash. `canonical_hash` covers cells, tick and seed; machines, their placement, and the
+gold they have earned are all outside it. Two replays could therefore differ in revenue
+and agree on every checkpoint, which is precisely the case this section exists to catch.
+The fix is to fold entity state and the collected total into the checkpoint hash, and it
+is cheap — worth doing before checkpoints are signed rather than after.
 
 ### 8.4 Leaderboards **[OPEN]**
 

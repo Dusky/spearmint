@@ -34,6 +34,21 @@ pub fn emitter_kind() -> EntityKind {
         .expect("an `emitter` entity should be defined")
 }
 
+/// The collector's kind id, read from the data for the same reason.
+#[allow(dead_code)]
+pub fn collector_kind() -> EntityKind {
+    rules()
+        .entities
+        .id_of("collector")
+        .expect("a `collector` entity should be defined")
+}
+
+/// A collector on a tile. It eats whatever falls in, so it carries no element.
+#[allow(dead_code)]
+pub fn collector(tile_x: i32, tile_y: i32) -> Entity {
+    Entity::new(collector_kind(), tile_x, tile_y, sim_core::EMPTY)
+}
+
 /// An emitter on a tile, emitting one element.
 #[allow(dead_code)]
 pub fn emitter(tile_x: i32, tile_y: i32, element: u8) -> Entity {

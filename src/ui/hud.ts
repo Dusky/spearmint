@@ -29,7 +29,7 @@ export function createHud(surface: SimSurface, actions: Actions): Component {
   const marquee = createMarquee(viewport.root);
   const inspector = createInspector();
   const notice = createNotice({ dismiss: actions.dismissNotice });
-  const capability = createCapabilityDrawer();
+  const capability = createCapabilityDrawer(actions);
   const blueprints = createBlueprintsDrawer();
 
   const overlays = [marquee, inspector, notice, capability, blueprints];

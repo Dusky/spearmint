@@ -63,6 +63,10 @@ pub struct Element {
     pub color_variance: u8,
     pub flammability: Fixed,
     pub hardness: Fixed,
+    /// What a collector pays per cell of it. Zero for everything that is not a product,
+    /// which is what makes routing raw input into a collector a visible waste rather
+    /// than a neutral one.
+    pub value: u32,
 }
 
 /// Elements indexed by id. A `Vec` rather than a map: spec 3.1 forbids hash-map
@@ -168,6 +172,13 @@ fn parse_element(entry: &Json<'_>) -> Result<Element, DataError> {
         hardness: field("hardness")?
             .as_fixed()
             .ok_or_else(|| bad("hardness"))?,
+        // Optional: most elements are worth nothing, and saying so in every entry
+        // would be noise.
+        value: entry
+            .get("value")
+            .map(|value| value.as_i32().filter(|value| *value >= 0).ok_or(bad("value")))
+            .transpose()?
+            .unwrap_or(0) as u32,
     })
 }
 

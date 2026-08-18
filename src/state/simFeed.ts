@@ -28,7 +28,7 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
   let last = performance.now();
   let tickDebt = 0;
   let sinceReadout = 0;
-  let previousGold = 0;
+  let previousCollected = 0;
   let frame = 0;
 
   const loop = (now: number): void => {
@@ -52,18 +52,19 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
     const wetCells = sim.count(wetSand);
     const washable = sandCells + wetCells;
 
-    // Gold is washed sand, and nothing consumes it, so the count is also the running
-    // total ever produced. When there is somewhere to sell it, this stops being true.
-    const gold = wetCells;
-    const goldRate = (gold - previousGold) / seconds;
-    previousGold = gold;
+    // Revenue comes from the sim — only a collector makes gold, and only by taking
+    // product out of the world. Spending is the client's ledger until there is a
+    // server (spec 8.1), so the balance is the difference.
+    const collected = sim.collected;
+    const goldRate = (collected - previousCollected) / seconds;
+    previousCollected = collected;
 
     store.update((state) => ({
       ...state,
       tick: sim.tick,
       economy: {
         ...state.economy,
-        gold,
+        gold: collected - state.economy.spent,
         goldRate,
         spawnersOwned: sim.countOfKind(emitterKind),
       },

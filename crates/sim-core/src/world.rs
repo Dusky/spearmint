@@ -68,6 +68,7 @@ pub struct World {
     entities: Vec<Entity>,
     seed: u64,
     tick: u64,
+    collected: u64,
 }
 
 impl World {
@@ -78,6 +79,7 @@ impl World {
             entities: Vec::new(),
             seed,
             tick: 0,
+            collected: 0,
         }
     }
 
@@ -137,7 +139,7 @@ impl World {
     pub fn step(&mut self) {
         // Machines act first, then everything moves. Emitters are the only source of
         // matter (spec 3.4), so this is the whole input side of the game.
-        entities::tick(
+        self.collected += entities::tick(
             &mut self.field,
             &self.entities,
             &self.rules.entities,
@@ -197,6 +199,16 @@ impl World {
         self.field.awake_chunk_count()
     }
 
+    /// Everything collectors have taken out of the world, in gold.
+    ///
+    /// The sim owns *revenue*, not the balance: what has been spent is progression
+    /// state and belongs to the economy (spec 8.1), which is server-owned. Keeping the
+    /// split here means a replay can be checked for how much it earned without the
+    /// server having to trust the client's arithmetic.
+    pub fn collected(&self) -> u64 {
+        self.collected
+    }
+
     pub fn get(&self, x: i32, y: i32) -> ElementId {
         self.field.get(x, y).unwrap_or(EMPTY)
     }
@@ -230,6 +242,7 @@ pub struct FlatWorld {
     entities: Vec<Entity>,
     seed: u64,
     tick: u64,
+    collected: u64,
 }
 
 impl FlatWorld {
@@ -240,6 +253,7 @@ impl FlatWorld {
             entities: Vec::new(),
             seed,
             tick: 0,
+            collected: 0,
         }
     }
 
@@ -248,7 +262,7 @@ impl FlatWorld {
     }
 
     pub fn step(&mut self) {
-        entities::tick(
+        self.collected += entities::tick(
             &mut self.field,
             &self.entities,
             &self.rules.entities,
@@ -290,6 +304,16 @@ impl FlatWorld {
 
     pub fn field_mut(&mut self) -> &mut Grid {
         &mut self.field
+    }
+
+    /// Everything collectors have taken out of the world, in gold.
+    ///
+    /// The sim owns *revenue*, not the balance: what has been spent is progression
+    /// state and belongs to the economy (spec 8.1), which is server-owned. Keeping the
+    /// split here means a replay can be checked for how much it earned without the
+    /// server having to trust the client's arithmetic.
+    pub fn collected(&self) -> u64 {
+        self.collected
     }
 
     pub fn get(&self, x: i32, y: i32) -> ElementId {

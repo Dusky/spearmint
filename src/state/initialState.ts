@@ -7,7 +7,7 @@
  * Nothing here is a reference implementation of anything. The real readouts come from
  * the Rust/WASM sim and the real economy is server-owned (spec §8.1). */
 
-import { DEFAULT_ZOOM, TILE_CELLS } from '../constants';
+import { BASE_SPAWNERS, DEFAULT_ZOOM, TILE_CELLS } from '../constants';
 import type { Blueprint, GameState, ParticleKind } from './types';
 import { PARTICLE_KINDS } from './types';
 
@@ -122,33 +122,16 @@ export function initialState(): GameState {
       gold: 0,
       goldRate: 0,
       spawnersOwned: 0,
-      spawnersMax: 5,
+      spawnersMax: BASE_SPAWNERS,
+      spent: 0,
       blueprintSlots: 4,
       purchasedUpgrades: [],
     },
-    // PLACEHOLDER: purchasing needs the economy server.
-    upgrades: [
-      {
-        id: 'teleport-range-5',
-        title: 'Teleport range 4 → 5 cells',
-        description: 'Straight line only.',
-        price: 2400,
-      },
-      {
-        id: 'blueprint-slot-4',
-        title: 'Blueprint slot 3 → 4',
-        // NOTE: this copy answers spec open question 5 (paste fidelity) in favour of
-        // "physics actually matters". Flagged, not settled — see README.
-        description: 'Pasted machines obey local conditions.',
-        price: 1150,
-      },
-      {
-        id: 'spawner-4',
-        title: 'Spawner 4',
-        description: 'The only thing that raises your ceiling.',
-        price: 18000,
-      },
-    ],
+    /* Spawner capacity is bought from the capability drawer and priced from the cap
+     * itself, so it needs no row here. The rest of the upgrade list was placeholder
+     * copy for things that do not exist; a drawer showing one real purchase beats one
+     * showing three imaginary ones. */
+    upgrades: [],
     // PLACEHOLDER: blueprints are out of the slice entirely.
     blueprints: [washer(), settler(), slagDump()],
     // The marquee and the problem notice hide themselves until there is something real

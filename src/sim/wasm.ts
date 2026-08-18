@@ -17,6 +17,7 @@ interface SimExports {
   ): void;
   sim_get(x: number, y: number): number;
   sim_count(id: number): number;
+  sim_collected(): number;
   sim_chunk_count(): number;
   sim_awake_chunk_count(): number;
   sim_set_sleeping(enabled: number): void;
@@ -135,6 +136,12 @@ export class Sim {
   entityTile(index: number): { x: number; y: number } | null {
     const x = this.#exports.sim_entity_tile_x(index);
     return x === -2147483648 ? null : { x, y: this.#exports.sim_entity_tile_y(index) };
+  }
+
+  /** Everything collectors have taken out of the world, in gold. Revenue, not balance:
+   *  the sim never hears about spending. */
+  get collected(): number {
+    return this.#exports.sim_collected();
   }
 
   /** Cells where two reactants are touching. Walks the world, so read it at the

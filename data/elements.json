@@ -1,5 +1,7 @@
 {
   "note": "Element definitions live in data, not code. Adding an element means editing this file (spec 3.2). Ids are declared here and are permanent: they are baked into saves and world hashes, so reordering this list must never change behaviour. Id 0 is reserved for empty space.",
+
+  "valueNote": "`value` is what a collector pays per cell, and is absent for everything a collector should not reward. Only product is worth anything, so feeding a collector unwashed sand is a visible waste rather than a neutral one.",
   "elements": [
     {
       "id": 1,
@@ -51,7 +53,8 @@
       "color": "#8A7A52",
       "color_variance": 10,
       "flammability": 0.0,
-      "hardness": 0.55
+      "hardness": 0.55,
+      "value": 1
     }
   ],
   "reactions": [

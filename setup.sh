@@ -155,14 +155,18 @@ cat <<'INSTRUCTIONS'
 
     Once it is up, open the URL below and try this:
 
-      1. Draw two sloping walls into a basin        drag with the mouse (Draw, key 1)
-      2. Switch to the spawner tool                 key 4
-      3. Pick sand, click above the basin           first swatch, then click
-      4. Pick water, click above the other side     third swatch, then click
-      5. Watch the inspector on the right
+      1. Draw a basin with a one-tile gap in its floor   drag with the mouse (Draw, 1)
+      2. Drop a collector into the gap                   key 5, then click
+      3. Switch to the spawner tool                      key 4
+      4. Pick sand, click above the basin                second swatch, then click
+      5. Pick water, click just beside it                third swatch, then click
+      6. Watch the inspector, and the gold counter
 
-    Yield rises when sand and water actually touch. The panel tells you when they
-    do not — that is the whole loop, and the thing worth judging.
+    Yield rises when sand and water actually touch, and gold only moves when the
+    product they make reaches the collector. Raw sand falling in pays nothing. That
+    is the whole loop, and the thing worth judging.
+
+    Spend the gold on spawner capacity with `C`.
 
     Other keys:  2 erase · space+drag pan · G grid · alt+click pick material
     Stop with Ctrl-C.

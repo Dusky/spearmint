@@ -15,6 +15,7 @@ const TOOL_LABELS: Record<Tool, string> = {
   erase: 'Erase',
   belt: 'Belt',
   spawner: 'Spawner',
+  collector: 'Collector',
   teleport: 'Teleport',
   blueprint: 'Blueprint',
 };
@@ -34,7 +35,7 @@ export function createToolColumn(actions: ToolColumnActions): Component {
       // Glyphs are plain CSS boxes — no icon font, no SVG.
       el('div', { class: `glyph glyph--${tool}` }),
       el('span', {}, [TOOL_LABELS[tool]]),
-      // Hotkeys are the row order: 1–6.
+      // Hotkeys are the row order.
       el('span', { class: 'tool-row__hotkey' }, [String(index + 1)]),
     ]);
     row.addEventListener('pointerdown', () => actions.selectTool(tool));
