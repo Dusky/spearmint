@@ -15,7 +15,7 @@ use std::cell::RefCell;
 
 use sim_core::chunk::TILE_CELLS;
 use sim_core::field::CellField;
-use sim_core::{scene, ElementTable, Entity, Rules, World};
+use sim_core::{paint, scene, ElementTable, Entity, Rules, World};
 
 mod sprites;
 
@@ -250,22 +250,25 @@ fn blit(
     }
 }
 
-/// Paints a line of cells, as a drag does. `half_width` of 0 is a single cell.
+/// Paints a stroke of whole tiles, as a drag does.
+///
+/// Coordinates are tiles here, not cells: everything the player builds sits on the tile
+/// grid (spec 2.3). The rule itself lives in `sim_core::paint`.
 #[no_mangle]
-pub extern "C" fn sim_paint_line(x0: i32, y0: i32, x1: i32, y1: i32, id: u32, half_width: u32) {
+pub extern "C" fn sim_paint_tiles(
+    tile_x0: i32,
+    tile_y0: i32,
+    tile_x1: i32,
+    tile_y1: i32,
+    id: u32,
+) {
     with_state((), |state| {
-        let steps = (x1 - x0).abs().max((y1 - y0).abs()).max(1);
-        let half = half_width as i32;
-        for step in 0..=steps {
-            // Integer interpolation — the sim has no floats anywhere (spec 3.1).
-            let x = x0 + (x1 - x0) * step / steps;
-            let y = y0 + (y1 - y0) * step / steps;
-            for dy in -half..=half {
-                for dx in -half..=half {
-                    state.world.field_mut().set(x + dx, y + dy, id as u8);
-                }
-            }
-        }
+        paint::stroke(
+            state.world.field_mut(),
+            (tile_x0, tile_y0),
+            (tile_x1, tile_y1),
+            id as u8,
+        );
     });
 }
 

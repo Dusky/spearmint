@@ -11,7 +11,7 @@ import type { DrawerName, GameState, Material, NoticeId, Tool, Vec2 } from './ty
 
 /** What the actions need from the running simulation. */
 export interface SimBridge {
-  paintLine(from: Vec2, to: Vec2, element: number, halfWidth: number): void;
+  paintTiles(from: Vec2, to: Vec2, element: number): void;
   elementAt(x: number, y: number): number;
   placeEntity(kind: number, tileX: number, tileY: number, element: number): boolean;
   entityAt(x: number, y: number): number | null;
@@ -29,14 +29,6 @@ const MATERIAL_ELEMENTS: Record<Material, number> = Object.fromEntries(
 const MATERIAL_BY_ELEMENT = new Map<number, Material>(
   MATERIALS.map((material) => [MATERIAL_ELEMENTS[material], material]),
 );
-
-/** Cells from a tile's origin to its centre. Tiles are odd-sized so this is exact. */
-const TILE_CENTRE = (TILE_CELLS - 1) / 2;
-
-/** Snaps a world cell to the centre of the tile containing it. */
-function snapToTileCentre(cell: number): number {
-  return Math.floor(cell / TILE_CELLS) * TILE_CELLS + TILE_CENTRE;
-}
 
 export function createActions(store: Store<GameState>, sim: SimBridge) {
   const patchUi = (patch: Partial<GameState['ui']>): void => {
@@ -190,9 +182,10 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
     /**
      * Draws a stroke into the world.
      *
-     * Building happens on the tile grid, not per cell (spec 2.3), so both ends snap to
-     * tile centres and the brush is one tile across. Holding shift constrains the
-     * stroke to the axis it has travelled furthest along.
+     * Everything the player builds sits on the tile grid (spec 2.3), so a stroke is a
+     * line over *tiles* and each one it touches is filled completely. The tile is the
+     * brush; there is no partial tile. Holding shift constrains the stroke to whichever
+     * axis it has travelled furthest along.
      */
     paint(from: Vec2, to: Vec2, straight: boolean): void {
       const { selectedTool, selectedMaterial } = store.state.ui;
@@ -202,20 +195,18 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
         selectedTool === 'erase' ? EMPTY_ELEMENT : MATERIAL_ELEMENTS[selectedMaterial];
       if (element === undefined) return;
 
-      let end = to;
+      const start = { x: toTile(from.x), y: toTile(from.y) };
+      let end = { x: toTile(to.x), y: toTile(to.y) };
       if (straight) {
+        // Resolved in tile space, so a constrained stroke lands on the grid like any
+        // other.
         end =
-          Math.abs(to.x - from.x) >= Math.abs(to.y - from.y)
-            ? { x: to.x, y: from.y }
-            : { x: from.x, y: to.y };
+          Math.abs(end.x - start.x) >= Math.abs(end.y - start.y)
+            ? { x: end.x, y: start.y }
+            : { x: start.x, y: end.y };
       }
 
-      sim.paintLine(
-        { x: snapToTileCentre(from.x), y: snapToTileCentre(from.y) },
-        { x: snapToTileCentre(end.x), y: snapToTileCentre(end.y) },
-        element,
-        TILE_CENTRE,
-      );
+      sim.paintTiles(start, end, element);
     },
 
     /** alt+click: adopt the material already under the cursor. */

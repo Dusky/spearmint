@@ -8,13 +8,12 @@ interface SimExports {
   sim_step(ticks: number): void;
   sim_tick(): number;
   sim_render(originX: number, originY: number, width: number, height: number): number;
-  sim_paint_line(
-    x0: number,
-    y0: number,
-    x1: number,
-    y1: number,
+  sim_paint_tiles(
+    tileX0: number,
+    tileY0: number,
+    tileX1: number,
+    tileY1: number,
     id: number,
-    halfWidth: number,
   ): void;
   sim_get(x: number, y: number): number;
   sim_count(id: number): number;
@@ -87,13 +86,9 @@ export class Sim {
     return new Uint8ClampedArray(buffer, pointer, width * height * 4);
   }
 
-  paintLine(
-    from: { x: number; y: number },
-    to: { x: number; y: number },
-    element: number,
-    halfWidth: number,
-  ): void {
-    this.#exports.sim_paint_line(from.x, from.y, to.x, to.y, element, halfWidth);
+  /** Paints a stroke of whole tiles. Building is grid-aligned (spec 2.3). */
+  paintTiles(from: { x: number; y: number }, to: { x: number; y: number }, element: number): void {
+    this.#exports.sim_paint_tiles(from.x, from.y, to.x, to.y, element);
   }
 
   elementAt(x: number, y: number): number {

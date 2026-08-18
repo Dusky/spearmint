@@ -81,6 +81,17 @@ displaced; whether saving a factory means saving cells or tiles; and whether "dr
 
 Cheap to leave as it is for now, and worth deciding before saving is built.
 
+**Finding, from making walls tile-aligned.** *Placement* is now settled: a stroke is a
+line over tiles and each one it touches is filled completely, so a drawn wall is always a
+whole number of 9x9 tiles and building is one grid for machines and walls alike. That is
+half of what this section was asking about, and the cheap half.
+
+*Representation* is still open. A wall remains an element — cells that never move — and
+nothing stops a future rule from melting or displacing part of one, at which point a tile
+is partially filled and the world is off-grid again by another route. So the question is
+no longer "should the player be able to draw off-grid" (no, and they cannot) but "may the
+simulation take a wall apart cell by cell". Decide that with reactions, not before.
+
 ### 2.4 Chunking and sleeping **[DECIDED]**
 
 Chunks are defined in **tiles, not pixels**, so tile/chunk alignment never drifts.

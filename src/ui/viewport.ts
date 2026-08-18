@@ -1,7 +1,7 @@
 import { TILE_CELLS } from '../constants';
 import { el } from './dom';
 import type { Component } from './component';
-import type { GameState, Vec2 } from '../state/types';
+import type { GameState, Tool, Vec2 } from '../state/types';
 import type { SimSurface } from '../sim/surface';
 
 export interface ViewportActions {
@@ -23,6 +23,9 @@ export interface ViewportActions {
  * The canvas itself is behind SimSurface, so the WebGL2 renderer replaces the
  * placeholder without touching this file.
  */
+/** Tools that place something on the tile grid, and so want to see it. */
+const BUILD_TOOLS = new Set<Tool>(['draw', 'erase', 'spawner']);
+
 export function createViewport(surface: SimSurface, actions: ViewportActions): Component {
   const grid = el('div', { class: 'tile-grid' });
   const root = el('div', { class: 'viewport' }, [surface.canvas, grid]);
@@ -133,8 +136,12 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
         queueMicrotask(() => actions.moveCursor(worldAt(at.x, at.y)));
       }
 
-      grid.hidden = !state.ui.showTileGrid;
-      if (state.ui.showTileGrid) {
+      // Building is grid-based, so the grid shows itself while a build tool is held
+      // rather than being something the player has to know to switch on. `G` still
+      // toggles it for the tools that are not building anything.
+      const showGrid = state.ui.showTileGrid || BUILD_TOOLS.has(state.ui.selectedTool);
+      grid.hidden = !showGrid;
+      if (showGrid) {
         // One tile at the current zoom. The offset follows the camera so the grid
         // stays pinned to the world rather than to the screen.
         const pitch = TILE_CELLS * camera.zoom;

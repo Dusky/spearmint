@@ -26,6 +26,7 @@ pub mod fixed;
 pub mod grid;
 pub mod hash;
 pub mod json;
+pub mod paint;
 pub mod reactions;
 pub mod rng;
 pub mod rules;
