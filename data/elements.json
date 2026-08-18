@@ -1,0 +1,44 @@
+{
+  "note": "Element definitions live in data, not code. Adding an element means editing this file (spec 3.2). Ids are declared here and are permanent: they are baked into saves and world hashes, so reordering this list must never change behaviour. Id 0 is reserved for empty space.",
+  "elements": [
+    {
+      "id": 1,
+      "name": "wall",
+      "state": "solid",
+      "density": 2400,
+      "melting_point": 1900,
+      "boiling_point": 3200,
+      "thermal_conductivity": 0.15,
+      "color": "#5C5850",
+      "color_variance": 10,
+      "flammability": 0.0,
+      "hardness": 0.95
+    },
+    {
+      "id": 2,
+      "name": "sand",
+      "state": "powder",
+      "density": 1600,
+      "melting_point": 1986,
+      "boiling_point": 2503,
+      "thermal_conductivity": 0.27,
+      "color": "#C8A24A",
+      "color_variance": 10,
+      "flammability": 0.0,
+      "hardness": 0.6
+    },
+    {
+      "id": 3,
+      "name": "water",
+      "state": "liquid",
+      "density": 1000,
+      "melting_point": 273,
+      "boiling_point": 373,
+      "thermal_conductivity": 0.6,
+      "color": "#3E7FA8",
+      "color_variance": 10,
+      "flammability": 0.0,
+      "hardness": 0.0
+    }
+  ]
+}

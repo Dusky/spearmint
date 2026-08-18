@@ -1,0 +1,5 @@
+# A project whose premise is byte-identical output across machines should not float
+# its compiler. Bump this deliberately, and re-pin the golden hash if it ever moves.
+[toolchain]
+channel = "1.94"
+components = ["clippy", "rustfmt"]

@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "sim:test": "cargo test --workspace",
+    "sim:check": "cargo clippy --workspace --all-targets -- -D warnings",
+    "sim:run": "cargo run --release -p sim-harness --bin sim-hash --"
   },
   "devDependencies": {
     "typescript": "^5.6.3",

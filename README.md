@@ -5,21 +5,78 @@ An incremental factory game built on a side-on falling-sand particle simulation.
 [`design/particle-factory-ui/`](design/particle-factory-ui/) for the UI handoff this
 client was built from.
 
-**What exists today: the in-game HUD shell.** There is no simulation, no economy
-server, and no belts. The chrome is real, typed, and pixel-faithful to the handoff;
-the world behind it is a placeholder.
+Two pieces exist so far, and they are not yet connected to each other:
+
+- **The simulation core** (`crates/sim-core`) — Milestone 1 of spec §10. Headless,
+  deterministic, and proven so. Sand, water and wall; no belts, no economy, no
+  rendering.
+- **The HUD shell** (`src/`) — the interface from the design handoff, real and typed,
+  with a placeholder standing in for the world behind it.
+
+Wiring them together is Milestone 2's job and has deliberately not been started: §10 is
+explicit that nothing lands on top of the sim until its determinism test passes
+reliably.
 
 ## Running it
 
 ```sh
+# The simulation
+cargo test --workspace      # or: npm run sim:test
+cargo clippy --workspace --all-targets -- -D warnings
+npm run sim:run -- --seed 0x4f2a11 --ticks 5000 --width 80 --height 50 --dump
+
+# The client
 npm install
-npm run dev        # http://localhost:5173
-npm run build      # typecheck + production build
-npm run typecheck
+npm run dev                 # http://localhost:5173
+npm run build               # typecheck + production build
 ```
 
-Fonts are self-hosted, as the handoff requires. `node scripts/fetch-fonts.mjs`
-regenerates `public/fonts/` and `src/styles/fonts.css` from Google Fonts.
+The Rust toolchain is pinned in `rust-toolchain.toml`. Fonts are self-hosted, as the
+handoff requires; `node scripts/fetch-fonts.mjs` regenerates `public/fonts/` and
+`src/styles/fonts.css`.
+
+## The simulation core
+
+Milestone 1 delivers exactly what spec §10 asks for: a fixed-point cell grid, a seeded
+PRNG, a tick loop, three elements loaded from JSON, and a determinism test that holds
+across runs, threads, and a process boundary.
+
+Two decisions in it are worth knowing about, because both were the non-obvious option.
+
+**Randomness is a pure function, not a stream.** The obvious implementation — one PRNG
+advanced as cells are visited — is deterministic today and breaks the moment chunks
+sleep (§2.4). A sleeping chunk draws no random numbers, so every cell after it would
+get a *different* value than in a session where that chunk stayed awake, and the world
+would diverge based on where the player was looking. Instead every draw is a hash of
+`(seed, tick, x, y)`, which makes results independent of visit order, chunk boundaries,
+sleeping, and any future threading — by construction rather than by discipline.
+
+**`sim-core` has no dependencies, including for JSON.** Every JSON library parses
+numbers as `f64`, so element data like `"thermal_conductivity": 0.27` would launder
+itself through a float on the way into a sim that §3.1 forbids from containing one. The
+crate carries its own JSON reader, which never interprets a number — it hands back the
+raw text, and `Fixed::parse` converts it with integer arithmetic. That also keeps the
+core free of the dependency tree and platform coupling §8.3 rules out.
+
+### What "deterministic" is backed by
+
+| Guarantee | How it is held |
+|---|---|
+| No floats | `#![deny(clippy::float_arithmetic)]` plus a test that reads the source. Both were mutation-checked: injecting a float fails each independently. |
+| No random state | Randomness is a position hash; there is nothing to advance |
+| No hash-map iteration | Element data lives in ordered `Vec`s; the JSON reader preserves member order |
+| No system entropy or clock | Nothing in the crate can reach either |
+| Nothing created or destroyed | Movement is always a swap, and a census test asserts it over 10,000 ticks (§1.1) |
+| Rules never name an element | Physics dispatches on `state` — powder, liquid, solid — so adding an element is a data edit (§3.2) |
+
+The world hash is FNV-1a, hand-rolled: `DefaultHasher` seeds itself from system entropy
+per process and would fail the cross-process test for reasons unrelated to the sim.
+Debug and release builds produce identical hashes, and a pinned golden hash makes any
+change to the rules a decision rather than an accident.
+
+`sim-hash` is the harness binary. It exists for the cross-process test, for looking at a
+headless world (`--dump` prints it as text), and as the shape the server-side replay
+verifier of §8.3 will take.
 
 ## Controls
 
@@ -40,6 +97,20 @@ regenerates `public/fonts/` and `src/styles/fonts.css` from Google Fonts.
 ## Layout
 
 ```
+data/elements.json          the element table — data, not code
+crates/
+  sim-core/                 the library. no I/O, no platform APIs, no dependencies
+    src/fixed.rs            Q16.16 fixed-point, parsed without ever touching a float
+    src/rng.rs              stateless position hash — the reason chunks can sleep later
+    src/json.rs             minimal reader; numbers stay raw text
+    src/elements.rs         element table + schema validation
+    src/grid.rs             flat cell bytes + a moved-this-tick bitset
+    src/step.rs             the tick rules, dispatched on state and never on identity
+    src/world.rs            World: step, census, hash
+    src/scene.rs            the deterministic starting world tests and harness share
+    tests/                  determinism, conservation, no-floats, data, parsing
+  sim-harness/              `sim-hash`: runs it headless, prints hashes, dumps worlds
+
 src/
   constants.ts              tile size, default zoom, readout rate
   state/
@@ -129,8 +200,30 @@ Rather than inventing answers:
 
 ## Note on build order
 
-Spec §10 says the first session should produce the deterministic sim core alone,
-headless, and that nothing should land on top of it until the determinism test passes.
-This HUD was built first by request. Nothing here constrains the sim — the HUD reaches
-the world only through `SimSurface` and a readout struct — but the sim core is still
-the unstarted foundation.
+Spec §10 puts the deterministic sim core first and everything else after it. The HUD
+was built first by request, then the core. Nothing in the client constrains the sim —
+the HUD reaches the world only through `SimSurface` and a readout struct — and nothing
+in the sim knows the client exists.
+
+Milestone 1's gate is now met, so Milestone 2 is unblocked: chunking, dirty-rect
+updates, viewport-gated sleeping, eviction, and the WebGL2 renderer that finally
+connects the two halves.
+
+### Carried into Milestone 2
+
+Things Milestone 1 settled provisionally, that chunking will have to confront:
+
+- **Scan order across chunk boundaries.** Determinism today rests on one fixed
+  bottom-up sweep. Chunked updates need a fixed, reproducible order *between* chunks
+  and a defined rule for particles crossing a boundary mid-tick. The position-hashed
+  RNG removes one hazard here but not this one.
+- **The world is a fixed grid with immovable edges.** `Grid` treats out-of-bounds as
+  solid boundary, which is what makes the closed-box conservation test meaningful. The
+  infinite canvas of §2.1 replaces this.
+- **Liquids spread one cell per tick** and never rise. Enough to level out and to let
+  powders sink through, and slower than a real flow model; revisit when flow rate is
+  something the game cares about.
+- **No temperature field yet.** Melting points, boiling points and thermal conductivity
+  are parsed, validated and stored, but nothing reads them until reactions exist.
+- **The `gas` state has rules for nothing.** No gas element is defined, so the tick
+  loop leaves it alone rather than guessing at buoyancy.

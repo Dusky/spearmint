@@ -1,0 +1,12 @@
+[package]
+name = "sim-core"
+description = "The Particle Factory simulation core. No rendering, no platform APIs, no I/O."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Deliberately empty. Spec 8.3 makes the core's isolation a hard architectural
+# requirement, and 3.1 forbids floats anywhere in the sim — which rules out every
+# JSON crate, since they all parse numbers as f64.
+[dependencies]
