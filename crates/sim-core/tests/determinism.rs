@@ -95,11 +95,12 @@ fn golden_hash_is_unchanged() {
     const GOLDEN_SEED: u64 = 0x4f2a11;
     // Pinned against the flat reference world and its structural fingerprint.
     //
-    // Re-pinned once, in the commit that stopped submerged liquid flowing sideways —
-    // a deliberate change to the rules, which is exactly the kind this test exists to
-    // make visible. It survived the move to chunked storage untouched, because that
-    // changed no behaviour.
-    const GOLDEN: u64 = 0x4b2e_a284_c154_8c1b;
+    // Re-pinned twice, both times alongside a deliberate change to the liquid rules:
+    // submerged liquid no longer flows sideways, and surface liquid now disperses
+    // several cells per tick. Making those changes visible is what this test is for.
+    // It survived the move to chunked storage untouched, because that changed no
+    // behaviour at all.
+    const GOLDEN: u64 = 0x2c4b_97a2_0cc0_889b;
 
     let actual = flat_structural_hash_after(GOLDEN_SEED, 128, 96, TICKS);
     assert_eq!(

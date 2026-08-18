@@ -5,7 +5,6 @@
 
 mod common;
 
-use sim_core::field::CellField;
 use sim_core::{scene, Spawner};
 
 fn tank(width: u32, height: u32, spawn_x: i32, rate: u32) -> sim_core::World {
@@ -55,7 +54,8 @@ fn a_body_of_liquid_packs_solid() {
 }
 
 /// Restricting lateral flow to the surface must not stop water finding its level —
-/// that is the whole point of it flowing at all.
+/// that is the whole point of it flowing at all. With multi-cell dispersion it should
+/// level essentially exactly, not merely approximately.
 #[test]
 fn liquid_still_finds_its_level() {
     let rules = common::rules_without_reactions();
@@ -73,7 +73,7 @@ fn liquid_still_finds_its_level() {
         "the tank barely filled: {near} deep at the source"
     );
     assert!(
-        near.abs_diff(far) <= 6,
+        near.abs_diff(far) <= 1,
         "water did not level out: {near} deep at the source, {far} at the far end"
     );
 }

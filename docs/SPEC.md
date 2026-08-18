@@ -194,11 +194,14 @@ sand. Pinned by `crates/sim-core/tests/liquids.rs`.
 **Termination: still open.** The surface continues to churn, so a world holding water
 never reaches a fixed point and chunk sleeping (§2.4) still cannot engage for it.
 
-This is less an open design question than it first appeared. The genre has solved it
-before: liquids in this kind of simulation generally get a multi-cell dispersion scan so
-they level quickly, and eventually a pressure field. That is the direction to take,
-rather than inventing a model — the reference point is Powder Toy, and Powder Toy water
-packs solid and settles.
+**Dispersion: done.** Surface liquid now scans several cells sideways and takes the
+furthest it can reach, stopping early where it could fall instead — the genre-standard
+approach. Water levels essentially exactly across a tank rather than lagging behind the
+pour, and it reads as a fluid.
+
+What is left of this question is narrower than it looked. Density and levelling are
+solved by following what the genre already does; only termination remains, and a
+pressure field is the usual next step.
 
 Still genuinely undecided: whether pressure becomes a real field, given §3.3 already
 counts it among the things reaction yield depends on.

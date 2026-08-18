@@ -162,17 +162,71 @@ fn step_liquid<F: CellField + ?Sized>(
         return;
     }
 
-    // One cell per tick. Slower to level out than a multi-cell scan, and cheaper and
-    // simpler to reason about; revisit when flow rate is something the game cares about.
-    let lateral = if rng::coin_flip(seed, tick, x, y, SALT_LATERAL) {
+    // Surface liquid disperses several cells per tick rather than one.
+    //
+    // At one cell per tick a pour takes as long to spread as the tank is wide, and the
+    // surface visibly lags behind where it should be. Scanning outward and taking the
+    // furthest clear cell is how the genre gets liquid to find its level promptly.
+    let first = if rng::coin_flip(seed, tick, x, y, SALT_LATERAL) {
         1
     } else {
         -1
     };
-    if try_move(field, table, element, x, y, x + lateral, y) {
-        return;
+    for direction in [first, -first] {
+        if let Some(target) = furthest_clear(field, table, element, x, y, direction) {
+            if try_move(field, table, element, x, y, target, y) {
+                return;
+            }
+        }
     }
-    try_move(field, table, element, x, y, x - lateral, y);
+}
+
+/// How far a liquid may travel sideways in one tick.
+const DISPERSION: i32 = 5;
+
+/// Scans outward and reports the furthest cell the liquid could occupy, stopping early
+/// at the first place it could fall from — water should drop into a gap rather than
+/// run past it.
+fn furthest_clear<F: CellField + ?Sized>(
+    field: &mut F,
+    table: &ElementTable,
+    element: &Element,
+    x: i32,
+    y: i32,
+    direction: i32,
+) -> Option<i32> {
+    let mut furthest = None;
+    for step in 1..=DISPERSION {
+        let candidate = x + direction * step;
+        if !can_occupy(field, table, element, candidate, y) {
+            break;
+        }
+        furthest = Some(candidate);
+        // Somewhere to fall: stop here rather than running past the gap.
+        if can_occupy(field, table, element, candidate, y + 1) {
+            break;
+        }
+    }
+    furthest
+}
+
+/// Whether `element` could move into this cell — empty, or a fluid it can displace.
+fn can_occupy<F: CellField + ?Sized>(
+    field: &mut F,
+    table: &ElementTable,
+    element: &Element,
+    x: i32,
+    y: i32,
+) -> bool {
+    let Some(occupant) = field.get(x, y) else {
+        return false;
+    };
+    if occupant == EMPTY {
+        return true;
+    }
+    table
+        .get(occupant)
+        .is_some_and(|target| displaces(element, target))
 }
 
 fn diagonal_order(seed: u64, tick: u64, x: i32, y: i32) -> (i32, i32) {
