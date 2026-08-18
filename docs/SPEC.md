@@ -84,6 +84,20 @@ canvas. At some distance threshold a chunk must be discarded entirely and re-set
 empty on return (consistent with §7.1). Decide the threshold and whether eviction is
 distance-based, LRU, or memory-pressure-based.
 
+**Eviction makes world state a function of camera history, and that collides with replay
+verification (§8.3).** Sleeping does not — a sleeping chunk resumes exactly — but an
+evicted one re-settles from empty, so two players with identical action logs diverge if
+one wandered far enough to trigger eviction and the other did not. All three candidate
+policies inherit this: distance-based and LRU both depend on where the player looked,
+and memory-pressure-based makes the world depend on the player's hardware, which cannot
+be replayed at all.
+
+Whatever policy is chosen must therefore be a deterministic function of simulation state
+and the logged inputs. That rules out memory pressure for anything the server verifies,
+and leaves three coherent directions: log camera movement as a replay input, tie eviction
+to something in-world rather than to the viewport, or scope verification to economy
+aggregates rather than world hashes.
+
 ---
 
 ## 3. Simulation
@@ -94,6 +108,13 @@ Same inputs must produce byte-identical output on every machine, every run.
 
 - **Integer or fixed-point math only.** No floats anywhere in the sim.
 - **Seeded PRNG owned by the sim.** No `Math.random`, no system entropy.
+- **The PRNG is stateless and position-hashed**, not an advancing stream. Every draw is
+  a pure function of `(seed, tick, x, y)`. A stream satisfies the bullet above and still
+  breaks once chunks sleep (§2.4): a sleeping chunk consumes no random numbers, so every
+  cell evaluated afterwards would draw a different value than it would have in a session
+  where that chunk stayed awake, and the world would diverge based on where the player
+  was looking. Hashing removes that, and any dependence on visit order or threading,
+  by construction. *Settled in Milestone 1 — do not "optimise" it back into a stream.*
 - **Fixed timestep.** Sim ticks are decoupled from render frames.
 - **Deterministic iteration order.** No hash-map iteration, no unordered parallelism. If
   chunks update in parallel, update order and boundary resolution must be fixed and
@@ -112,6 +133,17 @@ points, thermal conductivity, color and color variance, flammability, hardness.
 
 Reaction schema: reactant set, product set, temperature range, probability per tick,
 optional catalyst.
+
+Two consequences of §3.1 that bite at the data layer rather than in the physics:
+
+- **No JSON library may parse sim data.** Every one of them parses numbers into `f64`,
+  which would launder element values through a float on the way into a sim that is not
+  allowed to contain one. Decimal text is converted straight to fixed-point with integer
+  arithmetic instead. The sim core therefore carries its own reader and has no
+  dependencies.
+- **Element ids are declared in the data file and are permanent.** They are baked into
+  saves (§7.2) and world hashes (§8.3), so ids must never be derived from file order and
+  a published id must never be reused for something else.
 
 ### 3.3 Reaction efficiency **[DECIDED]**
 
@@ -363,6 +395,23 @@ proven before other systems land on top of it, the server-authority plan quietly
 the cost of recovering it grows every week.
 
 **Milestone 2** — chunking, dirty-rect updates, viewport-gated sleeping, eviction, rendering
+
+**[PROPOSED]** Split Milestone 2, so chunking gets its own gate before anything is built
+on it — the same shape as Milestone 1, and for the same reason.
+
+- **2a — chunked storage.** Sparse chunks, deterministic ordering, boundary resolution.
+  Gate: a chunked world and an unchunked one must produce identical hashes tick for
+  tick. Keeping the flat grid as a test oracle is what makes that gate possible.
+- **2b — dirty rects and viewport-gated sleeping.** This is where determinism is
+  genuinely at risk, because what gets visited stops being a function of the world
+  alone. Gate: a world where regions sleep must match one where nothing sleeps.
+- **2c — eviction.** Blocked on the open question in §2.4, which is a design decision
+  and not an implementation detail.
+- **2d — the WebGL2 renderer**, which connects the sim to the client for the first time.
+
+Rationale: 2a cannot break determinism if iteration stays a global sweep and chunking is
+only storage, whereas 2b can. Landing them together makes a divergence expensive to
+bisect.
 **Milestone 3** — tile grid, constructs, drawing tools
 **Milestone 4** — belts (real particle transport), burial, loading by placement
 **Milestone 5** — spawners, gold, teleporters, first production chain
@@ -373,7 +422,8 @@ the cost of recovering it grows every week.
 
 1. How does material move **upward**? (§2.2) — blocks belt design
 2. Final tile size (§2.3)
-3. Chunk eviction policy and threshold (§2.4)
+3. Chunk eviction policy and threshold (§2.4) — constrained: it must be deterministic
+   from simulation state and logged inputs, or replay verification breaks
 4. Teleporter starting range, cost curve, upgrade granularity (§4.4)
 5. Paste fidelity: do blueprints normalize, or does local physics apply? (§4.5) — blocks blueprints
 6. Blueprint slot limits; sharing between players (§4.5)
