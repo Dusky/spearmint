@@ -74,11 +74,17 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
           this.placeMachine(world);
           return;
         case 'erase':
-          // Erase should erase. Removing an entity here rather than inventing a
-          // seventh tool, and on press only — never mid-drag, so sweeping erase
-          // across the world cannot silently delete a machine's inputs.
+          // Erase should erase. Removing an entity here rather than inventing another
+          // tool, and on press only — never mid-drag, so sweeping erase across the
+          // world cannot silently delete a machine's inputs.
           if (this.removeEntityAt(world)) return;
-          break;
+          this.paint(world, world, false);
+          return;
+        case 'draw':
+          // A click is a stroke that never moved, and it should leave a tile. Painting
+          // only happens on drag otherwise, so clicking would do nothing at all.
+          this.paint(world, world, false);
+          return;
         default:
           break;
       }

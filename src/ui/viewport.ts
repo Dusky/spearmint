@@ -37,7 +37,12 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
   /** Where the pointer is in client space, so world coords can be recomputed when the
    *  camera moves under a stationary cursor — pressing `F` is exactly that case. */
   let pointerClient: Vec2 | null = null;
+  /** Where the stroke began. Only the shift-constrained line anchors to it. */
   let strokeStart: Vec2 | null = null;
+  /** The last position painted to. A free stroke follows the path the pointer took, so
+   *  each move draws from here — anchoring every move to the stroke's origin instead
+   *  sweeps a fan of lines and fills the region between them. */
+  let strokePrevious: Vec2 | null = null;
   let straight = false;
 
   /** Screen pixels -> world cells, about the viewport centre. */
@@ -89,6 +94,7 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
     } else {
       dragging = 'paint';
       strokeStart = world;
+      strokePrevious = world;
       actions.press(world);
     }
     root.setPointerCapture(event.pointerId);
@@ -105,8 +111,10 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
         -(event.clientX - lastPointer.x) / camera.zoom,
         -(event.clientY - lastPointer.y) / camera.zoom,
       );
-    } else if (dragging === 'paint' && strokeStart) {
-      actions.paint(strokeStart, world, straight);
+    } else if (dragging === 'paint' && strokeStart && strokePrevious) {
+      // A constrained stroke is defined relative to where it began; a free one is not.
+      actions.paint(straight ? strokeStart : strokePrevious, world, straight);
+      strokePrevious = world;
     }
     lastPointer = { x: event.clientX, y: event.clientY };
   });
@@ -114,6 +122,7 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
   const endDrag = (event: PointerEvent): void => {
     dragging = null;
     strokeStart = null;
+    strokePrevious = null;
     lastPointer = null;
     if (root.hasPointerCapture(event.pointerId)) root.releasePointerCapture(event.pointerId);
   };
