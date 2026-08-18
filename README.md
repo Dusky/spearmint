@@ -20,10 +20,18 @@ what is deliberately left out of it.
 - **`src/`** — the client: the HUD from the design handoff, drawing onto the real
   simulation.
 
-What is real: the world, the physics, drawing, reactions, spawners. What is not: the
-economy. Gold, spawner counts, upgrades and blueprints are still fabricated in
-`src/state/initialState.ts`, each marked, because the economy server is out of the
+What is real: the world, the physics, drawing, spawners, reactions, and every number in
+the top bar and the inspector. Gold is washed sand, the spawner count is the sim's, and
+yield and contact area are measured from the world.
+
+What is not real: purchasing. The capability and blueprint drawers (`C` and `B`) still
+show placeholder rows, because the economy server and blueprints are both out of the
 slice.
+
+The inspector shows fewer measurements than the design handoff. Temperature, residence
+and mixing are missing because nothing computes them — there is no heat system, and
+residence needs a machine boundary that per-construct selection would give. Inventing
+numbers to fill the panel would be worse than a shorter one.
 
 ## Running it
 
@@ -149,10 +157,11 @@ verifier of §8.3 will take.
 
 | Key | Action |
 |---|---|
-| `1`–`6` | Select tool |
+| `1`–`6` | Select tool — `1` draw, `2` erase, `4` spawner |
 | `shift` | Constrain a stroke to a straight line |
 | `space` + drag | Pan |
 | `alt` + click | Pick the material under the cursor |
+| click (spawner tool) | Place a spawner emitting the selected material |
 | `F` | Jump to the current problem notice |
 | `G` | Toggle the tile grid |
 | `C` / `B` | Capability / Blueprints drawer |

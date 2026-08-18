@@ -1,3 +1,4 @@
+import { elementByName } from '../sim/elements';
 import { READOUT_HZ } from '../constants';
 import type { GameState } from './types';
 import type { Sim } from '../sim/wasm';
@@ -7,17 +8,25 @@ import type { Store } from './store';
  * Drives the simulation and reports it into the store.
  *
  * The fixed timestep lives here rather than in the sim (spec 3.1): the core exposes a
- * pure `step`, and the host decides how ticks relate to wall-clock time. Readouts are
- * written at READOUT_HZ, not per frame — per-frame is unreadable and wasteful, and
- * monospace numerals keep them from reflowing between writes.
+ * pure `step`, and the host decides how ticks relate to wall-clock time.
+ *
+ * Readouts are written at READOUT_HZ, not per frame. Partly because per-frame numbers
+ * are unreadable, and partly because measuring the world means walking it — contact
+ * area in particular is a full scan, and doing that sixty times a second to produce a
+ * number that changes too fast to read would be pure waste.
  */
 export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
   const tickMs = 1000 / store.state.tickRate;
   const readoutMs = 1000 / READOUT_HZ;
 
+  const sand = elementByName('sand').id;
+  const water = elementByName('water').id;
+  const wetSand = elementByName('wetSand').id;
+
   let last = performance.now();
   let tickDebt = 0;
   let sinceReadout = 0;
+  let previousGold = 0;
   let frame = 0;
 
   const loop = (now: number): void => {
@@ -34,9 +43,36 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
 
     sinceReadout += elapsed;
     if (sinceReadout < readoutMs) return;
+    const seconds = sinceReadout / 1000;
     sinceReadout = 0;
 
-    store.update((state) => ({ ...state, tick: sim.tick }));
+    const sandCells = sim.count(sand);
+    const wetCells = sim.count(wetSand);
+    const washable = sandCells + wetCells;
+
+    // Gold is washed sand, and nothing consumes it, so the count is also the running
+    // total ever produced. When there is somewhere to sell it, this stops being true.
+    const gold = wetCells;
+    const goldRate = (gold - previousGold) / seconds;
+    previousGold = gold;
+
+    store.update((state) => ({
+      ...state,
+      tick: sim.tick,
+      economy: {
+        ...state.economy,
+        gold,
+        goldRate,
+        spawnersOwned: sim.spawnerCount,
+      },
+      readout: {
+        yieldCurrent: washable > 0 ? wetCells / washable : 0,
+        contactArea: sim.contactArea,
+        sand: sandCells,
+        water: sim.count(water),
+        wetSand: wetCells,
+      },
+    }));
   };
 
   frame = requestAnimationFrame(loop);

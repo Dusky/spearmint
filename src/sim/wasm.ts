@@ -21,6 +21,9 @@ interface SimExports {
   sim_chunk_count(): number;
   sim_awake_chunk_count(): number;
   sim_set_sleeping(enabled: number): void;
+  sim_add_spawner(x: number, y: number, width: number, element: number, rate: number): void;
+  sim_spawner_count(): number;
+  sim_contact_area(): number;
 }
 
 /**
@@ -106,5 +109,19 @@ export class Sim {
 
   setSleeping(enabled: boolean): void {
     this.#exports.sim_set_sleeping(enabled ? 1 : 0);
+  }
+
+  addSpawner(x: number, y: number, width: number, element: number, rate: number): void {
+    this.#exports.sim_add_spawner(x, y, width, element, rate);
+  }
+
+  get spawnerCount(): number {
+    return this.#exports.sim_spawner_count();
+  }
+
+  /** Cells where two reactants are touching. Walks the world, so read it at the
+   *  readout rate rather than per frame. */
+  get contactArea(): number {
+    return this.#exports.sim_contact_area();
   }
 }

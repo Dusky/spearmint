@@ -89,6 +89,7 @@ export const PARTICLE_KINDS = ['empty', 'wall', 'sand', 'water', 'wetSand'] as c
 export type ParticleKind = (typeof PARTICLE_KINDS)[number];
 
 /** A placed machine. Instances carry live measurements; blueprints carry the record. */
+// eslint-disable-next-line -- kept for the construct selection the design calls for
 export interface Construct {
   readonly id: ConstructId;
   readonly name: string;
@@ -98,19 +99,25 @@ export interface Construct {
   readonly blueprintId: BlueprintId | null;
 }
 
-/** Read-only, sim-derived, per selection. Physical conditions only. */
+/**
+ * Read-only, sim-derived. Every field is measured, not modelled.
+ *
+ * The design handoff's inspector shows temperature, residence and mixing alongside
+ * these. Those are absent because nothing computes them: there is no heat system, and
+ * residence needs a machine boundary that only per-construct selection would give.
+ * Showing them would mean inventing numbers over real physics.
+ *
+ * Measurements are whole-world for now. Per-machine selection is the real design and
+ * is what makes the inspector answer "why is *this* machine underperforming".
+ */
 export interface SimReadout {
-  readonly constructId: ConstructId;
-  /** Current yield, 0–1. */
+  /** Fraction of the sand that has been washed, 0–1. */
   readonly yieldCurrent: number;
-  /** Kelvin. */
-  readonly temperature: number;
-  /** Particle cells in contact between reactants. */
+  /** Cells where two reactants are actually touching — where reactions can happen. */
   readonly contactArea: number;
-  /** Ticks a particle spends inside the machine. */
-  readonly residence: number;
-  /** 0–1. */
-  readonly mixing: number;
+  readonly sand: number;
+  readonly water: number;
+  readonly wetSand: number;
 }
 
 /** An active clog or burial. Emergent physics, not a rule — so this is information. */

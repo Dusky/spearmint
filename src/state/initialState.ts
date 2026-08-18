@@ -115,11 +115,13 @@ export function initialState(): GameState {
       cursor: { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 },
       openDrawer: null,
     },
-    // PLACEHOLDER: the economy is server-owned (spec 8.1) and out of the slice.
+    // Gold, the rate and the spawner count are all measured from the simulation once
+    // it starts reporting. `spawnersMax` is the game's hard input cap (spec 3.4) and is
+    // the one number here the economy server will eventually own.
     economy: {
-      gold: 4812,
-      goldRate: 38,
-      spawnersOwned: 3,
+      gold: 0,
+      goldRate: 0,
+      spawnersOwned: 0,
       spawnersMax: 5,
       blueprintSlots: 4,
       purchasedUpgrades: [],
@@ -149,9 +151,8 @@ export function initialState(): GameState {
     ],
     // PLACEHOLDER: blueprints are out of the slice entirely.
     blueprints: [washer(), settler(), slagDump()],
-    // Nothing is selected and nothing is fabricated. The inspector, the marquee and the
-    // problem notice all hide themselves when there is nothing real to show, which is
-    // the behaviour we want while their inputs are still being built.
+    // The marquee and the problem notice hide themselves until there is something real
+    // to show. The readout arrives with the first measurement from the simulation.
     constructs: [],
     readout: null,
     notices: [],

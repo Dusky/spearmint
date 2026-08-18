@@ -9,8 +9,8 @@ export interface ViewportActions {
   moveCursor(world: Vec2): void;
   /** Space-drag panning, in world cells. */
   panBy(dx: number, dy: number): void;
-  /** A plain click: select the construct under the cursor, or clear the selection. */
-  selectAt(world: Vec2): void;
+  /** A press in the world, before any drag. What it does depends on the tool. */
+  press(world: Vec2): void;
   /** alt+click: pick the material under the cursor. Needs the sim to sample. */
   pickMaterialAt(world: Vec2): void;
   /** A drag with the draw or erase tool. `straight` is shift being held. */
@@ -81,7 +81,7 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
     } else {
       dragging = 'paint';
       strokeStart = world;
-      actions.selectAt(world);
+      actions.press(world);
     }
     root.setPointerCapture(event.pointerId);
   });

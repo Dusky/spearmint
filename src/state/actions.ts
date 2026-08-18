@@ -12,7 +12,14 @@ import type { DrawerName, GameState, Material, NoticeId, Tool, Vec2 } from './ty
 export interface SimBridge {
   paintLine(from: Vec2, to: Vec2, element: number, halfWidth: number): void;
   elementAt(x: number, y: number): number;
+  addSpawner(x: number, y: number, width: number, element: number, rate: number): void;
+  readonly spawnerCount: number;
 }
+
+/** Cells across, and cells emitted per tick. Fixed for now; spawn rate and purity are
+ *  both plausible upgrade axes (spec 3.4). */
+const SPAWNER_WIDTH = 6;
+const SPAWNER_RATE = 2;
 
 /** Materials are element names, so these resolve straight out of the data file. */
 const MATERIAL_ELEMENTS: Record<Material, number> = Object.fromEntries(
@@ -60,6 +67,47 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
     panTo(at: Vec2): void {
       const { camera } = store.state.ui;
       patchUi({ camera: { ...camera, x: at.x, y: at.y } });
+    },
+
+    /**
+     * A press in the viewport, dispatched by tool.
+     *
+     * Kept here rather than in the viewport so the viewport stays a pointer-to-world
+     * translator and every tool's meaning lives in one file.
+     */
+    press(world: Vec2): void {
+      if (store.state.ui.selectedTool === 'spawner') {
+        this.placeSpawner(world);
+        return;
+      }
+      this.selectAt(world);
+    },
+
+    /**
+     * Places a spawner emitting the selected material.
+     *
+     * Spawner count is the game's only hard cap on production (spec 3.4), so this
+     * refuses past the limit rather than letting the player buy their way out with
+     * geometry.
+     */
+    placeSpawner(world: Vec2): void {
+      const { economy, ui } = store.state;
+      if (economy.spawnersOwned >= economy.spawnersMax) return;
+
+      const element = MATERIAL_ELEMENTS[ui.selectedMaterial];
+      if (element === undefined) return;
+
+      sim.addSpawner(
+        world.x - Math.floor(SPAWNER_WIDTH / 2),
+        world.y,
+        SPAWNER_WIDTH,
+        element,
+        SPAWNER_RATE,
+      );
+      store.update((state) => ({
+        ...state,
+        economy: { ...state.economy, spawnersOwned: sim.spawnerCount },
+      }));
     },
 
     /** Click a construct to select it; clicking past everything clears the selection. */
