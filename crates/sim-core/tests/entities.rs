@@ -138,3 +138,27 @@ fn an_emitter_reports_being_blocked() {
     world.step_many(200);
     assert_eq!(world.count_of(sand), before);
 }
+
+/// A wall emitter is nonsense: a solid would appear one cell at a time and sit there,
+/// which is drawing, not emission. Refused in the simulation rather than only in the UI,
+/// so nothing else can reintroduce it.
+#[test]
+fn solids_cannot_be_emitted() {
+    let rules = common::rules();
+    let wall = rules.elements.id_of("wall").expect("wall");
+    let sand = rules.elements.id_of("sand").expect("sand");
+    let mut world = scene::arena(90, 90, 1, &rules);
+
+    world.place(common::emitter(2, 1, wall));
+    world.step_many(300);
+    let walls_before = world.count_of(wall);
+
+    // The arena's own walls are all that should exist; the emitter added none.
+    world.step_many(300);
+    assert_eq!(world.count_of(wall), walls_before, "a solid was emitted");
+
+    // And a sand emitter beside it still works, so this is not just a dead world.
+    world.place(common::emitter(5, 1, sand));
+    world.step_many(200);
+    assert!(world.count_of(sand) > 0);
+}

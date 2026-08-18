@@ -32,6 +32,16 @@ export const ELEMENTS: readonly ElementInfo[] = (elementData.elements as RawElem
 
 export const EMPTY_ELEMENT = 0;
 
+/**
+ * Whether an emitter could emit this.
+ *
+ * Solids do not flow: an emitter would place one cell and stop. Drawing is the tool for
+ * structure, and this keeps a wall emitter from being offered at all.
+ */
+export function canBeEmitted(element: ElementInfo): boolean {
+  return element.state !== 'solid';
+}
+
 export function elementByName(name: string): ElementInfo {
   const found = ELEMENTS.find((element) => element.name === name);
   if (!found) throw new Error(`no element named ${name} in data/elements.json`);

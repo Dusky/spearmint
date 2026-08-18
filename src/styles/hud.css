@@ -277,6 +277,12 @@ body {
   cursor: default;
 }
 
+/* Unavailable for the current tool. The same .45 the capability panel uses for
+   "not yet" — one convention for "you cannot have this right now". */
+.swatch--unavailable {
+  opacity: 0.45;
+}
+
 .swatch--selected {
   outline: 2px solid var(--text-primary);
   outline-offset: 1px;

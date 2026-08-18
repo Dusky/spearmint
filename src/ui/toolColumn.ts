@@ -1,7 +1,7 @@
 import { MATERIALS, TOOLS } from '../state/types';
 import type { Component } from './component';
 import type { GameState, Material, Tool } from '../state/types';
-import { elementByName } from '../sim/elements';
+import { canBeEmitted, elementByName } from '../sim/elements';
 import { TILE_CELLS } from '../constants';
 import { el, setClass } from './dom';
 
@@ -76,8 +76,16 @@ export function createToolColumn(actions: ToolColumnActions): Component {
       for (const [tool, row] of toolRows) {
         setClass(row, 'tool-row--selected', tool === state.ui.selectedTool);
       }
+      // An emitter cannot emit a solid, so those swatches read as unavailable while the
+      // spawner tool is up rather than silently doing nothing when clicked.
+      const emitting = state.ui.selectedTool === 'spawner';
       for (const [material, swatch] of swatches) {
         setClass(swatch, 'swatch--selected', material === state.ui.selectedMaterial);
+        setClass(
+          swatch,
+          'swatch--unavailable',
+          emitting && !canBeEmitted(elementByName(material)),
+        );
       }
       const label = MATERIAL_LABELS[state.ui.selectedMaterial];
       caption.textContent = `${label} · ${TILE_CELLS}×${TILE_CELLS} snap`;

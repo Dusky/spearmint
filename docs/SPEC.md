@@ -63,6 +63,24 @@ for rotation, symmetry, and teleporter endpoints.
 
 **[OPEN]** Final tile size.
 
+### 2.3a Are constructs matter? **[OPEN]**
+
+`wall` is currently an element, so a drawn wall is cells in the particle grid that happen
+never to move. That is how falling-sand games usually do structure, and it is simple: one
+grid, and particles interact with walls through the same density rules as everything
+else.
+
+But it sits oddly against the rest of this document. §2.3 says the player draws
+*constructs* onto a tile grid, §7.2 saves those constructs at tile level, and §4.1
+already puts belts on a separate layer from the particle grid. On that reading a wall is
+structure, not matter, and belongs with the belts rather than with the sand.
+
+The distinction is not academic. It decides whether a wall can be buried, melted, or
+displaced; whether saving a factory means saving cells or tiles; and whether "draw" and
+"place a machine" are the same action or two different ones.
+
+Cheap to leave as it is for now, and worth deciding before saving is built.
+
 ### 2.4 Chunking and sleeping **[DECIDED]**
 
 Chunks are defined in **tiles, not pixels**, so tile/chunk alignment never drifts.
@@ -172,6 +190,10 @@ there is one optimal build and the engineering ends.
 Particle spawners are the sole hard constraint on production. The player has a limited
 number; more are bought with gold. Spawner count, spawn rate, and output purity are all
 plausible upgrade axes.
+
+**Spawners emit matter that moves.** A solid emitter would place one cell and stop,
+which is drawing rather than emission — structure is drawn, not spawned. Refused in the
+simulation and not only in the interface.
 
 **Gold buys capacity, not placement.** Raising the cap costs gold; where a spawner sits
 within that cap is a layout decision, and picking one up refunds its slot in full — no

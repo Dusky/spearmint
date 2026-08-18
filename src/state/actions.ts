@@ -3,7 +3,7 @@
  *  will eventually own stays visible in one file. */
 
 import { TILE_CELLS } from '../constants';
-import { elementByName, EMPTY_ELEMENT } from '../sim/elements';
+import { canBeEmitted, elementByName, EMPTY_ELEMENT } from '../sim/elements';
 import { entityForTool } from '../sim/entities';
 import { MATERIALS } from './types';
 import type { Store } from './store';
@@ -106,6 +106,8 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
       const element = MATERIAL_ELEMENTS[ui.selectedMaterial];
       const machine = entityForTool(ui.selectedTool);
       if (element === undefined || !machine) return;
+      // A wall emitter is nonsense: solids do not flow, so there is nothing to emit.
+      if (!canBeEmitted(elementByName(ui.selectedMaterial))) return;
 
       if (!sim.placeEntity(machine.id, toTile(world.x), toTile(world.y), element)) return;
       store.update((state) => ({

@@ -13,7 +13,6 @@ pub const ELEMENTS_JSON: &str = include_str!(concat!(
     "/../../data/elements.json"
 ));
 
-#[allow(dead_code)]
 /// Machines, as opposed to matter.
 #[allow(dead_code)]
 pub const ENTITIES_JSON: &str = include_str!(concat!(

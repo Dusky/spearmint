@@ -13,7 +13,7 @@
 //! (spec 3.2). Only behaviour needs code.
 
 use crate::chunk::TILE_CELLS;
-use crate::elements::{DataError, ElementId, ElementTable, EMPTY};
+use crate::elements::{DataError, ElementId, ElementTable, State, EMPTY};
 use crate::field::CellField;
 use crate::json::{self, Json};
 use crate::rng;
@@ -242,7 +242,12 @@ fn emit<F: CellField + ?Sized>(
     tick: u64,
     index: usize,
 ) {
-    if entity.element == EMPTY || elements.get(entity.element).is_none() {
+    let Some(element) = elements.get(entity.element) else {
+        return;
+    };
+    // Emitters emit matter that moves. A solid would appear one cell at a time and sit
+    // there, which is not emission — it is drawing, and there is a tool for that.
+    if entity.element == EMPTY || element.state == State::Solid {
         return;
     }
     let left = entity.left();
