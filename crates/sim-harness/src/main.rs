@@ -30,6 +30,8 @@ struct Options {
     dump: bool,
     /// Run the flat reference world instead of the chunked one.
     flat: bool,
+    /// Enable viewport-gated sleeping (chunked world only).
+    sleep: bool,
 }
 
 impl Default for Options {
@@ -42,6 +44,7 @@ impl Default for Options {
             census: false,
             dump: false,
             flat: false,
+            sleep: false,
         }
     }
 }
@@ -51,7 +54,7 @@ fn main() -> ExitCode {
         Ok(options) => options,
         Err(message) => {
             eprintln!("sim-hash: {message}");
-            eprintln!("usage: sim-hash [--seed N] [--ticks N] [--width N] [--height N] [--census] [--dump] [--flat]");
+            eprintln!("usage: sim-hash [--seed N] [--ticks N] [--width N] [--height N] [--census] [--dump] [--flat] [--sleep]");
             return ExitCode::FAILURE;
         }
     };
@@ -73,8 +76,16 @@ fn main() -> ExitCode {
         report(world.field(), &table, options);
     } else {
         let mut world = scene::sandbox(options.width, options.height, options.seed, &table);
+        world.set_sleeping(options.sleep);
         world.step_many(options.ticks);
         println!("{:016x}", world.hash());
+        if options.census {
+            eprintln!(
+                "  chunks: {} awake of {}",
+                world.awake_chunk_count(),
+                world.field().chunk_count()
+            );
+        }
         report(world.field(), &table, options);
     }
 
@@ -122,6 +133,7 @@ fn parse_args() -> Result<Options, String> {
             "--census" => options.census = true,
             "--dump" => options.dump = true,
             "--flat" => options.flat = true,
+            "--sleep" => options.sleep = true,
             other => return Err(format!("unknown argument `{other}`")),
         }
     }

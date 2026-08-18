@@ -100,8 +100,16 @@ impl CellField for Grid {
         }
     }
 
-    fn clear_moved(&mut self) {
+    fn begin_tick(&mut self) {
         self.moved.fill(0);
+    }
+
+    /// The reference world skips nothing: the whole row, every tick. That is what makes
+    /// it a useful oracle.
+    fn active_spans(&self, y: i32, out: &mut Vec<(i32, i32)>) {
+        if self.width > 0 && y >= 0 && (y as u32) < self.height {
+            out.push((0, self.width as i32 - 1));
+        }
     }
 
     fn bounds(&self) -> Option<Bounds> {

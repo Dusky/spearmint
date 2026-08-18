@@ -44,8 +44,18 @@ pub trait CellField {
 
     fn mark_moved(&mut self, x: i32, y: i32);
 
-    fn clear_moved(&mut self);
+    /// Called once before each tick's sweep, to clear per-tick state and work out what
+    /// needs simulating.
+    fn begin_tick(&mut self);
 
     /// The region to sweep this tick, or `None` when there is nothing to simulate.
     fn bounds(&self) -> Option<Bounds>;
+
+    /// The x-ranges worth visiting on row `y`, ascending and non-overlapping, appended
+    /// to `out`.
+    ///
+    /// Cells outside them must be *guaranteed* not to move this tick — this is where
+    /// storage skips settled regions, and a wrong answer here is a silent divergence
+    /// rather than a crash. Storage with nothing to skip returns the whole row.
+    fn active_spans(&self, y: i32, out: &mut Vec<(i32, i32)>);
 }

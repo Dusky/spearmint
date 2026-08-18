@@ -79,6 +79,19 @@ Sleeping is gated on **distance from the viewport**, not merely on steady state.
 the player can see, or could see imminently, stays live. The player must never be able to
 notice a sleeping chunk.
 
+**Steady state is the condition that makes sleeping safe; the viewport gate is
+belt-and-braces.** A chunk may sleep only when it is quiescent — nothing moved in it or
+in any neighbour last tick — because ticking a settled chunk produces no change, so
+skipping it produces no difference. The viewport gate sits on top and can only keep
+*more* chunks awake, so it spends CPU and can never alter the world. Sleeping therefore
+does **not** inherit eviction's replay problem below: it is unobservable, where eviction
+is not.
+
+**As of Milestone 2b this is implemented and proven, and delivers nothing.** Liquids
+never come to rest (§3.5), so any chunk holding water stays dirty and keeps its
+neighbours awake. Powder-only regions do sleep. The optimisation is gated on liquid
+settling, not on more work here.
+
 **[OPEN]** Eviction policy. Frozen chunks accumulate RAM without bound on an infinite
 canvas. At some distance threshold a chunk must be discarded entirely and re-settle from
 empty on return (consistent with §7.1). Decide the threshold and whether eviction is
@@ -159,6 +172,42 @@ there is one optimal build and the engineering ends.
 Particle spawners are the sole hard constraint on production. The player has a limited
 number; more are bought with gold. Spawner count, spawn rate, and output purity are all
 plausible upgrade axes.
+
+### 3.5 Liquid settling **[OPEN]**
+
+Liquids as implemented never reach a fixed point, and this blocks chunk sleeping (§2.4)
+from being worth anything.
+
+A void trapped inside a body of water random-walks forever. Water never rises, so the
+void cannot escape upward; a lateral move costs nothing, so water shuffles around it
+indefinitely. Powders settle correctly — every move strictly descends, so they must
+terminate — but any region holding water churns for as long as the world runs.
+
+The naive fixes each break something:
+
+- *Only move sideways toward somewhere it can fall* — a column of water on a flat floor
+  then never spreads at all.
+- *Only surface liquid flows* — a partly-filled level channel still oscillates.
+- *Require a drop, and let only surface cells move* — water spreads to one cell deep and
+  then stops advancing, so a container never fills evenly.
+
+Getting both spreading and termination is the actual problem, and it is a design
+decision rather than an implementation detail: §3.3 already counts pressure and
+residence time among the things reaction yield depends on, so whatever model is chosen
+has gameplay consequences. A pressure or flow-field model is the usual answer.
+
+Until it is decided, sleeping engages only for powder and empty regions.
+
+### 3.6 What holds the world up **[OPEN]**
+
+The canvas is infinite (§2.1) and gravity is real (§2.2), so material with nothing
+beneath it falls forever, allocating chunks as it goes and never settling. Nothing in
+this document says what stops it.
+
+The save format lists a world seed (§7.2), which implies generated terrain, and terrain
+would answer this. It needs stating either way, because "everything not standing on
+something falls out of the world indefinitely" interacts badly with both chunk eviction
+(§2.4) and the requirement that machines be self-starting (§7.1).
 
 ---
 
@@ -424,6 +473,9 @@ bisect.
 2. Final tile size (§2.3)
 3. Chunk eviction policy and threshold (§2.4) — constrained: it must be deterministic
    from simulation state and logged inputs, or replay verification breaks
+3a. How liquids find their level and come to rest (§3.5) — blocks chunk sleeping from
+   delivering anything
+3b. What stops material falling forever on an infinite canvas (§3.6)
 4. Teleporter starting range, cost curve, upgrade granularity (§4.4)
 5. Paste fidelity: do blueprints normalize, or does local physics apply? (§4.5) — blocks blueprints
 6. Blueprint slot limits; sharing between players (§4.5)

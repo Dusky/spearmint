@@ -12,7 +12,7 @@
 
 use crate::chunk::ChunkMap;
 use crate::elements::{ElementId, ElementTable, EMPTY};
-use crate::field::CellField;
+use crate::field::{Bounds, CellField};
 use crate::grid::Grid;
 use crate::hash::Hasher;
 use crate::step;
@@ -27,7 +27,22 @@ fn canonical_hash<F: CellField + ?Sized>(field: &F, tick: u64, seed: u64) -> u64
     let mut hasher = Hasher::new();
     hasher.write_u64(tick);
     hasher.write_u64(seed);
+    content_hash_into(&mut hasher, field);
+    hasher.finish()
+}
 
+/// Hashes cell contents alone — no tick, no seed.
+///
+/// `canonical_hash` folds in the tick, which is right for a checkpoint but useless for
+/// asking "did anything change?", since it differs every tick by construction. That
+/// distinction is easy to miss and reduces such a test to measuring the clock.
+fn content_hash<F: CellField + ?Sized>(field: &F) -> u64 {
+    let mut hasher = Hasher::new();
+    content_hash_into(&mut hasher, field);
+    hasher.finish()
+}
+
+fn content_hash_into<F: CellField + ?Sized>(hasher: &mut Hasher, field: &F) {
     if let Some(bounds) = field.bounds() {
         for y in bounds.min_y..=bounds.max_y {
             for x in bounds.min_x..=bounds.max_x {
@@ -41,7 +56,6 @@ fn canonical_hash<F: CellField + ?Sized>(field: &F, tick: u64, seed: u64) -> u64
             }
         }
     }
-    hasher.finish()
 }
 
 /// The simulated world: sparse chunks, unbounded extent (spec 2.1).
@@ -99,6 +113,22 @@ impl World {
         &mut self.field
     }
 
+    /// Enables viewport-gated sleeping (spec 2.4). Off by default.
+    pub fn set_sleeping(&mut self, enabled: bool) {
+        self.field.set_sleeping(enabled);
+    }
+
+    /// Where the player is looking, in cells, plus how many chunks beyond it to keep
+    /// awake.
+    pub fn set_viewport(&mut self, viewport: Option<Bounds>, margin_chunks: i32) {
+        self.field.set_viewport(viewport, margin_chunks);
+    }
+
+    /// How many chunks ran during the last tick.
+    pub fn awake_chunk_count(&self) -> usize {
+        self.field.awake_chunk_count()
+    }
+
     pub fn get(&self, x: i32, y: i32) -> ElementId {
         self.field.get(x, y).unwrap_or(EMPTY)
     }
@@ -108,9 +138,15 @@ impl World {
     }
 
     /// A fingerprint of the whole world, and the shape the signed checkpoints of spec
-    /// 8.3 will take.
+    /// 8.3 will take. Includes the tick, so it differs every tick even at rest.
     pub fn hash(&self) -> u64 {
         canonical_hash(&self.field, self.tick, self.seed)
+    }
+
+    /// A fingerprint of the cell contents alone. Use this to ask whether anything
+    /// actually moved; `hash` cannot answer that, since it folds in the tick.
+    pub fn content_hash(&self) -> u64 {
+        content_hash(&self.field)
     }
 }
 
@@ -185,6 +221,11 @@ impl FlatWorld {
     /// directly despite storing their cells completely differently.
     pub fn hash(&self) -> u64 {
         canonical_hash(&self.field, self.tick, self.seed)
+    }
+
+    /// Cell contents alone, ignoring the tick. See `World::content_hash`.
+    pub fn content_hash(&self) -> u64 {
+        content_hash(&self.field)
     }
 
     /// The original Milestone 1 fingerprint: every cell byte in storage order, empties

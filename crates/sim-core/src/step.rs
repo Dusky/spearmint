@@ -24,48 +24,68 @@ const SALT_LATERAL: u32 = 3;
 /// copies of it — otherwise comparing them would only prove that two tick loops agree,
 /// not that chunking is transparent.
 pub fn step<F: CellField + ?Sized>(field: &mut F, table: &ElementTable, seed: u64, tick: u64) {
-    field.clear_moved();
+    field.begin_tick();
     let Some(bounds) = field.bounds() else {
         return;
     };
+
+    let mut spans: Vec<(i32, i32)> = Vec::new();
 
     // Bottom row upward, so a particle that falls into an already-visited row cannot be
     // picked up and moved a second time in the same tick.
     for y in (bounds.min_y..=bounds.max_y).rev() {
         // Alternating the scan direction stops material drifting consistently one way,
         // which a fixed left-to-right sweep would cause. The choice is hashed on the row
-        // alone, so it does not depend on how wide the swept region happens to be.
+        // alone, so it does not depend on how much of the row is being visited.
         let left_to_right = rng::coin_flip(seed, tick, 0, y, SALT_ROW_DIRECTION);
 
-        for column in 0..bounds.width() as i32 {
-            let x = if left_to_right {
-                bounds.min_x + column
+        spans.clear();
+        field.active_spans(y, &mut spans);
+        if spans.is_empty() {
+            continue;
+        }
+
+        // Spans are ascending and disjoint, so walking them in order — or in reverse,
+        // reversed within each — visits exactly the cells a full sweep would, in the
+        // same relative order. Skipped cells cannot move, and cost nothing to skip:
+        // randomness is a position hash, so passing over a cell consumes nothing.
+        for span_index in 0..spans.len() {
+            let (span_min, span_max) = if left_to_right {
+                spans[span_index]
             } else {
-                bounds.max_x - column
+                spans[spans.len() - 1 - span_index]
             };
 
-            if field.is_moved(x, y) {
-                continue;
-            }
+            for offset in 0..=(span_max - span_min) {
+                let x = if left_to_right {
+                    span_min + offset
+                } else {
+                    span_max - offset
+                };
 
-            let Some(id) = field.get(x, y) else {
-                continue;
-            };
-            if id == EMPTY {
-                continue;
-            }
-            // An id with no definition is left alone rather than assumed inert — it
-            // means the data file and the world disagree, which is worth noticing.
-            let Some(element) = table.get(id) else {
-                continue;
-            };
+                if field.is_moved(x, y) {
+                    continue;
+                }
 
-            match element.state {
-                State::Solid => {}
-                State::Powder => step_powder(field, table, element, x, y, seed, tick),
-                State::Liquid => step_liquid(field, table, element, x, y, seed, tick),
-                // No gas element exists yet. Rules arrive with one, not before.
-                State::Gas => {}
+                let Some(id) = field.get(x, y) else {
+                    continue;
+                };
+                if id == EMPTY {
+                    continue;
+                }
+                // An id with no definition is left alone rather than assumed inert — it
+                // means the data file and the world disagree, which is worth noticing.
+                let Some(element) = table.get(id) else {
+                    continue;
+                };
+
+                match element.state {
+                    State::Solid => {}
+                    State::Powder => step_powder(field, table, element, x, y, seed, tick),
+                    State::Liquid => step_liquid(field, table, element, x, y, seed, tick),
+                    // No gas element exists yet. Rules arrive with one, not before.
+                    State::Gas => {}
+                }
             }
         }
     }

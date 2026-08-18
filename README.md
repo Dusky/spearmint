@@ -7,9 +7,10 @@ client was built from.
 
 Two pieces exist so far, and they are not yet connected to each other:
 
-- **The simulation core** (`crates/sim-core`) — Milestone 1 and 2a of spec §10.
-  Headless, deterministic, and proven so, now on sparse chunks over an unbounded
-  canvas. Sand, water and wall; no belts, no economy, no rendering.
+- **The simulation core** (`crates/sim-core`) — Milestones 1, 2a and 2b of spec §10.
+  Headless, deterministic, and proven so, on sparse chunks over an unbounded canvas,
+  with viewport-gated sleeping. Sand, water and wall; no belts, no economy, no
+  rendering.
 - **The HUD shell** (`src/`) — the interface from the design handoff, real and typed,
   with a placeholder standing in for the world behind it.
 
@@ -85,6 +86,33 @@ Sweeping whole chunks costs about 3× the flat world for the same scene. Dirty r
 2b are the answer; the fix for the other half — a tree lookup per cell access — is
 already in, as a one-entry chunk cache.
 
+### Sleeping (Milestone 2b)
+
+A chunk stops ticking when it is **quiescent** — nothing moved in it or in any of its
+eight neighbours last tick. That is what makes sleeping free of consequence: ticking a
+settled chunk produces no change, so skipping it produces no difference. The viewport
+gate of §2.4 sits on top and can only keep *more* chunks awake, so it costs CPU and
+cannot alter the world.
+
+The wake rule is deliberately conservative — it can only over-simulate. Over-simulating
+is invisible; under-simulating is a silent divergence.
+
+The gate is `sleeping.rs`: a world where regions sleep must be identical to one where
+nothing sleeps, across seeds, across chunk seams, with and without a viewport, and it
+must conserve. A separate test asserts chunks *actually* sleep, because every other test
+in the file would pass if nothing ever did.
+
+This is also what separates sleeping from eviction. Sleeping preserves state exactly and
+is unobservable; eviction discards it and is not, which is why it depends on an open
+design question and this did not.
+
+**It currently delivers no speedup, and that is a physics problem, not a scheduling
+one.** Liquids never come to rest (§3.5): a void trapped in water random-walks forever,
+because water never rises and a lateral move costs nothing. Any chunk holding water
+stays dirty and keeps its neighbours awake. Powder and empty regions do sleep — a sand
+heap reaches a genuine fixed point — so the machinery works and is waiting on a decision
+about how liquids find their level.
+
 ### What "deterministic" is backed by
 
 | Guarantee | How it is held |
@@ -140,7 +168,7 @@ crates/
     src/chunk.rs            sparse chunks over an unbounded canvas — the real storage
     src/grid.rs             one flat array with hard edges — the reference oracle
     src/step.rs             the tick rules, dispatched on state and never on identity
-    src/world.rs            World (chunked) and FlatWorld (reference)
+    src/world.rs            World (chunked, sleeps) and FlatWorld (reference)
     src/scene.rs            the starting world both backends are built from
     tests/                  determinism, chunk equivalence, conservation, no-floats
   sim-harness/              `sim-hash`: runs it headless, prints hashes, dumps worlds
@@ -239,18 +267,23 @@ was built first by request, then the core. Nothing in the client constrains the 
 the HUD reaches the world only through `SimSurface` and a readout struct — and nothing
 in the sim knows the client exists.
 
-Milestone 1's gate is met, and so is 2a's. What remains of Milestone 2: dirty rects and
-viewport-gated sleeping (2b), eviction once §2.4's open question is answered (2c), and
-the WebGL2 renderer that finally connects the two halves (2d).
+Milestones 1, 2a and 2b have met their gates. What remains of Milestone 2: eviction once
+§2.4's open question is answered (2c), and the WebGL2 renderer that finally connects the
+two halves (2d).
 
 ### Carried forward
 
 Settled provisionally, and still open:
 
-- **Scan order across chunk boundaries** is deferred rather than solved. 2a sidesteps it
-  entirely by keeping iteration a single global sweep, so there is no per-chunk order to
-  get wrong. Dirty rects and sleeping (2b) reintroduce the problem for real, and that is
-  where it has to be answered.
+- **Scan order across chunk boundaries** never became a problem, because iteration
+  stayed a single global sweep through both 2a and 2b. Chunks decide what is *skipped*,
+  never what order the rest runs in. Anything that later makes chunks iterate
+  independently — threading, most obviously — brings the question back.
+- **Liquids never settle**, which is what stops sleeping from paying off. See §3.5; the
+  test `liquid_worlds_never_settle` pins the current behaviour, and flipping it to
+  `assert_eq` is the check that a future liquid model actually terminates.
+- **Nothing holds the world up.** On an infinite canvas, material with nothing beneath
+  it falls forever and allocates chunks as it goes (§3.6).
 - **Eviction is blocked on a design decision**, not an implementation one. It makes
   world state depend on camera history, which collides with replay verification — see
   §2.4 of the spec.

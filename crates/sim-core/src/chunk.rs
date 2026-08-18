@@ -38,6 +38,12 @@ pub type ChunkCoord = (i32, i32);
 struct Chunk {
     cells: Vec<ElementId>,
     moved: Vec<u64>,
+    /// Something moved in this chunk during the tick now running.
+    dirty: bool,
+    /// Something moved in it during the previous tick.
+    was_dirty: bool,
+    /// It is being simulated this tick.
+    awake: bool,
 }
 
 impl Chunk {
@@ -45,6 +51,11 @@ impl Chunk {
         Chunk {
             cells: vec![EMPTY; CHUNK_AREA],
             moved: vec![0; CHUNK_AREA.div_ceil(64)],
+            // A chunk that has just come into existence has never been simulated, so it
+            // must run before it can be trusted to be at rest.
+            dirty: true,
+            was_dirty: true,
+            awake: true,
         }
     }
 
@@ -63,6 +74,15 @@ impl Chunk {
 pub struct ChunkMap {
     chunks: Vec<Chunk>,
     slots: BTreeMap<ChunkCoord, usize>,
+    /// Awake chunk columns per chunk row, rebuilt each tick. Ordered, so the sweep
+    /// visits them in a reproducible order.
+    awake_rows: BTreeMap<i32, Vec<i32>>,
+    /// Off by default: every chunk ticks, which is the behaviour the flat reference
+    /// world is compared against.
+    sleeping: bool,
+    /// Chunks within this many chunks of the viewport stay awake regardless (spec 2.4).
+    viewport: Option<Bounds>,
+    viewport_margin: i32,
     /// The last slot resolved.
     ///
     /// The tick loop walks a row and reads each cell's neighbours, so consecutive
@@ -94,6 +114,49 @@ const fn offset(local_x: u32, local_y: u32) -> usize {
 impl ChunkMap {
     pub fn new() -> ChunkMap {
         ChunkMap::default()
+    }
+
+    /// Enables viewport-gated sleeping (spec 2.4).
+    ///
+    /// A chunk sleeps only when it is **quiescent**: nothing moved in it or in any
+    /// neighbour last tick. That is what makes sleeping free of consequence — ticking a
+    /// settled chunk produces no change, so skipping it produces no difference. The
+    /// viewport gate layered on top can only keep *more* chunks awake, never fewer, so
+    /// it costs CPU and cannot alter the world.
+    ///
+    /// This is the distinction that separates sleeping from eviction. Eviction discards
+    /// state and is therefore observable, and its interaction with replay verification
+    /// is still open (spec 2.4). Sleeping is not observable, and does not wait on that.
+    pub fn set_sleeping(&mut self, enabled: bool) {
+        self.sleeping = enabled;
+    }
+
+    /// Where the player is looking, in cells. Anything within `margin_chunks` of it
+    /// stays awake.
+    pub fn set_viewport(&mut self, viewport: Option<Bounds>, margin_chunks: i32) {
+        self.viewport = viewport;
+        self.viewport_margin = margin_chunks.max(0);
+    }
+
+    /// How many chunks ran this tick. Exposed so a test can prove that sleeping
+    /// actually happened rather than passing vacuously.
+    pub fn awake_chunk_count(&self) -> usize {
+        self.chunks.iter().filter(|chunk| chunk.awake).count()
+    }
+
+    fn viewport_chunks(&self) -> Option<(i32, i32, i32, i32)> {
+        let viewport = self.viewport?;
+        let (min_x, _) = split(viewport.min_x);
+        let (min_y, _) = split(viewport.min_y);
+        let (max_x, _) = split(viewport.max_x);
+        let (max_y, _) = split(viewport.max_y);
+        let margin = self.viewport_margin;
+        Some((
+            min_x - margin,
+            min_y - margin,
+            max_x + margin,
+            max_y + margin,
+        ))
     }
 
     /// Number of chunks currently held. An internal detail, exposed for tests.
@@ -197,6 +260,7 @@ impl CellField for ChunkMap {
         if a_coord == b_coord {
             let slot = self.slot_or_create(a_coord);
             self.chunks[slot].cells.swap(a_index, b_index);
+            self.chunks[slot].dirty = true;
             return;
         }
 
@@ -209,6 +273,10 @@ impl CellField for ChunkMap {
         }
         self.set(ax, ay, b_value);
         self.set(bx, by, a_value);
+        for coord in [a_coord, b_coord] {
+            let slot = self.slot_or_create(coord);
+            self.chunks[slot].dirty = true;
+        }
     }
 
     fn is_moved(&self, x: i32, y: i32) -> bool {
@@ -223,9 +291,80 @@ impl CellField for ChunkMap {
         self.chunks[slot].moved[index / 64] |= 1 << (index % 64);
     }
 
-    fn clear_moved(&mut self) {
+    /// Clears per-tick state and decides which chunks run.
+    ///
+    /// A chunk is awake if anything moved in it last tick, or in any of its eight
+    /// neighbours — material crossing a boundary has to find the receiving chunk
+    /// running. The rule is deliberately conservative: it can only over-simulate, and
+    /// over-simulating is invisible, where under-simulating is a silent divergence.
+    ///
+    /// Why quiescence is sufficient: whether a cell *can* move is a function of its
+    /// neighbours' contents alone. Randomness only picks between candidate directions,
+    /// and every candidate is tried, so a cell that could not move last tick cannot
+    /// move this tick from a different draw. If nothing moved, nothing was marked, and
+    /// visit order had no effect either.
+    fn begin_tick(&mut self) {
         for chunk in &mut self.chunks {
             chunk.moved.fill(0);
+            chunk.was_dirty = chunk.dirty;
+            chunk.dirty = false;
+        }
+
+        self.awake_rows.clear();
+
+        if !self.sleeping {
+            // Everything runs. This is the behaviour the flat reference is measured
+            // against, and the default.
+            for chunk in &mut self.chunks {
+                chunk.awake = true;
+            }
+            for &(chunk_x, chunk_y) in self.slots.keys() {
+                self.awake_rows.entry(chunk_y).or_default().push(chunk_x);
+            }
+            return;
+        }
+
+        let viewport = self.viewport_chunks();
+        let dirty: std::collections::BTreeSet<ChunkCoord> = self
+            .slots
+            .iter()
+            .filter(|(_, &slot)| self.chunks[slot].was_dirty)
+            .map(|(&coord, _)| coord)
+            .collect();
+
+        for (&(chunk_x, chunk_y), &slot) in &self.slots {
+            let near_activity =
+                (-1..=1).any(|dy| (-1..=1).any(|dx| dirty.contains(&(chunk_x + dx, chunk_y + dy))));
+            let in_view = viewport.is_some_and(|(min_x, min_y, max_x, max_y)| {
+                chunk_x >= min_x && chunk_x <= max_x && chunk_y >= min_y && chunk_y <= max_y
+            });
+
+            let awake = near_activity || in_view;
+            self.chunks[slot].awake = awake;
+            if awake {
+                self.awake_rows.entry(chunk_y).or_default().push(chunk_x);
+            }
+        }
+    }
+
+    /// Awake chunk columns on the chunk row containing `y`, merged into contiguous
+    /// cell spans.
+    fn active_spans(&self, y: i32, out: &mut Vec<(i32, i32)>) {
+        let (chunk_y, _) = split(y);
+        let Some(columns) = self.awake_rows.get(&chunk_y) else {
+            return;
+        };
+
+        let size = CHUNK_CELLS as i32;
+        for &chunk_x in columns {
+            let start = chunk_x * size;
+            let end = start + size - 1;
+            match out.last_mut() {
+                // Neighbouring chunks make one continuous run; merging them keeps the
+                // sweep from restarting every 144 cells.
+                Some((_, previous_end)) if *previous_end + 1 == start => *previous_end = end,
+                _ => out.push((start, end)),
+            }
         }
     }
 
