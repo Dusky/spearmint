@@ -10,7 +10,14 @@
 export const TOOLS = ['draw', 'erase', 'belt', 'spawner', 'teleport', 'blueprint'] as const;
 export type Tool = (typeof TOOLS)[number];
 
-export const MATERIALS = ['wall', 'insulator', 'heater', 'cooler'] as const;
+/**
+ * What the draw tool can place, by element name from `data/elements.json`.
+ *
+ * The design handoff shows four swatches — wall, insulator, heater, cooler. Only three
+ * elements exist, and inventing swatches for the other two would put controls on screen
+ * that do nothing. This list grows when the element roster does (spec 11 q7).
+ */
+export const MATERIALS = ['wall', 'sand', 'water'] as const;
 export type Material = (typeof MATERIALS)[number];
 
 export type ConstructId = string;
@@ -152,6 +159,7 @@ export interface GameState {
   readonly tick: number;
   /** Sim tick rate, Hz. */
   readonly tickRate: number;
-  /** World seed, shown in the top bar. */
-  readonly seed: string;
+  /** World seed. Held as a number because the simulation is seeded with it; the top
+   *  bar renders it as hex. */
+  readonly seed: number;
 }

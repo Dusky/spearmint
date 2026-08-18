@@ -11,7 +11,7 @@
 
 use std::process::ExitCode;
 
-use sim_core::{scene, CellField, ElementTable};
+use sim_core::{scene, CellField, ElementTable, Rules};
 
 /// Compiled in rather than read at runtime, so the binary produces the same world from
 /// any working directory and the test needs no fixture path.
@@ -59,23 +59,24 @@ fn main() -> ExitCode {
         }
     };
 
-    let table = match ElementTable::from_json(ELEMENTS_JSON) {
-        Ok(table) => table,
+    let rules = match Rules::from_json(ELEMENTS_JSON) {
+        Ok(rules) => rules,
         Err(error) => {
             eprintln!("sim-hash: elements.json: {error}");
             return ExitCode::FAILURE;
         }
     };
+    let table = rules.elements.clone();
 
     // Both worlds report the same canonical hash for the same contents, so the two
     // paths are directly comparable from the command line.
     if options.flat {
-        let mut world = scene::sandbox_flat(options.width, options.height, options.seed, &table);
+        let mut world = scene::sandbox_flat(options.width, options.height, options.seed, &rules);
         world.step_many(options.ticks);
         println!("{:016x}", world.hash());
         report(world.field(), &table, options);
     } else {
-        let mut world = scene::sandbox(options.width, options.height, options.seed, &table);
+        let mut world = scene::sandbox(options.width, options.height, options.seed, &rules);
         world.set_sleeping(options.sleep);
         world.step_many(options.ticks);
         println!("{:016x}", world.hash());

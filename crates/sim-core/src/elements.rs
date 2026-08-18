@@ -208,6 +208,10 @@ pub enum DataError {
     /// Id 0 means empty space and cannot be given to an element.
     ReservedId,
     DuplicateId(ElementId),
+    /// A reaction named an element that is not defined.
+    UnknownElement {
+        field: &'static str,
+    },
     BadColor,
     /// The file parsed but defined no elements.
     Empty,
@@ -227,6 +231,9 @@ impl core::fmt::Display for DataError {
             DataError::BadField { field } => write!(formatter, "invalid field `{field}`"),
             DataError::ReservedId => formatter.write_str("id 0 is reserved for empty space"),
             DataError::DuplicateId(id) => write!(formatter, "duplicate element id {id}"),
+            DataError::UnknownElement { field } => {
+                write!(formatter, "field `{field}` names an undefined element")
+            }
             DataError::BadColor => formatter.write_str("color must be \"#RRGGBB\""),
             DataError::Empty => formatter.write_str("no elements defined"),
         }

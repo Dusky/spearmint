@@ -1,6 +1,7 @@
 import { MATERIALS, TOOLS } from '../state/types';
 import type { Component } from './component';
 import type { GameState, Material, Tool } from '../state/types';
+import { elementByName } from '../sim/elements';
 import { TILE_CELLS } from '../constants';
 import { el, setClass } from './dom';
 
@@ -18,12 +19,11 @@ const TOOL_LABELS: Record<Tool, string> = {
   blueprint: 'Blueprint',
 };
 
-const MATERIAL_LABELS: Record<Material, string> = {
-  wall: 'wall',
-  insulator: 'insulator',
-  heater: 'heater',
-  cooler: 'cooler',
-};
+/** Labels and swatch colours both come from the element data, so a new element needs no
+ *  change here. */
+const MATERIAL_LABELS: Record<Material, string> = Object.fromEntries(
+  MATERIALS.map((material) => [material, material]),
+) as Record<Material, string>;
 
 export function createToolColumn(actions: ToolColumnActions): Component {
   const toolRows = new Map<Tool, HTMLElement>();
@@ -46,10 +46,8 @@ export function createToolColumn(actions: ToolColumnActions): Component {
     'div',
     { class: 'swatch-row' },
     MATERIALS.map((material) => {
-      const swatch = el('div', {
-        class: `swatch swatch--${material}`,
-        title: MATERIAL_LABELS[material],
-      });
+      const swatch = el('div', { class: 'swatch', title: MATERIAL_LABELS[material] });
+      swatch.style.background = elementByName(material).color;
       swatch.addEventListener('pointerdown', () => actions.selectMaterial(material));
       swatches.set(material, swatch);
       return swatch;

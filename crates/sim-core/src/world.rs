@@ -11,10 +11,12 @@
 //! verification, and both must produce identical results.
 
 use crate::chunk::ChunkMap;
-use crate::elements::{ElementId, ElementTable, EMPTY};
+use crate::elements::{ElementId, EMPTY};
 use crate::field::{Bounds, CellField};
 use crate::grid::Grid;
 use crate::hash::Hasher;
+use crate::rules::Rules;
+use crate::spawners::{self, Spawner};
 use crate::step;
 
 /// Hashes the contents of a field, keyed by absolute position.
@@ -62,19 +64,35 @@ fn content_hash_into<F: CellField + ?Sized>(hasher: &mut Hasher, field: &F) {
 #[derive(Clone, Debug)]
 pub struct World {
     field: ChunkMap,
-    table: ElementTable,
+    rules: Rules,
+    spawners: Vec<Spawner>,
     seed: u64,
     tick: u64,
 }
 
 impl World {
-    pub fn new(seed: u64, table: ElementTable) -> World {
+    pub fn new(seed: u64, rules: Rules) -> World {
         World {
             field: ChunkMap::new(),
-            table,
+            rules,
+            spawners: Vec::new(),
             seed,
             tick: 0,
         }
+    }
+
+    /// Adds a spawner. Spawner count is the game's only hard limit on production
+    /// (spec 3.4); enforcing that limit is the economy's job, not the sim's.
+    pub fn add_spawner(&mut self, spawner: Spawner) {
+        self.spawners.push(spawner);
+    }
+
+    pub fn spawners(&self) -> &[Spawner] {
+        &self.spawners
+    }
+
+    pub fn clear_spawners(&mut self) {
+        self.spawners.clear();
     }
 
     /// Advances exactly one tick.
@@ -83,7 +101,16 @@ impl World {
     /// accumulator so ticks stay decoupled from render frames, and the server runs this
     /// as fast as it likes when verifying a replay.
     pub fn step(&mut self) {
-        step::step(&mut self.field, &self.table, self.seed, self.tick);
+        // Matter enters first, then everything moves. Spawners are the only source
+        // (spec 3.4), so this is the whole input side of the game.
+        spawners::emit(&mut self.field, &self.spawners, self.seed, self.tick);
+        step::step(
+            &mut self.field,
+            &self.rules.elements,
+            &self.rules.reactions,
+            self.seed,
+            self.tick,
+        );
         self.tick += 1;
     }
 
@@ -101,8 +128,8 @@ impl World {
         self.seed
     }
 
-    pub const fn table(&self) -> &ElementTable {
-        &self.table
+    pub const fn rules(&self) -> &Rules {
+        &self.rules
     }
 
     pub const fn field(&self) -> &ChunkMap {
@@ -158,23 +185,36 @@ impl World {
 #[derive(Clone, Debug)]
 pub struct FlatWorld {
     field: Grid,
-    table: ElementTable,
+    rules: Rules,
+    spawners: Vec<Spawner>,
     seed: u64,
     tick: u64,
 }
 
 impl FlatWorld {
-    pub fn new(width: u32, height: u32, seed: u64, table: ElementTable) -> FlatWorld {
+    pub fn new(width: u32, height: u32, seed: u64, rules: Rules) -> FlatWorld {
         FlatWorld {
             field: Grid::new(width, height),
-            table,
+            rules,
+            spawners: Vec::new(),
             seed,
             tick: 0,
         }
     }
 
+    pub fn add_spawner(&mut self, spawner: Spawner) {
+        self.spawners.push(spawner);
+    }
+
     pub fn step(&mut self) {
-        step::step(&mut self.field, &self.table, self.seed, self.tick);
+        spawners::emit(&mut self.field, &self.spawners, self.seed, self.tick);
+        step::step(
+            &mut self.field,
+            &self.rules.elements,
+            &self.rules.reactions,
+            self.seed,
+            self.tick,
+        );
         self.tick += 1;
     }
 

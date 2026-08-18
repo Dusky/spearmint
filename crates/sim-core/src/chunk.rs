@@ -279,6 +279,12 @@ impl CellField for ChunkMap {
         }
     }
 
+    fn mark_active(&mut self, x: i32, y: i32) {
+        let (coord, _) = self.locate(x, y);
+        let slot = self.slot_or_create(coord);
+        self.chunks[slot].dirty = true;
+    }
+
     fn is_moved(&self, x: i32, y: i32) -> bool {
         let (coord, index) = self.locate(x, y);
         self.slot(coord)

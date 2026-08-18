@@ -60,7 +60,7 @@ export function createTopBar(): Component {
       setText(spawnerCount, `${economy.spawnersOwned} / ${economy.spawnersMax}`);
 
       setText(tick, `tick ${formatInteger(state.tick)}`);
-      setText(seed, `seed ${state.seed}`);
+      setText(seed, `seed ${state.seed.toString(16)}`);
       if (tickRate) setText(tickRate, `${state.tickRate} Hz`);
     },
   };

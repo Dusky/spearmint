@@ -8,7 +8,11 @@ use sim_core::{ElementTable, Fixed};
 #[test]
 fn the_shipped_data_file_loads() {
     let table = common::table();
-    assert_eq!(table.len(), 3, "milestone 1 defines exactly three elements");
+    assert_eq!(
+        table.len(),
+        4,
+        "wall, sand, water, and the wet sand they react into"
+    );
 
     let sand = table.get(table.id_of("sand").expect("sand")).expect("sand");
     assert_eq!(sand.state, State::Powder);
@@ -95,4 +99,44 @@ fn rejects_duplicate_ids() {
         ElementTable::from_json(source).unwrap_err(),
         DataError::DuplicateId(1)
     );
+}
+
+/// Reactions are data too (spec 3.2), and the shipped file defines the washing step
+/// from spec 5.3's worked example.
+#[test]
+fn the_shipped_reactions_load() {
+    let rules = common::rules();
+    assert_eq!(rules.reactions.len(), 1);
+
+    let sand = rules.elements.id_of("sand").expect("sand");
+    let water = rules.elements.id_of("water").expect("water");
+    let wet = rules.elements.id_of("wetSand").expect("wetSand");
+
+    let (reaction, flipped) = rules
+        .reactions
+        .between(sand, water)
+        .expect("sand and water should react");
+    assert!(!flipped, "sand is the first reactant as written");
+    assert_eq!(reaction.products, [wet, wet]);
+
+    // The pair must be found from either side, or a reaction would only fire when the
+    // reactants happened to be the right way round.
+    let (_, flipped_back) = rules
+        .reactions
+        .between(water, sand)
+        .expect("order should not matter");
+    assert!(flipped_back);
+
+    // Two reactants, two products: a reaction changes composition without changing how
+    // many cells hold matter.
+    assert_eq!(reaction.reactants.len(), reaction.products.len());
+}
+
+/// Wet sand must out-weigh both its ingredients or it would float back up through them.
+#[test]
+fn wet_sand_is_the_densest_of_the_three() {
+    let table = common::table();
+    let density = |name: &str| table.get(table.id_of(name).unwrap()).unwrap().density;
+    assert!(density("wetSand") > density("sand"));
+    assert!(density("wetSand") > density("water"));
 }

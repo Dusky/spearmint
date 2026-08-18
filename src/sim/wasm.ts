@@ -1,0 +1,110 @@
+/// <reference types="vite/client" />
+
+/** The exports the wasm module actually provides. Kept in one place so the shape of
+ *  the boundary is visible; see `crates/sim-wasm/src/lib.rs` for the other side. */
+interface SimExports {
+  readonly memory: WebAssembly.Memory;
+  sim_init(seed: number, width: number, height: number): number;
+  sim_step(ticks: number): void;
+  sim_tick(): number;
+  sim_render(originX: number, originY: number, width: number, height: number): number;
+  sim_paint_line(
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    id: number,
+    halfWidth: number,
+  ): void;
+  sim_get(x: number, y: number): number;
+  sim_count(id: number): number;
+  sim_chunk_count(): number;
+  sim_awake_chunk_count(): number;
+  sim_set_sleeping(enabled: number): void;
+}
+
+/**
+ * The running simulation.
+ *
+ * This is the real Rust core compiled to wasm — not a reimplementation. A TypeScript
+ * copy of the physics would duplicate the rules, discard the determinism work, and
+ * simulate something the shipped game does not.
+ */
+export class Sim {
+  readonly width: number;
+  readonly height: number;
+  readonly #exports: SimExports;
+
+  private constructor(exports: SimExports, width: number, height: number) {
+    this.#exports = exports;
+    this.width = width;
+    this.height = height;
+  }
+
+  static async load(seed: number, width: number, height: number): Promise<Sim> {
+    // No bindgen, so no glue module to import — just the raw bytes.
+    const { instance } = await WebAssembly.instantiateStreaming(fetch('/sim.wasm'), {});
+    const exports = instance.exports as unknown as SimExports;
+
+    if (exports.sim_init(seed, width, height) !== 1) {
+      throw new Error('sim_init failed — element data did not load');
+    }
+    return new Sim(exports, width, height);
+  }
+
+  step(ticks: number): void {
+    if (ticks > 0) this.#exports.sim_step(ticks);
+  }
+
+  get tick(): number {
+    return this.#exports.sim_tick();
+  }
+
+  /**
+   * Renders a window of the world, returning a view straight onto wasm memory — no
+   * copy. The view is only valid until the next call into the module, since the
+   * buffer is reused and growing it can move it.
+   */
+  render(
+    originX: number,
+    originY: number,
+    width: number,
+    height: number,
+  ): Uint8ClampedArray<ArrayBuffer> {
+    const pointer = this.#exports.sim_render(originX, originY, width, height);
+    // `memory.buffer` is typed as ArrayBufferLike because a module *can* be built with
+    // shared memory. This one is not, so it is a plain ArrayBuffer — which ImageData
+    // requires.
+    const buffer = this.#exports.memory.buffer as ArrayBuffer;
+    return new Uint8ClampedArray(buffer, pointer, width * height * 4);
+  }
+
+  paintLine(
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    element: number,
+    halfWidth: number,
+  ): void {
+    this.#exports.sim_paint_line(from.x, from.y, to.x, to.y, element, halfWidth);
+  }
+
+  elementAt(x: number, y: number): number {
+    return this.#exports.sim_get(x, y);
+  }
+
+  count(element: number): number {
+    return this.#exports.sim_count(element);
+  }
+
+  get chunkCount(): number {
+    return this.#exports.sim_chunk_count();
+  }
+
+  get awakeChunkCount(): number {
+    return this.#exports.sim_awake_chunk_count();
+  }
+
+  setSleeping(enabled: boolean): void {
+    this.#exports.sim_set_sleeping(enabled ? 1 : 0);
+  }
+}

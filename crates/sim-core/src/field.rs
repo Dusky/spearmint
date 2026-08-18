@@ -40,6 +40,14 @@ pub trait CellField {
     /// a particle (spec 1.1).
     fn swap(&mut self, ax: i32, ay: i32, bx: i32, by: i32);
 
+    /// Reports that something happened at this cell that was not a move — matter
+    /// appearing, or a reaction firing.
+    ///
+    /// Storage that skips settled regions needs this: a chunk where sand sits touching
+    /// water is chemically active even though nothing is moving, and would otherwise go
+    /// to sleep and never react again.
+    fn mark_active(&mut self, _x: i32, _y: i32) {}
+
     fn is_moved(&self, x: i32, y: i32) -> bool;
 
     fn mark_moved(&mut self, x: i32, y: i32);

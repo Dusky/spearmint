@@ -684,7 +684,3 @@ body {
   color: var(--text-faint-dimmer);
 }
 
-.swatch--wall { background: var(--material-wall); }
-.swatch--insulator { background: var(--material-insulator); }
-.swatch--heater { background: var(--material-heater); }
-.swatch--cooler { background: var(--material-cooler); }

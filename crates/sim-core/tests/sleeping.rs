@@ -21,8 +21,8 @@ use sim_core::field::{Bounds, CellField};
 use sim_core::scene;
 
 fn run(width: u32, height: u32, seed: u64, ticks: u64, sleeping: bool) -> (u64, usize) {
-    let table = common::table();
-    let mut world = scene::sandbox(width, height, seed, &table);
+    let rules = common::rules_without_reactions();
+    let mut world = scene::sandbox(width, height, seed, &rules);
     world.set_sleeping(sleeping);
     world.step_many(ticks);
     (world.hash(), world.awake_chunk_count())
@@ -60,11 +60,12 @@ fn sleeping_does_not_change_a_multi_chunk_world() {
 /// is deliberately dry.
 #[test]
 fn chunks_actually_sleep_once_the_world_settles() {
-    let table = common::table();
+    let rules = common::rules_without_reactions();
+    let table = &rules.elements;
     let wall = table.id_of("wall").expect("wall");
     let sand = table.id_of("sand").expect("sand");
 
-    let mut world = sim_core::World::new(9, table.clone());
+    let mut world = sim_core::World::new(9, rules.clone());
     world.set_sleeping(true);
 
     // Three chunks wide, two tall. Enclosed on all sides: on an infinite canvas a bare
@@ -111,11 +112,12 @@ fn chunks_actually_sleep_once_the_world_settles() {
 /// what sleeping ultimately rests on.
 #[test]
 fn a_settled_powder_world_reaches_a_fixed_point() {
-    let table = common::table();
+    let rules = common::rules_without_reactions();
+    let table = &rules.elements;
     let wall = table.id_of("wall").expect("wall");
     let sand = table.id_of("sand").expect("sand");
 
-    let mut world = sim_core::World::new(3, table.clone());
+    let mut world = sim_core::World::new(3, rules.clone());
     world.set_sleeping(true);
     // A closed box. An open floor would let the heap spread off its ends and fall
     // forever down an infinite canvas.
@@ -160,8 +162,8 @@ fn a_settled_powder_world_reaches_a_fixed_point() {
 /// future liquid model actually terminates.
 #[test]
 fn liquid_worlds_never_settle() {
-    let table = common::table();
-    let mut world = scene::sandbox(60, 40, 5, &table);
+    let rules = common::rules_without_reactions();
+    let mut world = scene::sandbox(60, 40, 5, &rules);
     world.set_sleeping(true);
 
     world.step_many(16_000);
@@ -180,11 +182,12 @@ fn liquid_worlds_never_settle() {
 /// would pile up against an invisible wall at the seam.
 #[test]
 fn a_neighbour_wakes_a_sleeping_chunk() {
-    let table = common::table();
+    let rules = common::rules_without_reactions();
+    let table = &rules.elements;
     let sand = table.id_of("sand").expect("sand");
     let seam = CHUNK_CELLS as i32;
 
-    let mut world = sim_core::World::new(1, table.clone());
+    let mut world = sim_core::World::new(1, rules.clone());
     world.set_sleeping(true);
 
     // A floor across two chunks, with sand sitting above it on the left one only.
@@ -214,10 +217,10 @@ fn a_neighbour_wakes_a_sleeping_chunk() {
 fn the_viewport_only_ever_keeps_chunks_awake() {
     let width = CHUNK_CELLS * 3;
     let height = CHUNK_CELLS * 2;
-    let table = common::table();
+    let rules = common::rules_without_reactions();
 
     let settle = |viewport: Option<Bounds>| {
-        let mut world = scene::sandbox(width, height, 11, &table);
+        let mut world = scene::sandbox(width, height, 11, &rules);
         world.set_sleeping(true);
         world.set_viewport(viewport, 1);
         world.step_many(6_000);
@@ -244,8 +247,9 @@ fn the_viewport_only_ever_keeps_chunks_awake() {
 /// its particles (spec 2.4: freezing, not abstraction).
 #[test]
 fn sleeping_conserves_everything() {
-    let table = common::table();
-    let mut world = scene::sandbox(CHUNK_CELLS * 2, CHUNK_CELLS, 0x4f2a11, &table);
+    let rules = common::rules_without_reactions();
+    let table = &rules.elements;
+    let mut world = scene::sandbox(CHUNK_CELLS * 2, CHUNK_CELLS, 0x4f2a11, &rules);
     world.set_sleeping(true);
 
     let before: Vec<(u8, usize)> = table

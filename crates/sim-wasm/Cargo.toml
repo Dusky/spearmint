@@ -1,0 +1,13 @@
+[package]
+name = "sim-wasm"
+description = "Browser bridge for the simulation core. Raw wasm exports, no bindgen."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+sim-core = { path = "../sim-core" }

@@ -9,29 +9,43 @@
 
 mod common;
 
-use sim_core::{scene, EMPTY};
+use sim_core::{scene, ElementTable, EMPTY};
+
+/// The scene places walls, sand and water; anything else in the roster is legitimately
+/// absent and is still covered by the conservation assertions.
+///
+/// Takes the census rather than a world, so it serves both the flat and chunked ones.
+fn assert_present(elements: &ElementTable, census: &[(u8, usize)], seed: u64) {
+    for name in ["wall", "sand", "water"] {
+        let id = elements.id_of(name).expect("element should be defined");
+        let count = census
+            .iter()
+            .find(|(element, _)| *element == id)
+            .map(|(_, count)| *count)
+            .unwrap_or(0);
+        assert!(count > 0, "seed {seed:#x}: {name} absent from the scene");
+    }
+}
 
 #[test]
 fn nothing_is_created_or_destroyed() {
-    let table = common::table();
+    let rules = common::rules_without_reactions();
+    let table = &rules.elements;
 
     // Several seeds on the flat world, which simulates the same rules for a fraction
     // of the cost; one chunked run below covers the storage.
     for seed in [3, 0x4f2a11, 0xfeed_face] {
-        let mut world = scene::sandbox_flat(96, 72, seed, &table);
+        let mut world = scene::sandbox_flat(96, 72, seed, &rules);
 
         let before: Vec<(u8, usize)> = table
             .iter()
             .map(|element| (element.id, world.count_of(element.id)))
             .collect();
 
-        // Every element must actually be present, or the test would pass vacuously.
-        for (id, count) in &before {
-            assert!(
-                *count > 0,
-                "seed {seed:#x}: element {id} absent from the scene"
-            );
-        }
+        // The materials whose movement this is about must actually be present, or the
+        // test would pass vacuously. Elements the scene never places — reaction
+        // products, for one — are still conserved below, at a count of zero.
+        assert_present(&rules.elements, &before, seed);
 
         world.step_many(10_000);
 
@@ -49,8 +63,9 @@ fn nothing_is_created_or_destroyed() {
 /// and must balance too.
 #[test]
 fn the_flat_world_conserves_its_void_as_well() {
-    let table = common::table();
-    let mut world = scene::sandbox_flat(96, 72, 3, &table);
+    let rules = common::rules_without_reactions();
+    let table = &rules.elements;
+    let mut world = scene::sandbox_flat(96, 72, 3, &rules);
 
     let before: Vec<(u8, usize)> = table
         .iter()
@@ -71,9 +86,10 @@ fn the_flat_world_conserves_its_void_as_well() {
 /// it was not placed.
 #[test]
 fn solids_never_move() {
-    let table = common::table();
+    let rules = common::rules_without_reactions();
+    let table = &rules.elements;
     let wall = table.id_of("wall").expect("wall element");
-    let mut world = scene::sandbox(80, 60, 0x1234, &table);
+    let mut world = scene::sandbox(80, 60, 0x1234, &rules);
 
     let placed: Vec<(i32, i32)> = (0..60)
         .flat_map(|y| (0..80).map(move |x| (x, y)))
@@ -94,17 +110,16 @@ fn solids_never_move() {
 /// particle, since a swap across a chunk boundary writes into two separate arrays.
 #[test]
 fn chunked_storage_conserves_across_boundaries() {
-    let table = common::table();
+    let rules = common::rules_without_reactions();
+    let table = &rules.elements;
     // Wide enough to straddle several chunks, so boundary swaps happen constantly.
-    let mut world = scene::sandbox(sim_core::chunk::CHUNK_CELLS * 2 + 40, 120, 0x4f2a11, &table);
+    let mut world = scene::sandbox(sim_core::chunk::CHUNK_CELLS * 2 + 40, 120, 0x4f2a11, &rules);
 
     let before: Vec<(u8, usize)> = table
         .iter()
         .map(|element| (element.id, world.count_of(element.id)))
         .collect();
-    for (id, count) in &before {
-        assert!(*count > 0, "element {id} absent from the scene");
-    }
+    assert_present(&rules.elements, &before, 0x4f2a11);
 
     world.step_many(3_000);
 

@@ -3,10 +3,35 @@
  *  will eventually own stays visible in one file. */
 
 import { TILE_CELLS } from '../constants';
+import { elementByName, EMPTY_ELEMENT } from '../sim/elements';
+import { MATERIALS } from './types';
 import type { Store } from './store';
 import type { DrawerName, GameState, Material, NoticeId, Tool, Vec2 } from './types';
 
-export function createActions(store: Store<GameState>) {
+/** What the actions need from the running simulation. */
+export interface SimBridge {
+  paintLine(from: Vec2, to: Vec2, element: number, halfWidth: number): void;
+  elementAt(x: number, y: number): number;
+}
+
+/** Materials are element names, so these resolve straight out of the data file. */
+const MATERIAL_ELEMENTS: Record<Material, number> = Object.fromEntries(
+  MATERIALS.map((material) => [material, elementByName(material).id]),
+) as Record<Material, number>;
+
+const MATERIAL_BY_ELEMENT = new Map<number, Material>(
+  MATERIALS.map((material) => [MATERIAL_ELEMENTS[material], material]),
+);
+
+/** Cells from a tile's origin to its centre. Tiles are odd-sized so this is exact. */
+const TILE_CENTRE = (TILE_CELLS - 1) / 2;
+
+/** Snaps a world cell to the centre of the tile containing it. */
+function snapToTileCentre(cell: number): number {
+  return Math.floor(cell / TILE_CELLS) * TILE_CELLS + TILE_CENTRE;
+}
+
+export function createActions(store: Store<GameState>, sim: SimBridge) {
   const patchUi = (patch: Partial<GameState['ui']>): void => {
     store.update((state) => ({ ...state, ui: { ...state.ui, ...patch } }));
   };
@@ -85,24 +110,41 @@ export function createActions(store: Store<GameState>) {
     },
 
     /**
-     * SEAM — needs the sim.
+     * Draws a stroke into the world.
      *
-     * Drawing paints at the tile snap, and shift constrains the stroke to a straight
-     * line. Both are settled in the design, but a stroke has nowhere to land until
-     * the sim owns the cell grid, so this records nothing today.
+     * Building happens on the tile grid, not per cell (spec 2.3), so both ends snap to
+     * tile centres and the brush is one tile across. Holding shift constrains the
+     * stroke to the axis it has travelled furthest along.
      */
-    paint(_from: Vec2, _to: Vec2, _straight: boolean): void {
-      // Intentionally empty until the sim lands.
+    paint(from: Vec2, to: Vec2, straight: boolean): void {
+      const { selectedTool, selectedMaterial } = store.state.ui;
+      if (selectedTool !== 'draw' && selectedTool !== 'erase') return;
+
+      const element =
+        selectedTool === 'erase' ? EMPTY_ELEMENT : MATERIAL_ELEMENTS[selectedMaterial];
+      if (element === undefined) return;
+
+      let end = to;
+      if (straight) {
+        end =
+          Math.abs(to.x - from.x) >= Math.abs(to.y - from.y)
+            ? { x: to.x, y: from.y }
+            : { x: from.x, y: to.y };
+      }
+
+      sim.paintLine(
+        { x: snapToTileCentre(from.x), y: snapToTileCentre(from.y) },
+        { x: snapToTileCentre(end.x), y: snapToTileCentre(end.y) },
+        element,
+        TILE_CENTRE,
+      );
     },
 
-    /**
-     * SEAM — needs the sim.
-     *
-     * alt+click picks the material under the cursor, which means sampling a cell the
-     * client does not own yet.
-     */
-    pickMaterialAt(_world: Vec2): void {
-      // Intentionally empty until the sim lands.
+    /** alt+click: adopt the material already under the cursor. */
+    pickMaterialAt(world: Vec2): void {
+      const element = sim.elementAt(world.x, world.y);
+      const material = MATERIAL_BY_ELEMENT.get(element);
+      if (material) patchUi({ selectedMaterial: material });
     },
   };
 }

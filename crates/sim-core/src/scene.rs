@@ -11,6 +11,7 @@
 use crate::elements::{ElementId, ElementTable, EMPTY};
 use crate::field::CellField;
 use crate::rng;
+use crate::rules::Rules;
 use crate::world::{FlatWorld, World};
 
 /// Places the sandbox: a closed box with some structure in it and a charge of sand and
@@ -75,15 +76,42 @@ fn build(width: u32, height: u32, seed: u64, table: &ElementTable, field: &mut d
 }
 
 /// The sandbox on chunked storage.
-pub fn sandbox(width: u32, height: u32, seed: u64, table: &ElementTable) -> World {
-    let mut world = World::new(seed, table.clone());
-    build(width, height, seed, table, world.field_mut());
+pub fn sandbox(width: u32, height: u32, seed: u64, rules: &Rules) -> World {
+    let mut world = World::new(seed, rules.clone());
+    build(width, height, seed, &rules.elements, world.field_mut());
     world
 }
 
 /// The same sandbox on the flat reference storage.
-pub fn sandbox_flat(width: u32, height: u32, seed: u64, table: &ElementTable) -> FlatWorld {
-    let mut world = FlatWorld::new(width, height, seed, table.clone());
-    build(width, height, seed, table, world.field_mut());
+pub fn sandbox_flat(width: u32, height: u32, seed: u64, rules: &Rules) -> FlatWorld {
+    let mut world = FlatWorld::new(width, height, seed, rules.clone());
+    build(width, height, seed, &rules.elements, world.field_mut());
+    world
+}
+
+/// An empty arena for the player to build in: walls on all four sides, nothing inside.
+///
+/// The world is infinite (spec 2.1) and nothing yet holds it up (spec 3.6), so material
+/// with no floor beneath it falls forever, allocating chunks as it goes. Enclosing the
+/// playable area sidesteps that until terrain answers it properly.
+pub fn arena(width: u32, height: u32, seed: u64, rules: &Rules) -> World {
+    let wall = rules
+        .elements
+        .id_of("wall")
+        .expect("arena requires a `wall` element");
+    let mut world = World::new(seed, rules.clone());
+    let field = world.field_mut();
+
+    let right = width as i32 - 1;
+    let bottom = height as i32 - 1;
+    for x in 0..=right {
+        field.set(x, 0, wall);
+        field.set(x, bottom, wall);
+    }
+    for y in 0..=bottom {
+        field.set(0, y, wall);
+        field.set(right, y, wall);
+    }
+
     world
 }

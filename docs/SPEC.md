@@ -183,6 +183,16 @@ void cannot escape upward; a lateral move costs nothing, so water shuffles aroun
 indefinitely. Powders settle correctly — every move strictly descends, so they must
 terminate — but any region holding water churns for as long as the world runs.
 
+**Worse than churning: water never reaches full density.** Filling a sealed tank from a
+point source saturates at about **76%** and stays there, in a stable period-3 lattice of
+water and voids. It does not converge slowly; it converges to wrong. Rendered, this does
+not read as a fluid finding its level — it reads as a rendering bug, which means a
+playtester reacts to the artifact rather than to the machine they built.
+
+This was originally left unfixed on purpose, to find out whether churning water looked
+alive or broken (see `docs/VERTICAL-SLICE.md`). It looks broken. The question is no
+longer whether to answer this, but how.
+
 The naive fixes each break something:
 
 - *Only move sideways toward somewhere it can fall* — a column of water on a flat floor

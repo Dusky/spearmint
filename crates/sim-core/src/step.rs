@@ -11,19 +11,28 @@
 
 use crate::elements::{Element, ElementTable, State, EMPTY};
 use crate::field::CellField;
+use crate::reactions::ReactionTable;
 use crate::rng;
 
 /// Salts keeping a cell's independent decisions from correlating with each other.
 const SALT_ROW_DIRECTION: u32 = 1;
 const SALT_DIAGONAL: u32 = 2;
 const SALT_LATERAL: u32 = 3;
+const SALT_REACT_RIGHT: u32 = 4;
+const SALT_REACT_DOWN: u32 = 5;
 
 /// Advances one tick over any storage.
 ///
 /// Generic so the flat grid and the chunked map run this exact code rather than two
 /// copies of it — otherwise comparing them would only prove that two tick loops agree,
 /// not that chunking is transparent.
-pub fn step<F: CellField + ?Sized>(field: &mut F, table: &ElementTable, seed: u64, tick: u64) {
+pub fn step<F: CellField + ?Sized>(
+    field: &mut F,
+    table: &ElementTable,
+    reactions: &ReactionTable,
+    seed: u64,
+    tick: u64,
+) {
     field.begin_tick();
     let Some(bounds) = field.bounds() else {
         return;
@@ -67,11 +76,16 @@ pub fn step<F: CellField + ?Sized>(field: &mut F, table: &ElementTable, seed: u6
                     continue;
                 }
 
-                let Some(id) = field.get(x, y) else {
+                let Some(mut id) = field.get(x, y) else {
                     continue;
                 };
                 if id == EMPTY {
                     continue;
+                }
+
+                // Reactions first, so a cell that changes still moves as what it became.
+                if !reactions.is_empty() {
+                    id = react(field, reactions, x, y, id, seed, tick);
                 }
                 // An id with no definition is left alone rather than assumed inert — it
                 // means the data file and the world disagree, which is worth noticing.
@@ -199,4 +213,60 @@ fn try_move<F: CellField + ?Sized>(
 /// through water without a single rule naming either of them.
 fn displaces(mover: &Element, target: &Element) -> bool {
     matches!(target.state, State::Liquid | State::Gas) && mover.density > target.density
+}
+
+/// Reacts a cell with its right and lower neighbours, returning what it ended up as.
+///
+/// Only two of the four neighbours are checked, so each adjacent pair is considered
+/// exactly once per tick rather than twice.
+///
+/// Note what is *not* here: no temperature gate, no catalyst, no rate table. Yield is
+/// whatever the geometry produces, because a reaction can only happen where reactants
+/// actually touch (spec 3.3). Contact area is not a parameter — it is the mechanism.
+fn react<F: CellField + ?Sized>(
+    field: &mut F,
+    reactions: &ReactionTable,
+    x: i32,
+    y: i32,
+    id: crate::elements::ElementId,
+    seed: u64,
+    tick: u64,
+) -> crate::elements::ElementId {
+    let mut current = id;
+
+    for (dx, dy, salt) in [(1, 0, SALT_REACT_RIGHT), (0, 1, SALT_REACT_DOWN)] {
+        let (nx, ny) = (x + dx, y + dy);
+        let Some(neighbour) = field.get(nx, ny) else {
+            continue;
+        };
+        if neighbour == EMPTY {
+            continue;
+        }
+        let Some((reaction, flipped)) = reactions.between(current, neighbour) else {
+            continue;
+        };
+
+        // Reactants in contact make this cell chemically active even if nothing moves,
+        // which has to keep its chunk awake or the reaction would never get another
+        // chance to fire.
+        field.mark_active(x, y);
+        field.mark_active(nx, ny);
+
+        // Probability is Q16.16, so the draw is out of 65536.
+        let roll = rng::below(seed, tick, x, y, salt, 1 << 16);
+        if i64::from(roll) >= i64::from(reaction.probability.raw()) {
+            continue;
+        }
+
+        let (here, there) = if flipped {
+            (reaction.products[1], reaction.products[0])
+        } else {
+            (reaction.products[0], reaction.products[1])
+        };
+        field.set(x, y, here);
+        field.set(nx, ny, there);
+        current = here;
+    }
+
+    current
 }

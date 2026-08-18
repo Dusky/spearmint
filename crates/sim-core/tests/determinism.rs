@@ -16,16 +16,16 @@ const TICKS: u64 = 10_000;
 /// chunks and takes several times as long for an identical result. That the two agree
 /// is established separately, and thoroughly, in `chunk_equivalence.rs`.
 fn hash_after(seed: u64, width: u32, height: u32, ticks: u64) -> u64 {
-    let table = common::table();
-    let mut world = scene::sandbox_flat(width, height, seed, &table);
+    let rules = common::rules_without_reactions();
+    let mut world = scene::sandbox_flat(width, height, seed, &rules);
     world.step_many(ticks);
     world.hash()
 }
 
 /// The flat reference world, fingerprinted the way Milestone 1 pinned it.
 fn flat_structural_hash_after(seed: u64, width: u32, height: u32, ticks: u64) -> u64 {
-    let table = common::table();
-    let mut world = scene::sandbox_flat(width, height, seed, &table);
+    let rules = common::rules_without_reactions();
+    let mut world = scene::sandbox_flat(width, height, seed, &rules);
     world.step_many(ticks);
     world.structural_hash()
 }
@@ -73,13 +73,13 @@ fn identical_across_grid_sizes_and_seeds() {
 /// ticks that the hash cannot see.
 #[test]
 fn stepping_is_resumable() {
-    let table = common::table();
+    let rules = common::rules_without_reactions();
     let seed = 0x51ce;
 
-    let mut straight = scene::sandbox_flat(80, 60, seed, &table);
+    let mut straight = scene::sandbox_flat(80, 60, seed, &rules);
     straight.step_many(4_000);
 
-    let mut halted = scene::sandbox_flat(80, 60, seed, &table);
+    let mut halted = scene::sandbox_flat(80, 60, seed, &rules);
     halted.step_many(1_500);
     halted.step_many(2_500);
 
@@ -110,10 +110,10 @@ fn golden_hash_is_unchanged() {
 /// to the flat world cell for cell.
 #[test]
 fn the_chunked_world_is_deterministic_too() {
-    let table = common::table();
+    let rules = common::rules_without_reactions();
 
     let run = |seed: u64| {
-        let mut world = scene::sandbox(96, 72, seed, &table);
+        let mut world = scene::sandbox(96, 72, seed, &rules);
         world.step_many(TICKS);
         world.hash()
     };
@@ -124,8 +124,8 @@ fn the_chunked_world_is_deterministic_too() {
     // And across a process's threads, where anything ambient would show up.
     let expected = run(seed);
     let from_thread = std::thread::spawn(move || {
-        let table = common::table();
-        let mut world = scene::sandbox(96, 72, seed, &table);
+        let rules = common::rules_without_reactions();
+        let mut world = scene::sandbox(96, 72, seed, &rules);
         world.step_many(TICKS);
         world.hash()
     })

@@ -4,10 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev": "npm run sim:wasm && vite",
+    "build": "npm run sim:wasm && tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "sim:wasm": "cargo build -p sim-wasm --target wasm32-unknown-unknown --release && cp target/wasm32-unknown-unknown/release/sim_wasm.wasm public/sim.wasm",
     "sim:test": "cargo test --workspace",
     "sim:check": "cargo clippy --workspace --all-targets -- -D warnings",
     "sim:run": "cargo run --release -p sim-harness --bin sim-hash --",

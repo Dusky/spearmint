@@ -39,6 +39,33 @@
       "color_variance": 10,
       "flammability": 0.0,
       "hardness": 0.0
+    },
+    {
+      "id": 4,
+      "name": "wetSand",
+      "state": "powder",
+      "density": 1900,
+      "melting_point": 1986,
+      "boiling_point": 2503,
+      "thermal_conductivity": 0.33,
+      "color": "#8A7A52",
+      "color_variance": 10,
+      "flammability": 0.0,
+      "hardness": 0.55
+    }
+  ],
+  "reactions": [
+    {
+      "note": "Spec 5.3's worked example. Both cells become product, so a reaction changes composition without changing how many cells hold matter.",
+      "reactants": [
+        "sand",
+        "water"
+      ],
+      "products": [
+        "wetSand",
+        "wetSand"
+      ],
+      "probability": 0.04
     }
   ]
 }

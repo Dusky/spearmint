@@ -22,10 +22,10 @@ use sim_core::scene;
 /// Compares cell by cell over the scene's own extent, so a mismatch names a position
 /// rather than just a differing hash.
 fn assert_same_world(width: u32, height: u32, seed: u64, ticks: u64) {
-    let table = common::table();
+    let rules = common::rules_without_reactions();
 
-    let mut chunked = scene::sandbox(width, height, seed, &table);
-    let mut flat = scene::sandbox_flat(width, height, seed, &table);
+    let mut chunked = scene::sandbox(width, height, seed, &rules);
+    let mut flat = scene::sandbox_flat(width, height, seed, &rules);
 
     chunked.step_many(ticks);
     flat.step_many(ticks);
@@ -60,8 +60,8 @@ fn matches_the_flat_world_across_several_chunks() {
     assert_same_world(width, height, 7, 400);
 
     // The scene must genuinely span more than one chunk, or this proves nothing.
-    let table = common::table();
-    let world = scene::sandbox(width, height, 7, &table);
+    let rules = common::rules_without_reactions();
+    let world = scene::sandbox(width, height, 7, &rules);
     assert!(
         world.field().chunk_count() >= 6,
         "expected a multi-chunk scene, got {}",
@@ -87,8 +87,9 @@ fn matches_across_seeds() {
 /// chunks that hold nothing has to leave the world identical.
 #[test]
 fn compaction_is_unobservable() {
-    let table = common::table();
-    let mut world = scene::sandbox(96, 72, 5, &table);
+    let rules = common::rules_without_reactions();
+    let table = &rules.elements;
+    let mut world = scene::sandbox(96, 72, 5, &rules);
     world.step_many(300);
 
     let before = world.hash();
@@ -101,7 +102,7 @@ fn compaction_is_unobservable() {
     assert_eq!(counts, after);
 
     // And it must still simulate identically afterwards.
-    let mut untouched = scene::sandbox(96, 72, 5, &table);
+    let mut untouched = scene::sandbox(96, 72, 5, &rules);
     untouched.step_many(300);
     world.step_many(100);
     untouched.step_many(100);

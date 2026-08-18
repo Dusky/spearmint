@@ -5,18 +5,25 @@ An incremental factory game built on a side-on falling-sand particle simulation.
 [`design/particle-factory-ui/`](design/particle-factory-ui/) for the UI handoff this
 client was built from.
 
-Two pieces exist so far, and they are not yet connected to each other:
+The two halves are connected: the Rust simulation runs in the browser through wasm, and
+you can draw a machine and watch material flow through it. See
+[`docs/VERTICAL-SLICE.md`](docs/VERTICAL-SLICE.md) for what that slice is testing and
+what is deliberately left out of it.
 
-- **The simulation core** (`crates/sim-core`) — Milestones 1, 2a and 2b of spec §10.
-  Headless, deterministic, and proven so, on sparse chunks over an unbounded canvas,
-  with viewport-gated sleeping. Sand, water and wall; no belts, no economy, no
-  rendering.
-- **The HUD shell** (`src/`) — the interface from the design handoff, real and typed,
-  with a placeholder standing in for the world behind it.
+- **`crates/sim-core`** — the simulation. Headless, deterministic and proven so, on
+  sparse chunks over an unbounded canvas, with viewport-gated sleeping. Wall, sand,
+  water, and the wet sand they react into.
+- **`crates/sim-wasm`** — the browser bridge. Raw `extern "C"` exports and a
+  hand-written binding, so the core keeps its zero dependencies.
+- **`crates/sim-harness`** — `sim-hash`, which runs the sim headless and prints world
+  fingerprints. Also the shape the server-side replay verifier will take (§8.3).
+- **`src/`** — the client: the HUD from the design handoff, drawing onto the real
+  simulation.
 
-Wiring them together is Milestone 2d's job and has deliberately not been started: §10 is
-explicit that nothing lands on top of the sim until its determinism test passes
-reliably.
+What is real: the world, the physics, drawing, reactions, spawners. What is not: the
+economy. Gold, spawner counts, upgrades and blueprints are still fabricated in
+`src/state/initialState.ts`, each marked, because the economy server is out of the
+slice.
 
 ## Running it
 

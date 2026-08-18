@@ -4,23 +4,23 @@ import './styles/hud.css';
 
 import { createActions } from './state/actions';
 import { createHud } from './ui/hud';
-import { createPlaceholderSurface } from './sim/placeholderSurface';
-import { initialState, startPlaceholderFeed } from './state/placeholder';
+import { createWasmSurface } from './sim/wasmSurface';
+import { ARENA_HEIGHT, ARENA_WIDTH, initialState } from './state/initialState';
 import { bindKeyboard } from './ui/input';
+import { Sim } from './sim/wasm';
+import { startSimFeed } from './state/simFeed';
 import { Store } from './state/store';
 import type { GameState } from './state/types';
 
 const store = new Store<GameState>(initialState());
-const actions = createActions(store);
 
-// Swap this for the WebGL2 renderer over the Rust/WASM sim; nothing else changes.
-const surface = createPlaceholderSurface();
+const sim = await Sim.load(store.state.seed, ARENA_WIDTH, ARENA_HEIGHT);
+const actions = createActions(store, sim);
+const hud = createHud(createWasmSurface(sim), actions);
 
-const hud = createHud(surface, actions);
 document.body.append(hud.root);
-
 store.subscribe((state) => hud.update(state));
 hud.update(store.state);
 
 bindKeyboard(actions);
-startPlaceholderFeed(store);
+startSimFeed(store, sim);
