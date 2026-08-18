@@ -21,8 +21,13 @@ interface SimExports {
   sim_chunk_count(): number;
   sim_awake_chunk_count(): number;
   sim_set_sleeping(enabled: number): void;
-  sim_add_spawner(x: number, y: number, width: number, element: number, rate: number): void;
-  sim_spawner_count(): number;
+  sim_place_entity(kind: number, tileX: number, tileY: number, element: number): number;
+  sim_entity_at(x: number, y: number): number;
+  sim_remove_entity(index: number): number;
+  sim_entity_count(): number;
+  sim_entity_count_of_kind(kind: number): number;
+  sim_entity_tile_x(index: number): number;
+  sim_entity_tile_y(index: number): number;
   sim_contact_area(): number;
 }
 
@@ -111,12 +116,30 @@ export class Sim {
     this.#exports.sim_set_sleeping(enabled ? 1 : 0);
   }
 
-  addSpawner(x: number, y: number, width: number, element: number, rate: number): void {
-    this.#exports.sim_add_spawner(x, y, width, element, rate);
+  /** Places a machine on a tile. False if something is already there. */
+  placeEntity(kind: number, tileX: number, tileY: number, element: number): boolean {
+    return this.#exports.sim_place_entity(kind, tileX, tileY, element) === 1;
   }
 
-  get spawnerCount(): number {
-    return this.#exports.sim_spawner_count();
+  /** The machine covering a world cell, or null. */
+  entityAt(x: number, y: number): number | null {
+    const index = this.#exports.sim_entity_at(x, y);
+    return index < 0 ? null : index;
+  }
+
+  /** Removes a machine and frees its slot in full. */
+  removeEntity(index: number): boolean {
+    return this.#exports.sim_remove_entity(index) === 1;
+  }
+
+  countOfKind(kind: number): number {
+    return this.#exports.sim_entity_count_of_kind(kind);
+  }
+
+  /** Where a machine sits, in tiles, for outlining it. */
+  entityTile(index: number): { x: number; y: number } | null {
+    const x = this.#exports.sim_entity_tile_x(index);
+    return x === -2147483648 ? null : { x, y: this.#exports.sim_entity_tile_y(index) };
   }
 
   /** Cells where two reactants are touching. Walks the world, so read it at the

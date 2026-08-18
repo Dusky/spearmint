@@ -4,6 +4,7 @@
 
 import { TILE_CELLS } from '../constants';
 import { elementByName, EMPTY_ELEMENT } from '../sim/elements';
+import { entityForTool } from '../sim/entities';
 import { MATERIALS } from './types';
 import type { Store } from './store';
 import type { DrawerName, GameState, Material, NoticeId, Tool, Vec2 } from './types';
@@ -12,14 +13,13 @@ import type { DrawerName, GameState, Material, NoticeId, Tool, Vec2 } from './ty
 export interface SimBridge {
   paintLine(from: Vec2, to: Vec2, element: number, halfWidth: number): void;
   elementAt(x: number, y: number): number;
-  addSpawner(x: number, y: number, width: number, element: number, rate: number): void;
-  readonly spawnerCount: number;
+  placeEntity(kind: number, tileX: number, tileY: number, element: number): boolean;
+  entityAt(x: number, y: number): number | null;
+  removeEntity(index: number): boolean;
+  countOfKind(kind: number): number;
 }
 
-/** Cells across, and cells emitted per tick. Fixed for now; spawn rate and purity are
- *  both plausible upgrade axes (spec 3.4). */
-const SPAWNER_WIDTH = 6;
-const SPAWNER_RATE = 2;
+const toTile = (cell: number): number => Math.floor(cell / TILE_CELLS);
 
 /** Materials are element names, so these resolve straight out of the data file. */
 const MATERIAL_ELEMENTS: Record<Material, number> = Object.fromEntries(
@@ -76,9 +76,18 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
      * translator and every tool's meaning lives in one file.
      */
     press(world: Vec2): void {
-      if (store.state.ui.selectedTool === 'spawner') {
-        this.placeSpawner(world);
-        return;
+      switch (store.state.ui.selectedTool) {
+        case 'spawner':
+          this.placeSpawner(world);
+          return;
+        case 'erase':
+          // Erase should erase. Removing an entity here rather than inventing a
+          // seventh tool, and on press only — never mid-drag, so sweeping erase
+          // across the world cannot silently delete a machine's inputs.
+          if (this.removeEntityAt(world)) return;
+          break;
+        default:
+          break;
       }
       this.selectAt(world);
     },
@@ -95,19 +104,38 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
       if (economy.spawnersOwned >= economy.spawnersMax) return;
 
       const element = MATERIAL_ELEMENTS[ui.selectedMaterial];
-      if (element === undefined) return;
+      const machine = entityForTool(ui.selectedTool);
+      if (element === undefined || !machine) return;
 
-      sim.addSpawner(
-        world.x - Math.floor(SPAWNER_WIDTH / 2),
-        world.y,
-        SPAWNER_WIDTH,
-        element,
-        SPAWNER_RATE,
-      );
+      if (!sim.placeEntity(machine.id, toTile(world.x), toTile(world.y), element)) return;
       store.update((state) => ({
         ...state,
-        economy: { ...state.economy, spawnersOwned: sim.spawnerCount },
+        economy: { ...state.economy, spawnersOwned: sim.countOfKind(machine.id) },
       }));
+    },
+
+    /**
+     * Removes whatever entity sits here, refunding its slot in full.
+     *
+     * Placement is never a purchase that can be wasted. Gold buys spawner *capacity*
+     * (spec 3.4); where a spawner sits within that capacity is a layout decision, and
+     * taking it back costs nothing. Without this, spending every slot on one material
+     * soft-locks the run.
+     */
+    removeEntityAt(world: Vec2): boolean {
+      const index = sim.entityAt(world.x, world.y);
+      if (index === null) return false;
+
+      sim.removeEntity(index);
+      const machine = entityForTool('spawner');
+      store.update((state) => ({
+        ...state,
+        economy: {
+          ...state.economy,
+          spawnersOwned: machine ? sim.countOfKind(machine.id) : state.economy.spawnersOwned,
+        },
+      }));
+      return true;
     },
 
     /** Click a construct to select it; clicking past everything clears the selection. */

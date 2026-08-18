@@ -12,11 +12,11 @@
 
 use crate::chunk::ChunkMap;
 use crate::elements::{ElementId, EMPTY};
+use crate::entities::{self, Entity, EntityKind};
 use crate::field::{Bounds, CellField};
 use crate::grid::Grid;
 use crate::hash::Hasher;
 use crate::rules::Rules;
-use crate::spawners::{self, Spawner};
 use crate::step;
 
 /// Hashes the contents of a field, keyed by absolute position.
@@ -65,7 +65,7 @@ fn content_hash_into<F: CellField + ?Sized>(hasher: &mut Hasher, field: &F) {
 pub struct World {
     field: ChunkMap,
     rules: Rules,
-    spawners: Vec<Spawner>,
+    entities: Vec<Entity>,
     seed: u64,
     tick: u64,
 }
@@ -75,24 +75,58 @@ impl World {
         World {
             field: ChunkMap::new(),
             rules,
-            spawners: Vec::new(),
+            entities: Vec::new(),
             seed,
             tick: 0,
         }
     }
 
-    /// Adds a spawner. Spawner count is the game's only hard limit on production
-    /// (spec 3.4); enforcing that limit is the economy's job, not the sim's.
-    pub fn add_spawner(&mut self, spawner: Spawner) {
-        self.spawners.push(spawner);
+    /// Places a machine. Counting them against a cap is the economy's job, not the
+    /// sim's (spec 3.4).
+    pub fn place(&mut self, entity: Entity) {
+        self.entities.push(entity);
     }
 
-    pub fn spawners(&self) -> &[Spawner] {
-        &self.spawners
+    pub fn entities(&self) -> &[Entity] {
+        &self.entities
     }
 
-    pub fn clear_spawners(&mut self) {
-        self.spawners.clear();
+    /// The machine covering this tile, if any.
+    pub fn entity_at(&self, tile_x: i32, tile_y: i32) -> Option<usize> {
+        self.entities.iter().position(|entity| {
+            self.rules
+                .entities
+                .get(entity.kind)
+                .is_some_and(|definition| entity.covers(definition, tile_x, tile_y))
+        })
+    }
+
+    /// Removes a machine, freeing its slot completely.
+    ///
+    /// Placement is never a purchase that can be wasted: gold buys *capacity* (spec
+    /// 3.4), and where a machine sits within that capacity is a layout decision the
+    /// player can take back at no cost. Charging for a misplacement would make players
+    /// hoard slots rather than experiment, which is backwards for a game whose loop is
+    /// iterating on machine geometry — and without removal, spending every slot on one
+    /// material soft-locks the run.
+    pub fn remove(&mut self, index: usize) -> bool {
+        if index >= self.entities.len() {
+            return false;
+        }
+        self.entities.remove(index);
+        true
+    }
+
+    /// How many machines of a kind are placed, for a cap to be enforced against.
+    pub fn count_of_kind(&self, kind: EntityKind) -> usize {
+        self.entities
+            .iter()
+            .filter(|entity| entity.kind == kind)
+            .count()
+    }
+
+    pub fn clear_entities(&mut self) {
+        self.entities.clear();
     }
 
     /// Advances exactly one tick.
@@ -101,9 +135,16 @@ impl World {
     /// accumulator so ticks stay decoupled from render frames, and the server runs this
     /// as fast as it likes when verifying a replay.
     pub fn step(&mut self) {
-        // Matter enters first, then everything moves. Spawners are the only source
-        // (spec 3.4), so this is the whole input side of the game.
-        spawners::emit(&mut self.field, &self.spawners, self.seed, self.tick);
+        // Machines act first, then everything moves. Emitters are the only source of
+        // matter (spec 3.4), so this is the whole input side of the game.
+        entities::tick(
+            &mut self.field,
+            &self.entities,
+            &self.rules.entities,
+            &self.rules.elements,
+            self.seed,
+            self.tick,
+        );
         step::step(
             &mut self.field,
             &self.rules.elements,
@@ -186,7 +227,7 @@ impl World {
 pub struct FlatWorld {
     field: Grid,
     rules: Rules,
-    spawners: Vec<Spawner>,
+    entities: Vec<Entity>,
     seed: u64,
     tick: u64,
 }
@@ -196,18 +237,25 @@ impl FlatWorld {
         FlatWorld {
             field: Grid::new(width, height),
             rules,
-            spawners: Vec::new(),
+            entities: Vec::new(),
             seed,
             tick: 0,
         }
     }
 
-    pub fn add_spawner(&mut self, spawner: Spawner) {
-        self.spawners.push(spawner);
+    pub fn place(&mut self, entity: Entity) {
+        self.entities.push(entity);
     }
 
     pub fn step(&mut self) {
-        spawners::emit(&mut self.field, &self.spawners, self.seed, self.tick);
+        entities::tick(
+            &mut self.field,
+            &self.entities,
+            &self.rules.entities,
+            &self.rules.elements,
+            self.seed,
+            self.tick,
+        );
         step::step(
             &mut self.field,
             &self.rules.elements,

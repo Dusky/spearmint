@@ -3,7 +3,7 @@
 //! Each test binary compiles this module separately, so anything a given binary does
 //! not use looks dead to it — hence the allows.
 
-use sim_core::{ElementTable, Rules};
+use sim_core::{ElementTable, Entity, EntityKind, Rules};
 
 /// The real element data, compiled in. Tests run against the file the game ships, not
 /// a fixture, so a bad edit to it fails the suite.
@@ -14,8 +14,31 @@ pub const ELEMENTS_JSON: &str = include_str!(concat!(
 ));
 
 #[allow(dead_code)]
+/// Machines, as opposed to matter.
+#[allow(dead_code)]
+pub const ENTITIES_JSON: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../data/entities.json"
+));
+
 pub fn rules() -> Rules {
-    Rules::from_json(ELEMENTS_JSON).expect("data/elements.json should load")
+    Rules::load(ELEMENTS_JSON, ENTITIES_JSON).expect("the data files should load")
+}
+
+/// The emitter's kind id, read from the data rather than assumed — ids belong to the
+/// data file (spec 3.2).
+#[allow(dead_code)]
+pub fn emitter_kind() -> EntityKind {
+    rules()
+        .entities
+        .id_of("emitter")
+        .expect("an `emitter` entity should be defined")
+}
+
+/// An emitter on a tile, emitting one element.
+#[allow(dead_code)]
+pub fn emitter(tile_x: i32, tile_y: i32, element: u8) -> Entity {
+    Entity::new(emitter_kind(), tile_x, tile_y, element)
 }
 
 #[allow(dead_code)]
@@ -32,5 +55,6 @@ pub fn rules_without_reactions() -> Rules {
     Rules {
         elements: table(),
         reactions: Default::default(),
+        entities: rules().entities,
     }
 }

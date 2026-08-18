@@ -5,19 +5,13 @@
 
 mod common;
 
-use sim_core::{scene, Spawner};
+use sim_core::scene;
 
-fn tank(width: u32, height: u32, spawn_x: i32, rate: u32) -> sim_core::World {
+fn tank(width: u32, height: u32, spawn_tile_x: i32, rate: u32) -> sim_core::World {
     let rules = common::rules_without_reactions();
     let water = rules.elements.id_of("water").expect("water");
     let mut world = scene::arena(width, height, 1, &rules);
-    world.add_spawner(Spawner {
-        x: spawn_x,
-        y: 3,
-        width: 1,
-        element: water,
-        rate,
-    });
+    world.place(common::emitter(spawn_tile_x, 0, water));
     world
 }
 
@@ -31,7 +25,7 @@ fn tank(width: u32, height: u32, spawn_x: i32, rate: u32) -> sim_core::World {
 fn a_body_of_liquid_packs_solid() {
     let rules = common::rules_without_reactions();
     let water = rules.elements.id_of("water").expect("water");
-    let mut world = tank(60, 60, 30, 1);
+    let mut world = tank(60, 60, 3, 1);
     world.step_many(10_000);
 
     let mut filled = 0;
@@ -60,7 +54,7 @@ fn a_body_of_liquid_packs_solid() {
 fn liquid_still_finds_its_level() {
     let rules = common::rules_without_reactions();
     let water = rules.elements.id_of("water").expect("water");
-    let mut world = tank(80, 40, 5, 2);
+    let mut world = tank(80, 40, 0, 2);
     world.step_many(6_000);
 
     let depth = |x: i32| (1..39).filter(|&y| world.get(x, y) == water).count();

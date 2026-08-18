@@ -1,4 +1,5 @@
 import { elementByName } from '../sim/elements';
+import { entityForTool } from '../sim/entities';
 import { READOUT_HZ } from '../constants';
 import type { GameState } from './types';
 import type { Sim } from '../sim/wasm';
@@ -22,6 +23,7 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
   const sand = elementByName('sand').id;
   const water = elementByName('water').id;
   const wetSand = elementByName('wetSand').id;
+  const emitterKind = entityForTool('spawner')?.id ?? 0;
 
   let last = performance.now();
   let tickDebt = 0;
@@ -63,7 +65,7 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
         ...state.economy,
         gold,
         goldRate,
-        spawnersOwned: sim.spawnerCount,
+        spawnersOwned: sim.countOfKind(emitterKind),
       },
       readout: {
         yieldCurrent: washable > 0 ? wetCells / washable : 0,

@@ -20,6 +20,7 @@
 
 pub mod chunk;
 pub mod elements;
+pub mod entities;
 pub mod field;
 pub mod fixed;
 pub mod grid;
@@ -29,16 +30,15 @@ pub mod reactions;
 pub mod rng;
 pub mod rules;
 pub mod scene;
-pub mod spawners;
 pub mod step;
 pub mod world;
 
 pub use chunk::ChunkMap;
 pub use elements::{DataError, Element, ElementId, ElementTable, State, EMPTY};
+pub use entities::{Behaviour, Entity, EntityKind, EntityTable, EntityType};
 pub use field::{Bounds, CellField};
 pub use fixed::Fixed;
 pub use grid::Grid;
 pub use reactions::{Reaction, ReactionTable};
 pub use rules::Rules;
-pub use spawners::Spawner;
 pub use world::{FlatWorld, World};

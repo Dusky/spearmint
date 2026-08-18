@@ -1,0 +1,103 @@
+{
+  "note": "Machines, as opposed to matter. Entities are a separate layer from the particle grid (spec 4.1) — a cell holds sand or water, never a machine. Adding an entity should be an edit here plus one behaviour arm in crates/sim-core/src/entities.rs, and nothing else.",
+
+  "spriteNote": "Sprites are 9x9 char grids, one tile (spec 2.3). '#' shell, '=' shadowed shell, ''' trim, 'o' the opening, which takes the colour of whatever the entity is working on. Space is transparent and lets the world show through. The first rule whose `when` matches is used, so order them most specific first. `elementState` matches the state of the element the entity handles, which means a new element of an existing state gets a shape without anyone drawing one.",
+
+  "entities": [
+    {
+      "id": 1,
+      "name": "emitter",
+      "behaviour": "emit",
+      "tool": "spawner",
+      "widthTiles": 1,
+      "heightTiles": 1,
+      "rate": 2,
+      "sprites": [
+        {
+          "when": { "elementState": "powder", "status": "running" },
+          "pixels": [
+            "=#######=",
+            "#'''''''#",
+            "#'''''''#",
+            "##ooooo##",
+            "##ooooo##",
+            " #ooooo# ",
+            " #ooooo# ",
+            "  #ooo#  ",
+            "  =ooo=  "
+          ]
+        },
+        {
+          "when": { "elementState": "powder", "status": "blocked" },
+          "pixels": [
+            "=#######=",
+            "#'''''''#",
+            "#'''''''#",
+            "##=====##",
+            "##=====##",
+            " #=====# ",
+            " #=====# ",
+            "  #===#  ",
+            "  =###=  "
+          ]
+        },
+        {
+          "when": { "elementState": "liquid", "status": "running" },
+          "pixels": [
+            " ####### ",
+            "#'''''''#",
+            "#'ooooo'#",
+            "#'ooooo'#",
+            "#'ooooo'#",
+            "#'ooooo'#",
+            "#'''''''#",
+            "=##ooo##=",
+            " # ooo # "
+          ]
+        },
+        {
+          "when": { "elementState": "liquid", "status": "blocked" },
+          "pixels": [
+            " ####### ",
+            "#'''''''#",
+            "#'====='#",
+            "#'====='#",
+            "#'====='#",
+            "#'====='#",
+            "#'''''''#",
+            "=##===##=",
+            " # === # "
+          ]
+        },
+        {
+          "when": { "status": "blocked" },
+          "pixels": [
+            "#########",
+            "#'''''''=",
+            "#'#####'=",
+            "#'#   #'=",
+            "#'#   #'=",
+            "=##   ##=",
+            " =#   #= ",
+            "  =###=  ",
+            "   ###   "
+          ]
+        },
+        {
+          "when": {},
+          "pixels": [
+            "#########",
+            "#'''''''=",
+            "#'#####'=",
+            "#'#ooo#'=",
+            "#'#ooo#'=",
+            "=##ooo##=",
+            " =#ooo#= ",
+            "  =ooo=  ",
+            "   ooo   "
+          ]
+        }
+      ]
+    }
+  ]
+}

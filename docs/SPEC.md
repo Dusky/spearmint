@@ -173,6 +173,18 @@ Particle spawners are the sole hard constraint on production. The player has a l
 number; more are bought with gold. Spawner count, spawn rate, and output purity are all
 plausible upgrade axes.
 
+**Gold buys capacity, not placement.** Raising the cap costs gold; where a spawner sits
+within that cap is a layout decision, and picking one up refunds its slot in full — no
+cost, no cooldown, no penalty.
+
+Charging for a misplacement would push players to hoard slots and stop experimenting,
+which is backwards for a game whose entire loop is iterating on machine geometry. The cap
+exists to limit how much input you have, not to punish you for putting it in the wrong
+place. This also removes a soft-lock: without removal, spending every slot on one
+material leaves a run unwinnable.
+
+The same applies to every placed machine, not only spawners.
+
 ### 3.5 Liquid settling **[OPEN]**
 
 Liquids as implemented never reach a fixed point, and this blocks chunk sleeping (§2.4)
