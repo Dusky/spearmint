@@ -3,6 +3,8 @@
 
   "note": "Machines, as opposed to matter. Entities are a separate layer from the particle grid (spec 4.1) — a cell holds sand or water, never a machine. Adding an entity should be an edit here plus one behaviour arm in crates/sim-core/src/entities.rs, and nothing else.",
 
+  "goldNote": "`goldPer` is how many points of product a collector must take in to press one cell of currency. It is a machine property rather than a global, so a better press can mint more from the same input. Nuggets appear in place, fall to the bottom of the machine, and stay there — what a machine is holding is the balance (spec 5.1).",
+
   "spriteNote": "Sprites are 9x9 char grids, one tile (spec 2.3). '#' shell, '=' shadowed shell, ''' trim, 'o' the opening, which takes the colour of whatever the entity is working on. Space is transparent and lets the world show through. The first rule whose `when` matches is used, so order them most specific first. `elementState` matches the state of the element the entity handles, which means a new element of an existing state gets a shape without anyone drawing one.",
 
   "entities": [
@@ -109,6 +111,7 @@
       "widthTiles": 1,
       "heightTiles": 1,
       "rate": 3,
+      "goldPer": 8,
       "sprites": [
         {
           "note": "Nothing falling in. A collector with an empty mouth is not broken, it is unfed — which is usually a routing mistake worth seeing.",

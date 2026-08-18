@@ -128,7 +128,7 @@ fn an_emitter_reports_being_blocked() {
     let entity = common::emitter(2, 1, sand);
     world.place(entity);
     assert!(
-        !entity.is_blocked(definition, world.field()),
+        !entity.is_blocked(definition, world.field(), &rules.elements),
         "nothing is in the way yet"
     );
 
@@ -138,7 +138,7 @@ fn an_emitter_reports_being_blocked() {
             .field_mut()
             .set(entity.left() + offset, entity.mouth(definition), wall);
     }
-    assert!(entity.is_blocked(definition, world.field()));
+    assert!(entity.is_blocked(definition, world.field(), &rules.elements));
 
     // Blocked means it produces nothing, rather than forcing matter into a wall.
     let before = world.count_of(sand);

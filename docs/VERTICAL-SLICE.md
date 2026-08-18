@@ -64,6 +64,11 @@ capacity. Two things the build settled that the scope did not anticipate:
 - **Only product pays.** Value is a property of the element (`data/elements.json`), so a
   collector under an unmixed stream destroys raw sand for nothing. Routing has a cost
   for being wrong, which is what makes it a decision.
+- **Gold is a particle, and a balance is a place.** Currency started as a counter and
+  became matter: the collector presses product into nuggets, they pile up inside the
+  machine, and only what a machine is holding counts. Spending drains the pile. It closes
+  the last gap between §1.1 and the economy, and it makes storage a constraint rather
+  than a number.
 
 What remains is the part no amount of building substitutes for: sitting down with it and
 finding out whether tuning a washer is satisfying or fiddly.

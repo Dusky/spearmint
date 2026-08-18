@@ -23,6 +23,7 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
   const sand = elementByName('sand').id;
   const water = elementByName('water').id;
   const wetSand = elementByName('wetSand').id;
+  const gold = elementByName('gold').id;
   const emitterKind = entityForTool('spawner')?.id ?? 0;
   const collectorKind = entityForTool('collector')?.id ?? 0;
 
@@ -55,10 +56,11 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
     const wetCells = sim.count(wetSand);
     const washable = sandCells + wetCells;
 
-    // Revenue comes from the sim — only a collector makes gold, and only by taking
-    // product out of the world. Spending is the client's ledger until there is a
-    // server (spec 8.1), so the balance is the difference.
+    // The balance is a pile of nuggets in a machine, measured like any other physical
+    // quantity. Income is separate: nuggets ever minted, which is what a rate wants —
+    // a balance falls when you spend, and that is not the same question.
     const collected = sim.collected;
+    const stored = sim.stored;
     revenue.push({ at: now, collected });
     while (revenue.length > 1 && now - (revenue[0]?.at ?? now) > RATE_WINDOW_MS) revenue.shift();
     const oldest = revenue[0] ?? { at: now, collected };
@@ -70,13 +72,14 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
       tick: sim.tick,
       economy: {
         ...state.economy,
-        gold: collected - state.economy.spent,
+        gold: stored,
         goldRate,
         spawnersOwned: sim.countOfKind(emitterKind),
         collectorsOwned: sim.countOfKind(collectorKind),
       },
       readout: {
         yieldCurrent: washable > 0 ? wetCells / washable : 0,
+        looseGold: sim.count(gold) - stored,
         contactArea: sim.contactArea,
         sand: sandCells,
         water: sim.count(water),

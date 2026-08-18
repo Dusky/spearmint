@@ -82,6 +82,13 @@ impl<'a> Json<'a> {
         }
     }
 
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Json::Bool(value) => Some(*value),
+            _ => None,
+        }
+    }
+
     pub fn as_array(&self) -> Option<&[Json<'a>]> {
         match self {
             Json::Array(items) => Some(items),

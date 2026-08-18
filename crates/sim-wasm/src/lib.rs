@@ -164,7 +164,7 @@ fn draw_entities(state: &mut State, origin_x: i32, origin_y: i32, width: u32, he
             continue;
         };
 
-        let status = if entity.is_blocked(&definition, state.world.field()) {
+        let status = if entity.is_blocked(&definition, state.world.field(), &state.table) {
             sprites::Status::Blocked
         } else {
             sprites::Status::Running
@@ -376,13 +376,24 @@ pub extern "C" fn sim_entity_tile_y(index: u32) -> i32 {
 /// This is contact area in the literal sense — not a modelled parameter but a count of
 /// where the reaction can actually happen, which is what makes yield a property of the
 /// machine's shape (spec 3.3).
-/// Everything collectors have taken out of the world, in gold.
-///
-/// Revenue, not balance: what has been spent is progression state and belongs to the
-/// economy (spec 8.1), which the client holds until there is a server.
+/// Nuggets ever minted. Income, not balance.
 #[no_mangle]
 pub extern "C" fn sim_collected() -> u32 {
     with_state(0, |state| state.world.collected() as u32)
+}
+
+/// The balance: currency cells sitting inside a machine. Gold on the floor is matter,
+/// not money (spec 5.1).
+#[no_mangle]
+pub extern "C" fn sim_stored() -> u32 {
+    with_state(0, |state| state.world.stored() as u32)
+}
+
+/// Takes nuggets out of the machines holding them, and reports how many it took. All or
+/// nothing — a partial charge is not a purchase.
+#[no_mangle]
+pub extern "C" fn sim_spend(amount: u32) -> u32 {
+    with_state(0, |state| state.world.spend(u64::from(amount)) as u32)
 }
 
 #[no_mangle]

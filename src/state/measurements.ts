@@ -33,6 +33,12 @@ export function measurementsOf(readout: SimReadout): readonly Measurement[] {
       value: `${formatInteger(readout.wetSand)} cells`,
       limiting: false,
     },
+    {
+      label: 'gold on the floor',
+      value: `${formatInteger(readout.looseGold)} nuggets`,
+      // Money that is not being held is money you do not have.
+      limiting: readout.looseGold > 0,
+    },
   ];
 }
 
@@ -67,6 +73,11 @@ export function diagnose(state: GameState): string {
   }
   if (readout.wetSand > 0 && state.economy.goldRate === 0) {
     return 'Product is not reaching a collector. Check that it can fall in, and that the collector has a floor under it — anything that falls through is gone.';
+  }
+  // Currency is matter, so it can be spilled. A pile on the floor is gold and is not
+  // money, and nothing else on screen would say so.
+  if (readout.looseGold > 0 && state.economy.gold === 0) {
+    return `${formatInteger(readout.looseGold)} nuggets are lying on the floor. Gold only counts while a machine is holding it — walls that keep it inside the collector are what make it money.`;
   }
   if (readout.contactArea === 0) {
     return readout.wetSand > 0

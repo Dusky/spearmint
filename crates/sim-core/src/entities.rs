@@ -54,6 +54,12 @@ pub struct Entity {
     pub tile_y: i32,
     /// What it works on — the element an emitter emits. `EMPTY` where it means nothing.
     pub element: ElementId,
+    /// Value taken in but not yet pressed into a nugget, in points.
+    ///
+    /// Currency is matter (spec 5.1), so it can only be minted a whole cell at a time.
+    /// A machine that has swallowed seven grains of an eight-grain nugget is holding
+    /// those seven grains' worth here until the eighth arrives.
+    pub bank: u32,
 }
 
 impl Entity {
@@ -63,6 +69,7 @@ impl Entity {
             tile_x,
             tile_y,
             element,
+            bank: 0,
         }
     }
 
@@ -112,7 +119,12 @@ impl Entity {
     /// Not a failure state — back-pressure is physical here as it is on belts (spec
     /// 4.2), and a machine that has backed up into its own input, or is being fed
     /// nothing at all, is worth showing.
-    pub fn is_blocked<F: CellField + ?Sized>(&self, definition: &EntityType, field: &F) -> bool {
+    pub fn is_blocked<F: CellField + ?Sized>(
+        &self,
+        definition: &EntityType,
+        field: &F,
+        elements: &ElementTable,
+    ) -> bool {
         match definition.behaviour {
             Behaviour::Emit => {
                 let mouth = self.mouth(definition);
@@ -121,9 +133,7 @@ impl Entity {
             }
             Behaviour::Collect => {
                 let (x0, y0, x1, y1) = self.body(definition);
-                (y0..=y1).all(|y| {
-                    (x0..=x1).all(|x| field.get(x, y).unwrap_or(EMPTY) == EMPTY)
-                })
+                (y0..=y1).all(|y| (x0..=x1).all(|x| !is_edible(field.get(x, y), elements)))
             }
         }
     }
@@ -139,8 +149,10 @@ pub struct EntityType {
     pub tool: String,
     pub width_tiles: u32,
     pub height_tiles: u32,
-    /// Cells emitted per tick, for emitters.
+    /// Cells emitted per tick, for emitters; cells eaten per tick, for collectors.
     pub rate: u32,
+    /// Points a collector must take in to press one cell of currency.
+    pub gold_per: u32,
 }
 
 /// Entity types indexed by id — a `Vec`, never a map, so iteration order cannot reach
@@ -237,7 +249,28 @@ fn parse_entity(entry: &Json<'_>) -> Result<EntityType, DataError> {
             .ok_or_else(|| bad("heightTiles"))? as u32,
         // Optional: only emitters use it.
         rate: entry.get("rate").and_then(Json::as_i32).unwrap_or(1).max(0) as u32,
+        // Optional: only collectors use it, and a zero would mint infinitely.
+        gold_per: entry
+            .get("goldPer")
+            .and_then(Json::as_i32)
+            .unwrap_or(1)
+            .max(1) as u32,
     })
+}
+
+/// Whether a collector would take this cell.
+///
+/// Solids are structure, not throughput — a collector that ate walls would be a
+/// demolition tool, and erase already is one. Currency is skipped for a different
+/// reason: a machine must not grind its own output back into nothing.
+fn is_edible(cell: Option<ElementId>, elements: &ElementTable) -> bool {
+    let Some(id) = cell else {
+        return false;
+    };
+    let Some(element) = elements.get(id) else {
+        return false;
+    };
+    id != EMPTY && element.state != State::Solid && !element.currency
 }
 
 /// Runs every machine, in placement order, and returns what the collectors earned this
@@ -247,23 +280,23 @@ fn parse_entity(entry: &Json<'_>) -> Result<EntityType, DataError> {
 /// and a row in the data file, and touching nothing else.
 pub fn tick<F: CellField + ?Sized>(
     field: &mut F,
-    entities: &[Entity],
+    entities: &mut [Entity],
     types: &EntityTable,
     elements: &ElementTable,
     seed: u64,
     tick: u64,
 ) -> u64 {
-    let mut earned = 0;
-    for (index, entity) in entities.iter().enumerate() {
+    let mut minted = 0;
+    for (index, entity) in entities.iter_mut().enumerate() {
         let Some(definition) = types.get(entity.kind) else {
             continue;
         };
         match definition.behaviour {
             Behaviour::Emit => emit(field, entity, definition, elements, seed, tick, index),
-            Behaviour::Collect => earned += collect(field, entity, definition, elements),
+            Behaviour::Collect => minted += collect(field, entity, definition, elements),
         }
     }
-    earned
+    minted
 }
 
 /// Introduces matter. A machine cannot force material into an occupied cell, so a
@@ -306,50 +339,61 @@ fn emit<F: CellField + ?Sized>(
     }
 }
 
-/// Takes matter out of the world, and returns what it was worth.
+/// Presses matter into money, and returns how many nuggets it made.
 ///
-/// A collector eats whatever falls into its mouth and pays each element's declared
-/// value, which is zero for everything that is not product. That is the whole reason
-/// routing matters: dumping unwashed sand into a collector destroys it for nothing.
+/// A collector eats whatever falls into its body and banks each cell's declared value,
+/// which is zero for everything that is not product. Every `goldPer` points, the cell it
+/// is currently eating becomes currency instead of empty space — eight grains in, one
+/// nugget where the eighth was, which is what pillar 2 looks like as an object.
 ///
-/// Left to right, up to `rate` cells a tick — no randomness, because there is nothing
-/// here for it to decide.
+/// That is also why routing matters: dumping unwashed sand in destroys it and mints
+/// nothing.
+///
+/// Bottom row up, left to right, up to `rate` cells a tick — no randomness, because
+/// there is nothing here for it to decide.
 fn collect<F: CellField + ?Sized>(
     field: &mut F,
-    entity: &Entity,
+    entity: &mut Entity,
     definition: &EntityType,
     elements: &ElementTable,
 ) -> u64 {
     let (x0, y0, x1, y1) = entity.body(definition);
+    let Some(currency) = elements.iter().find(|element| element.currency) else {
+        return 0;
+    };
 
-    let mut earned = 0;
+    let mut minted = 0;
     let mut taken = 0;
-    // Bottom row first: material that has fallen furthest into the machine is the
-    // material about to fall out of it.
+    // Material that has fallen furthest into the machine is the material about to fall
+    // out of it, so that is what gets eaten first.
     for y in (y0..=y1).rev() {
         for x in x0..=x1 {
             if taken == definition.rate {
-                return earned;
+                return minted;
             }
-            let Some(id) = field.get(x, y) else {
-                continue;
-            };
-            let Some(element) = elements.get(id) else {
-                continue;
-            };
-            // Solids are structure, not throughput. A collector that ate walls would be
-            // a demolition tool, and erase already is one.
-            if id == EMPTY || element.state == State::Solid {
+            let cell = field.get(x, y);
+            if !is_edible(cell, elements) {
                 continue;
             }
+            let value = cell
+                .and_then(|id| elements.get(id))
+                .map_or(0, |element| element.value);
 
-            field.set(x, y, EMPTY);
-            // Removing a cell is not a move, so nothing else reports it — and a pile
-            // that stops being told it is settling stops feeding the collector.
-            field.mark_active(x, y);
-            earned += u64::from(element.value);
+            entity.bank += value;
             taken += 1;
+
+            if entity.bank >= definition.gold_per {
+                entity.bank -= definition.gold_per;
+                field.set(x, y, currency.id);
+                minted += 1;
+            } else {
+                field.set(x, y, EMPTY);
+            }
+            // Neither writing nor clearing a cell is a move, so nothing else reports it
+            // — and a pile that stops being told it is settling stops feeding the
+            // machine.
+            field.mark_active(x, y);
         }
     }
-    earned
+    minted
 }

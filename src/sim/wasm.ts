@@ -18,6 +18,8 @@ interface SimExports {
   sim_get(x: number, y: number): number;
   sim_count(id: number): number;
   sim_collected(): number;
+  sim_stored(): number;
+  sim_spend(amount: number): number;
   sim_chunk_count(): number;
   sim_awake_chunk_count(): number;
   sim_set_sleeping(enabled: number): void;
@@ -138,10 +140,21 @@ export class Sim {
     return x === -2147483648 ? null : { x, y: this.#exports.sim_entity_tile_y(index) };
   }
 
-  /** Everything collectors have taken out of the world, in gold. Revenue, not balance:
-   *  the sim never hears about spending. */
+  /** Nuggets ever minted. Income, not balance. */
   get collected(): number {
     return this.#exports.sim_collected();
+  }
+
+  /** The balance: currency sitting inside a machine. Gold on the floor is matter, not
+   *  money (spec 5.1). */
+  get stored(): number {
+    return this.#exports.sim_stored();
+  }
+
+  /** Takes nuggets out of the machines holding them. Returns how many it took, which is
+   *  either all of them or none. */
+  spend(amount: number): number {
+    return this.#exports.sim_spend(amount);
   }
 
   /** Cells where two reactants are touching. Walks the world, so read it at the

@@ -1,7 +1,7 @@
 {
   "note": "Element definitions live in data, not code. Adding an element means editing this file (spec 3.2). Ids are declared here and are permanent: they are baked into saves and world hashes, so reordering this list must never change behaviour. Id 0 is reserved for empty space.",
 
-  "valueNote": "`value` is what a collector pays per cell, and is absent for everything a collector should not reward. Only product is worth anything, so feeding a collector unwashed sand is a visible waste rather than a neutral one.",
+  "valueNote": "`value` is what a cell is worth to a collector, in points, and is absent for everything a collector should not reward — feeding one unwashed sand destroys it for nothing. `currency` marks the element those points are pressed into: a collector never eats currency, and what a collector is holding is the player's balance.",
   "elements": [
     {
       "id": 1,
@@ -55,6 +55,21 @@
       "flammability": 0.0,
       "hardness": 0.55,
       "value": 1
+    },
+    {
+      "note": "Currency, and matter like everything else. A collector presses product into nuggets; a nugget only counts as money while a machine is holding it (spec 5.1). Denser than anything else here, because it is gold.",
+      "id": 5,
+      "name": "gold",
+      "state": "powder",
+      "density": 19300,
+      "melting_point": 1337,
+      "boiling_point": 3129,
+      "thermal_conductivity": 3.17,
+      "color": "#E8B93C",
+      "color_variance": 14,
+      "flammability": 0.0,
+      "hardness": 0.25,
+      "currency": true
     }
   ],
   "reactions": [

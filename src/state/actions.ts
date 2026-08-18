@@ -13,6 +13,8 @@ import type { DrawerName, GameState, Material, NoticeId, Tool, Vec2 } from './ty
 /** What the actions need from the running simulation. */
 export interface SimBridge {
   paintTiles(from: Vec2, to: Vec2, element: number): void;
+  /** Takes nuggets out of the machines holding them; returns how many it took. */
+  spend(amount: number): number;
   elementAt(x: number, y: number): number;
   placeEntity(kind: number, tileX: number, tileY: number, element: number): boolean;
   entityAt(x: number, y: number): number | null;
@@ -126,18 +128,20 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
      *
      * The only thing gold does. Capacity, never placement (spec 3.4): where a spawner
      * sits is free to change, and how many you may run is what costs.
+     *
+     * Paying is physical — nuggets come out of the machines holding them (spec 5.1) —
+     * so the sim is the authority on whether the purchase happened. There is no ledger
+     * here to disagree with it.
      */
     buySpawnerSlot(): void {
-      const { economy } = store.state;
-      const price = spawnerSlotPrice(economy.spawnersMax);
-      if (economy.gold < price) return;
+      const price = spawnerSlotPrice(store.state.economy.spawnersMax);
+      if (sim.spend(price) !== price) return;
 
       store.update((state) => ({
         ...state,
         economy: {
           ...state.economy,
           gold: state.economy.gold - price,
-          spent: state.economy.spent + price,
           spawnersMax: state.economy.spawnersMax + 1,
         },
       }));

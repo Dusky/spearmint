@@ -21,10 +21,12 @@ export const RATE_WINDOW_MS = 2000;
  *  limit on production (spec 3.4). */
 export const BASE_SPAWNERS = 5;
 
-/** What the next spawner slot costs.
+/** What the next spawner slot costs, in nuggets.
  *
  *  Doubling, because the cap is the one real limit on production: widening it should
- *  always be the largest thing gold can do, and should always be getting harder. */
+ *  always be the largest thing gold can do, and should always be getting harder. The
+ *  numbers are small because a nugget is a cell and a collector body holds 81 of them —
+ *  the third slot costs more than one machine can hold, which is the point. */
 export function spawnerSlotPrice(spawnersMax: number): number {
-  return 100 * 2 ** (spawnersMax - BASE_SPAWNERS);
+  return 25 * 2 ** (spawnersMax - BASE_SPAWNERS);
 }

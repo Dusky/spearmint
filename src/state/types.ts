@@ -53,7 +53,8 @@ export interface TileRect {
 
 /** Server-owned. Everything here is progression state, not physics. */
 export interface EconomyState {
-  /** The balance: everything collectors have earned, less what has been spent. */
+  /** The balance: nuggets sitting inside a machine. Measured from the world, not
+   *  tallied — currency is matter (spec 5.1), so the pile is the number. */
   readonly gold: number;
   /** Gold per second, as observed by the client. Display only. */
   readonly goldRate: number;
@@ -62,9 +63,6 @@ export interface EconomyState {
   /** Collectors are uncapped — the cap that matters is on input (spec 3.4) — but the
    *  panel needs to know whether there is one at all to explain flat gold. */
   readonly collectorsOwned: number;
-  /** Gold spent on capacity. Kept rather than folded into `gold` because the sim owns
-   *  revenue and the economy owns the ledger — the split the server will inherit. */
-  readonly spent: number;
   readonly blueprintSlots: number;
   readonly purchasedUpgrades: readonly UpgradeId[];
 }
@@ -137,6 +135,8 @@ export interface SimReadout {
   readonly sand: number;
   readonly water: number;
   readonly wetSand: number;
+  /** Nuggets lying in the world with no machine holding them. Gold, but not money. */
+  readonly looseGold: number;
 }
 
 /** An active clog or burial. Emergent physics, not a rule — so this is information. */

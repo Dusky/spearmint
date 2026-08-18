@@ -10,9 +10,17 @@ fn the_shipped_data_file_loads() {
     let table = common::table();
     assert_eq!(
         table.len(),
-        4,
-        "wall, sand, water, and the wet sand they react into"
+        5,
+        "wall, sand, water, the wet sand they react into, and the gold it presses into"
     );
+
+    // Currency is matter like everything else, and exactly one element is money.
+    let currencies: Vec<&str> = table
+        .iter()
+        .filter(|element| element.currency)
+        .map(|element| element.name.as_str())
+        .collect();
+    assert_eq!(currencies, ["gold"]);
 
     let sand = table.get(table.id_of("sand").expect("sand")).expect("sand");
     assert_eq!(sand.state, State::Powder);

@@ -63,10 +63,13 @@ pub struct Element {
     pub color_variance: u8,
     pub flammability: Fixed,
     pub hardness: Fixed,
-    /// What a collector pays per cell of it. Zero for everything that is not a product,
-    /// which is what makes routing raw input into a collector a visible waste rather
-    /// than a neutral one.
+    /// What a collector pays per cell of it, in points. Zero for everything that is not
+    /// a product, which is what makes routing raw input into a collector a visible waste
+    /// rather than a neutral one.
     pub value: u32,
+    /// Whether this *is* money. A collector presses points into currency and never eats
+    /// it back, and currency held by a machine is the player's balance (spec 5.1).
+    pub currency: bool,
 }
 
 /// Elements indexed by id. A `Vec` rather than a map: spec 3.1 forbids hash-map
@@ -179,6 +182,11 @@ fn parse_element(entry: &Json<'_>) -> Result<Element, DataError> {
             .map(|value| value.as_i32().filter(|value| *value >= 0).ok_or(bad("value")))
             .transpose()?
             .unwrap_or(0) as u32,
+        currency: entry
+            .get("currency")
+            .map(|flag| flag.as_bool().ok_or(bad("currency")))
+            .transpose()?
+            .unwrap_or(false),
     })
 }
 

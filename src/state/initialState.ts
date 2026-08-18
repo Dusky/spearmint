@@ -126,7 +126,6 @@ export function initialState(): GameState {
       spawnersOwned: 0,
       collectorsOwned: 0,
       spawnersMax: BASE_SPAWNERS,
-      spent: 0,
       blueprintSlots: 4,
       purchasedUpgrades: [],
     },

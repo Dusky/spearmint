@@ -36,17 +36,22 @@ machine is something you drew.
    Particles are not created, destroyed, or summarised outside of the physics rules
    themselves. This constraint is load-bearing — see §2.4 and §6.
 
-**Selling destroys matter, and that is allowed.** The first place this pillar met the
-economy was the collector, and the question it forced — *does selling destroy matter?* —
-is answered yes. A collector consumes what falls into it and pays for it: it is a machine
-in the world, subject to gravity like everything else, and consuming what enters it is
-exactly the sort of rule the pillar leaves room for. What the pillar rules out is
-*summarising* — no offline accrual, no throughput number standing in for particles, no
-sink that pays for matter it never physically received.
+**Currency is matter too.** Gold was the last number standing in for stuff, and it is now
+an element like any other: a collector presses what falls into it into nuggets, the
+nuggets are cells that fall and stack and can be buried or spilled, and the player's
+balance is what a machine is holding (§5.1). Nothing anywhere converts matter into a
+figure — the pile *is* the figure.
+
+**Machines may still consume, and that is allowed.** A collector destroys what it eats:
+seven grains of an eight-grain nugget leave the world, and so do the nuggets themselves
+when they are spent. That is a physics rule operating on matter in place, which is what
+the pillar leaves room for. What it rules out is *summarising* — no offline accrual, no
+throughput number standing in for particles, no sink that pays for matter it never
+physically received.
 
 The line between the two is accounting, so it gets a test rather than a promise: every
-cell that leaves the world is on the books, pinned by
-`crates/sim-core/tests/collector.rs`.
+cell that leaves the world is either eaten as valueless input, pressed into a nugget, or
+spent, pinned by `crates/sim-core/tests/collector.rs`.
 
 ---
 
@@ -352,6 +357,22 @@ These cannot both be true. Pick one before implementing blueprints.
 
 **Gold** is the spendable currency, produced by processing refined products.
 
+**A nugget is a particle, and a balance is a place.** A collector banks the value of what
+it eats and, every `goldPer` points, the cell it is eating becomes gold instead of empty
+space — several grains in, one nugget where the last one was, which is pillar 2 as an
+object rather than a curve. Nuggets fall, stack, and are subject to everything else in
+the world.
+
+**Only what a machine is holding is money.** Currency inside a machine's body is the
+balance; nuggets spilled on the floor are still gold and still conserved, but they are
+not money until something is holding them again. Spending reaches into machines only,
+takes the exact price or nothing, and the pile visibly shrinks.
+
+Two consequences worth stating. A machine that fills with its own output has nothing left
+to work on and reports itself blocked, so storage is a real constraint rather than a
+number that only goes up. And a collector never eats currency — otherwise it would grind
+its own output back to nothing.
+
 ### 5.2 Sinks **[PROPOSED]**
 
 Gold buys **capability**; raw materials build **machines**. Keeping these separate stops
@@ -365,11 +386,15 @@ would be noise, and it is the one the design already argues for — §3.4 makes 
 count the only hard limit on production, so widening it is the largest thing gold can do.
 The price doubles per slot.
 
-**Revenue is measured, the ledger is not.** The simulation counts what collectors have
-taken out of the world; what has been spent is progression state and stays with the
-economy, which §8.1 puts on the server. The client holds the difference. That split means
-a replay can be checked for how much it *earned* without the server having to trust the
-client's arithmetic.
+**There is no ledger, only the world.** The balance is measured — nuggets held by
+machines — the same way contact area is measured, and paying is a physical act that takes
+them out. Nothing tallies a balance anywhere, so nothing can disagree about one.
+
+This is a better position for §8.1 than the ledger was. The simulation is the authority on
+whether a purchase happened: a client claiming to have bought something has to produce a
+world in which the nuggets were there and are now gone. What stays progression state is
+only what the purchase *bought* — the spawner cap — and that is a small, checkable
+number rather than a running total the server would have to trust.
 
 ### 5.3 Byproduct progression **[DECIDED]**
 
@@ -484,10 +509,14 @@ platform APIs, no I/O inside it.
 
 **Gap, found while building the collector.** Nothing about the entity layer is in any
 hash. `canonical_hash` covers cells, tick and seed; machines, their placement, and the
-gold they have earned are all outside it. Two replays could therefore differ in revenue
-and agree on every checkpoint, which is precisely the case this section exists to catch.
-The fix is to fold entity state and the collected total into the checkpoint hash, and it
-is cheap — worth doing before checkpoints are signed rather than after.
+part-nugget each collector has banked are all outside it. Two replays could therefore
+differ in machine state and agree on every checkpoint, which is precisely the case this
+section exists to catch.
+
+Currency being matter shrinks this problem without closing it: the balance itself is
+cells now, so it *is* hashed, and only the banked remainder and the machine layout are
+not. The fix is to fold entity state into the checkpoint hash, and it is cheap — worth
+doing before checkpoints are signed rather than after.
 
 ### 8.4 Leaderboards **[OPEN]**
 

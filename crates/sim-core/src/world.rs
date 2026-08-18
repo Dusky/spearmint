@@ -127,6 +127,66 @@ impl World {
             .count()
     }
 
+    /// The balance: currency cells sitting inside a machine.
+    ///
+    /// Currency is matter (spec 5.1), so a balance is a physical quantity in a physical
+    /// place. Nuggets spilled on the floor are still gold and still conserved — they
+    /// are simply not money until something is holding them again.
+    pub fn stored(&self) -> u64 {
+        let mut held = 0;
+        self.for_each_stored_cell(|_, _| held += 1);
+        held
+    }
+
+    /// Takes `amount` nuggets out of the machines holding them, and reports how many it
+    /// took.
+    ///
+    /// All or nothing: a partial charge is not a purchase. Nuggets come off the top of
+    /// each pile, in placement order, which is deterministic and is also what reaching
+    /// into a hopper would do.
+    pub fn spend(&mut self, amount: u64) -> u64 {
+        if amount == 0 || self.stored() < amount {
+            return 0;
+        }
+
+        let mut taking = Vec::with_capacity(amount as usize);
+        self.for_each_stored_cell(|x, y| {
+            if (taking.len() as u64) < amount {
+                taking.push((x, y));
+            }
+        });
+
+        for (x, y) in taking {
+            self.field.set(x, y, EMPTY);
+            // Removing a cell is not a move, so the pile above it has to be told to
+            // come down.
+            self.field.mark_active(x, y);
+        }
+        amount
+    }
+
+    /// Visits every currency cell held inside a machine, top row down.
+    fn for_each_stored_cell(&self, mut visit: impl FnMut(i32, i32)) {
+        for entity in &self.entities {
+            let Some(definition) = self.rules.entities.get(entity.kind) else {
+                continue;
+            };
+            let (x0, y0, x1, y1) = entity.body(definition);
+            for y in y0..=y1 {
+                for x in x0..=x1 {
+                    let held = self
+                        .field
+                        .get(x, y)
+                        .and_then(|id| self.rules.elements.get(id))
+                        .is_some_and(|element| element.currency);
+                    if held {
+                        visit(x, y);
+                    }
+                }
+            }
+        }
+    }
+
     pub fn clear_entities(&mut self) {
         self.entities.clear();
     }
@@ -141,7 +201,7 @@ impl World {
         // matter (spec 3.4), so this is the whole input side of the game.
         self.collected += entities::tick(
             &mut self.field,
-            &self.entities,
+            &mut self.entities,
             &self.rules.entities,
             &self.rules.elements,
             self.seed,
@@ -199,12 +259,8 @@ impl World {
         self.field.awake_chunk_count()
     }
 
-    /// Everything collectors have taken out of the world, in gold.
-    ///
-    /// The sim owns *revenue*, not the balance: what has been spent is progression
-    /// state and belongs to the economy (spec 8.1), which is server-owned. Keeping the
-    /// split here means a replay can be checked for how much it earned without the
-    /// server having to trust the client's arithmetic.
+    /// Nuggets ever minted. Income, not balance — a balance falls when you spend, and
+    /// that is not the same question.
     pub fn collected(&self) -> u64 {
         self.collected
     }
@@ -264,7 +320,7 @@ impl FlatWorld {
     pub fn step(&mut self) {
         self.collected += entities::tick(
             &mut self.field,
-            &self.entities,
+            &mut self.entities,
             &self.rules.entities,
             &self.rules.elements,
             self.seed,
@@ -306,12 +362,8 @@ impl FlatWorld {
         &mut self.field
     }
 
-    /// Everything collectors have taken out of the world, in gold.
-    ///
-    /// The sim owns *revenue*, not the balance: what has been spent is progression
-    /// state and belongs to the economy (spec 8.1), which is server-owned. Keeping the
-    /// split here means a replay can be checked for how much it earned without the
-    /// server having to trust the client's arithmetic.
+    /// Nuggets ever minted. Income, not balance — a balance falls when you spend, and
+    /// that is not the same question.
     pub fn collected(&self) -> u64 {
         self.collected
     }
