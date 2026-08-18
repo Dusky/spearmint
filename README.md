@@ -36,20 +36,40 @@ numbers to fill the panel would be worse than a shorter one.
 ## Running it
 
 ```sh
-# The simulation
+./setup.sh
+```
+
+Checks for Node and Rust, installs the wasm target and the npm packages, builds the
+simulation, and starts the dev server on http://localhost:5173. `--setup-only` stops
+before starting it; `--check` also runs the test suite. It tells you what to install if
+something is missing rather than installing a toolchain behind your back.
+
+Needs Node 20+ and Rust. On Arch: `sudo pacman -S nodejs npm rustup && rustup default
+stable`.
+
+Everything it does by hand:
+
+```sh
+npm install
+npm run dev                 # builds the wasm module, then serves
+npm run build               # wasm + typecheck + production build
+
 cargo test --workspace      # or: npm run sim:test
 cargo clippy --workspace --all-targets -- -D warnings
 npm run sim:run -- --seed 0x4f2a11 --ticks 5000 --width 80 --height 50 --dump
-
-# The client
-npm install
-npm run dev                 # http://localhost:5173
-npm run build               # typecheck + production build
 ```
 
-The Rust toolchain is pinned in `rust-toolchain.toml`. Fonts are self-hosted, as the
-handoff requires; `node scripts/fetch-fonts.mjs` regenerates `public/fonts/` and
-`src/styles/fonts.css`.
+The Rust toolchain is pinned in `rust-toolchain.toml`, which needs rustup to take
+effect — the pin is for byte-identical reproducibility, so a system cargo runs the game
+fine. Fonts are self-hosted, as the handoff requires; `node scripts/fetch-fonts.mjs`
+regenerates `public/fonts/` and `src/styles/fonts.css`.
+
+### What to try
+
+Draw two sloping walls into a basin, switch to the spawner tool (`4`), put sand above
+one side and water above the other, and watch the inspector. Yield rises when sand and
+water actually touch, and the panel says so when they do not. That loop — draw, run,
+measure, redraw — is the thing worth judging.
 
 ## The simulation core
 

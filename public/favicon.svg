@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">
+  <!-- The sim's own palette: void, water, sand, wall. -->
+  <rect width="16" height="16" fill="#070806"/>
+  <rect x="1" y="9" width="14" height="6" fill="#3E7FA8"/>
+  <path d="M4 9h8v-2H5v-2h6v-2H6V1h4" fill="none" stroke="#C8A24A" stroke-width="0"/>
+  <rect x="6" y="3" width="4" height="2" fill="#C8A24A"/>
+  <rect x="5" y="5" width="6" height="2" fill="#C8A24A"/>
+  <rect x="4" y="7" width="8" height="2" fill="#C8A24A"/>
+  <rect x="1" y="15" width="14" height="1" fill="#5C5850"/>
+</svg>
