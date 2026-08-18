@@ -17,6 +17,7 @@ const TOOL_LABELS: Record<Tool, string> = {
   belt: 'Belt',
   spawner: 'Spawner',
   collector: 'Collector',
+  vault: 'Vault',
   teleport: 'Teleport',
   blueprint: 'Blueprint',
 };

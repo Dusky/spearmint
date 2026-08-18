@@ -23,7 +23,14 @@ interface SimExports {
   sim_chunk_count(): number;
   sim_awake_chunk_count(): number;
   sim_set_sleeping(enabled: number): void;
-  sim_place_entity(kind: number, tileX: number, tileY: number, element: number): number;
+  sim_place_entity(
+    kind: number,
+    tileX: number,
+    tileY: number,
+    width: number,
+    height: number,
+    element: number,
+  ): number;
   sim_entity_at(x: number, y: number): number;
   sim_remove_entity(index: number): number;
   sim_entity_count(): number;
@@ -115,8 +122,17 @@ export class Sim {
   }
 
   /** Places a machine on a tile. False if something is already there. */
-  placeEntity(kind: number, tileX: number, tileY: number, element: number): boolean {
-    return this.#exports.sim_place_entity(kind, tileX, tileY, element) === 1;
+  /** Places an entity over a region of tiles. A width or height of 0 means "as the
+   *  type says", which is what a click on a machine sends. */
+  placeEntity(
+    kind: number,
+    tileX: number,
+    tileY: number,
+    element: number,
+    width = 0,
+    height = 0,
+  ): boolean {
+    return this.#exports.sim_place_entity(kind, tileX, tileY, width, height, element) === 1;
   }
 
   /** The machine covering a world cell, or null. */

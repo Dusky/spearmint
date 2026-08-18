@@ -143,6 +143,15 @@
           ]
         }
       ]
+    },
+    {
+      "note": "A place, not a machine. The player digs a pit, walls it, and declares the inside a vault; gold that lands in one is money. Its footprint is whatever was marked out, so widthTiles and heightTiles here are only the default for a single click.",
+      "id": 3,
+      "name": "vault",
+      "behaviour": "store",
+      "tool": "vault",
+      "widthTiles": 1,
+      "heightTiles": 1
     }
   ]
 }

@@ -17,6 +17,7 @@ export const TOOLS = [
   'belt',
   'spawner',
   'collector',
+  'vault',
   'teleport',
   'blueprint',
 ] as const;
@@ -63,6 +64,8 @@ export interface EconomyState {
   /** Collectors are uncapped — the cap that matters is on input (spec 3.4) — but the
    *  panel needs to know whether there is one at all to explain flat gold. */
   readonly collectorsOwned: number;
+  /** Same, for the vaults that make gold count as money. */
+  readonly vaultsOwned: number;
   readonly blueprintSlots: number;
   readonly purchasedUpgrades: readonly UpgradeId[];
 }

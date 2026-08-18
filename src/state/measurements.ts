@@ -34,9 +34,9 @@ export function measurementsOf(readout: SimReadout): readonly Measurement[] {
       limiting: false,
     },
     {
-      label: 'gold on the floor',
+      label: 'gold outside a vault',
       value: `${formatInteger(readout.looseGold)} nuggets`,
-      // Money that is not being held is money you do not have.
+      // Money that is not in a vault is money you do not have.
       limiting: readout.looseGold > 0,
     },
   ];
@@ -74,10 +74,13 @@ export function diagnose(state: GameState): string {
   if (readout.wetSand > 0 && state.economy.goldRate === 0) {
     return 'Product is not reaching a collector. Check that it can fall in, and that the collector has a floor under it — anything that falls through is gone.';
   }
-  // Currency is matter, so it can be spilled. A pile on the floor is gold and is not
-  // money, and nothing else on screen would say so.
+  // Currency is matter, so it has to end up somewhere. Gold that exists but is not in a
+  // vault is the most common way for a working factory to look broken.
+  if (readout.looseGold > 0 && state.economy.vaultsOwned === 0) {
+    return `${formatInteger(readout.looseGold)} nuggets and nowhere to keep them. Dig a pit, wall it, and mark the inside with the vault tool — gold only counts as money once a vault is holding it.`;
+  }
   if (readout.looseGold > 0 && state.economy.gold === 0) {
-    return `${formatInteger(readout.looseGold)} nuggets are lying on the floor. Gold only counts while a machine is holding it — walls that keep it inside the collector are what make it money.`;
+    return `${formatInteger(readout.looseGold)} nuggets are outside the vault. Gold only counts once it lands inside one — the collector needs somewhere below it for the nuggets to fall.`;
   }
   if (readout.contactArea === 0) {
     return readout.wetSand > 0

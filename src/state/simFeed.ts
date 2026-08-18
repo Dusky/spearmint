@@ -26,6 +26,7 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
   const gold = elementByName('gold').id;
   const emitterKind = entityForTool('spawner')?.id ?? 0;
   const collectorKind = entityForTool('collector')?.id ?? 0;
+  const vaultKind = entityForTool('vault')?.id ?? 0;
 
   let last = performance.now();
   let tickDebt = 0;
@@ -76,6 +77,7 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
         goldRate,
         spawnersOwned: sim.countOfKind(emitterKind),
         collectorsOwned: sim.countOfKind(collectorKind),
+        vaultsOwned: sim.countOfKind(vaultKind),
       },
       readout: {
         yieldCurrent: washable > 0 ? wetCells / washable : 0,

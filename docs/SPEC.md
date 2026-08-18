@@ -321,6 +321,16 @@ required.
 - **Destruction:** belts are **indestructible**. Lava does not melt them; nothing
   destroys them.
 
+**Filters are belts with a hole.** A filter is a conveyor that lets one selected element
+fall through its underside and carries everything else on. That is the whole mechanic —
+no sorting logic, no inventory, no routing graph — and it is what turns a mixed stream
+into directed material: run the output of a washer along a filter set to gold and the
+nuggets drop into the vault below while the rest carries on.
+
+Worth noting what this implies for §5.1: today a vault has to sit directly under the
+collector, because gravity is the only transport. Filters make a vault somewhere else
+possible, which is when a factory stops being one vertical column.
+
 ### 4.4 Teleporters **[DECIDED]**
 
 Short-range point-to-point transport that removes the belt run between two points.
@@ -363,15 +373,24 @@ space — several grains in, one nugget where the last one was, which is pillar 
 object rather than a curve. Nuggets fall, stack, and are subject to everything else in
 the world.
 
-**Only what a machine is holding is money.** Currency inside a machine's body is the
-balance; nuggets spilled on the floor are still gold and still conserved, but they are
-not money until something is holding them again. Spending reaches into machines only,
-takes the exact price or nothing, and the pile visibly shrinks.
+**Only what a vault is holding is money.** A vault is a *place the player made*: dig a
+pit, wall it, and mark the inside out with the vault tool. It is any size — the footprint
+is whatever was dragged, not a fixed machine size — and it does nothing each tick. What
+makes it work is only that gold inside one counts.
 
-Two consequences worth stating. A machine that fills with its own output has nothing left
-to work on and reports itself blocked, so storage is a real constraint rather than a
-number that only goes up. And a collector never eats currency — otherwise it would grind
-its own output back to nothing.
+Nothing checks the walls. A vault marked over open ground is a perfectly legal vault that
+happens to leak, exactly as a collector with an open bottom is a legal collector that
+happens to leak. Physics decides whether the gold stays, not a validity rule.
+
+**Minting and storing are separate jobs, and gravity connects them.** A collector presses
+nuggets and holds them only until they can fall somewhere; a collector standing on a
+solid floor fills with its own output, has nothing edible left, and reports itself
+blocked. The build that works is a collector over an open pit that has been declared a
+vault. When belts exist this becomes routing rather than plumbing — see §4.3.
+
+Spending reaches into vaults only, takes the exact price or nothing, and the pile
+visibly shrinks. And a collector never eats currency, or it would grind its own output
+back to nothing.
 
 ### 5.2 Sinks **[PROPOSED]**
 

@@ -54,7 +54,8 @@ function ghostRect(state: GameState): TileRect | null {
 
   if (strokeAnchor) {
     const start = { x: toTile(strokeAnchor.x), y: toTile(strokeAnchor.y) };
-    const end = constrainToAxis(start, at);
+    // A vault is marked out as an area; a constrained stroke is a line.
+    const end = selectedTool === 'vault' ? at : constrainToAxis(start, at);
     return {
       x: Math.min(start.x, end.x),
       y: Math.min(start.y, end.y),

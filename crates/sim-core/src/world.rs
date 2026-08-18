@@ -12,7 +12,7 @@
 
 use crate::chunk::ChunkMap;
 use crate::elements::{ElementId, EMPTY};
-use crate::entities::{self, Entity, EntityKind};
+use crate::entities::{Behaviour, self, Entity, EntityKind};
 use crate::field::{Bounds, CellField};
 use crate::grid::Grid;
 use crate::hash::Hasher;
@@ -85,7 +85,14 @@ impl World {
 
     /// Places a machine. Counting them against a cap is the economy's job, not the
     /// sim's (spec 3.4).
-    pub fn place(&mut self, entity: Entity) {
+    ///
+    /// A footprint of zero means "as the type says", and this is where that is resolved
+    /// — so everything downstream reads the instance and never has to ask which of the
+    /// two is authoritative.
+    pub fn place(&mut self, mut entity: Entity) {
+        if let Some(definition) = self.rules.entities.get(entity.kind) {
+            entity.size_from(definition);
+        }
         self.entities.push(entity);
     }
 
@@ -95,12 +102,9 @@ impl World {
 
     /// The machine covering this tile, if any.
     pub fn entity_at(&self, tile_x: i32, tile_y: i32) -> Option<usize> {
-        self.entities.iter().position(|entity| {
-            self.rules
-                .entities
-                .get(entity.kind)
-                .is_some_and(|definition| entity.covers(definition, tile_x, tile_y))
-        })
+        self.entities
+            .iter()
+            .position(|entity| entity.covers(tile_x, tile_y))
     }
 
     /// Removes a machine, freeing its slot completely.
@@ -127,18 +131,18 @@ impl World {
             .count()
     }
 
-    /// The balance: currency cells sitting inside a machine.
+    /// The balance: currency cells sitting inside a vault.
     ///
     /// Currency is matter (spec 5.1), so a balance is a physical quantity in a physical
-    /// place. Nuggets spilled on the floor are still gold and still conserved — they
-    /// are simply not money until something is holding them again.
+    /// place — and the place is one the player dug out and declared. Nuggets anywhere
+    /// else are still gold and still conserved; they are simply not money.
     pub fn stored(&self) -> u64 {
         let mut held = 0;
         self.for_each_stored_cell(|_, _| held += 1);
         held
     }
 
-    /// Takes `amount` nuggets out of the machines holding them, and reports how many it
+    /// Takes `amount` nuggets out of the vaults holding them, and reports how many it
     /// took.
     ///
     /// All or nothing: a partial charge is not a purchase. Nuggets come off the top of
@@ -165,13 +169,20 @@ impl World {
         amount
     }
 
-    /// Visits every currency cell held inside a machine, top row down.
+    /// Visits every currency cell inside a vault, top row down.
+    ///
+    /// Only vaults. Gold anywhere else — on the floor, or sitting in the collector that
+    /// pressed it — is matter, not money (spec 5.1). Storage is something the player
+    /// builds and then declares.
     fn for_each_stored_cell(&self, mut visit: impl FnMut(i32, i32)) {
         for entity in &self.entities {
             let Some(definition) = self.rules.entities.get(entity.kind) else {
                 continue;
             };
-            let (x0, y0, x1, y1) = entity.body(definition);
+            if definition.behaviour != Behaviour::Store {
+                continue;
+            }
+            let (x0, y0, x1, y1) = entity.body();
             for y in y0..=y1 {
                 for x in x0..=x1 {
                     let held = self

@@ -27,6 +27,10 @@ pub type EntityKind = u8;
 pub enum Behaviour {
     /// Introduces matter into the world. Spawners are the game's only input (spec 3.4).
     Emit,
+    /// Holds currency. A vault does nothing each tick — it is a region the player has
+    /// declared, and what makes it work is that gold inside one counts as money
+    /// (spec 5.1). Physics keeps the gold in; the walls are the player's problem.
+    Store,
     /// Takes matter out of the world and pays for it. The one licensed sink: spec 1.1
     /// allows the physics rules themselves to destroy a particle, and a machine that
     /// consumes what falls into it is such a rule.
@@ -38,6 +42,7 @@ impl Behaviour {
         match text {
             "emit" => Some(Behaviour::Emit),
             "collect" => Some(Behaviour::Collect),
+            "store" => Some(Behaviour::Store),
             _ => None,
         }
     }
@@ -54,6 +59,14 @@ pub struct Entity {
     pub tile_y: i32,
     /// What it works on — the element an emitter emits. `EMPTY` where it means nothing.
     pub element: ElementId,
+    /// Footprint in tiles, per instance rather than per type.
+    ///
+    /// A machine is the size its data says, but a vault is whatever the player marked
+    /// out — a pit they dug and then declared. Zero means "as the type says" and is
+    /// filled in when the entity is placed, so a caller that does not care never has to
+    /// say.
+    pub width_tiles: u32,
+    pub height_tiles: u32,
     /// Value taken in but not yet pressed into a nugget, in points.
     ///
     /// Currency is matter (spec 5.1), so it can only be minted a whole cell at a time.
@@ -69,7 +82,39 @@ impl Entity {
             tile_x,
             tile_y,
             element,
+            width_tiles: 0,
+            height_tiles: 0,
             bank: 0,
+        }
+    }
+
+    /// An entity with a footprint the player chose, for the ones that have one.
+    pub const fn sized(
+        kind: EntityKind,
+        tile_x: i32,
+        tile_y: i32,
+        width_tiles: u32,
+        height_tiles: u32,
+    ) -> Entity {
+        Entity {
+            kind,
+            tile_x,
+            tile_y,
+            element: EMPTY,
+            width_tiles,
+            height_tiles,
+            bank: 0,
+        }
+    }
+
+    /// Fills in a footprint of zero from the type. Called once, when the entity is
+    /// placed, so everything downstream can read the instance and never the type.
+    pub fn size_from(&mut self, definition: &EntityType) {
+        if self.width_tiles == 0 {
+            self.width_tiles = definition.width_tiles;
+        }
+        if self.height_tiles == 0 {
+            self.height_tiles = definition.height_tiles;
         }
     }
 
@@ -83,8 +128,8 @@ impl Entity {
 
     /// The row an emitter's material appears in: immediately below its footprint, so
     /// the sprite can fill the tile without emitted matter appearing inside it.
-    pub fn mouth(&self, definition: &EntityType) -> i32 {
-        (self.tile_y + definition.height_tiles as i32) * TILE_CELLS as i32
+    pub fn mouth(&self) -> i32 {
+        (self.tile_y + self.height_tiles as i32) * TILE_CELLS as i32
     }
 
     /// The cells inside the machine, which is where a collector takes from.
@@ -94,23 +139,23 @@ impl Entity {
     /// rather than what is stacked above it. Build it into a floor and it is a hopper;
     /// leave the bottom open and product falls past, which is a routing mistake the
     /// player can watch happen.
-    pub fn body(&self, definition: &EntityType) -> (i32, i32, i32, i32) {
+    pub fn body(&self) -> (i32, i32, i32, i32) {
         let left = self.left();
         let top = self.top();
         (
             left,
             top,
-            left + definition.width_tiles as i32 * TILE_CELLS as i32 - 1,
-            top + definition.height_tiles as i32 * TILE_CELLS as i32 - 1,
+            left + self.width_tiles as i32 * TILE_CELLS as i32 - 1,
+            top + self.height_tiles as i32 * TILE_CELLS as i32 - 1,
         )
     }
 
     /// Whether this covers a tile, accounting for a footprint wider than one.
-    pub fn covers(&self, definition: &EntityType, tile_x: i32, tile_y: i32) -> bool {
+    pub fn covers(&self, tile_x: i32, tile_y: i32) -> bool {
         tile_x >= self.tile_x
             && tile_y >= self.tile_y
-            && tile_x < self.tile_x + definition.width_tiles as i32
-            && tile_y < self.tile_y + definition.height_tiles as i32
+            && tile_x < self.tile_x + self.width_tiles as i32
+            && tile_y < self.tile_y + self.height_tiles as i32
     }
 
     /// The machine cannot do its job, which for an emitter means every cell it would
@@ -127,14 +172,16 @@ impl Entity {
     ) -> bool {
         match definition.behaviour {
             Behaviour::Emit => {
-                let mouth = self.mouth(definition);
-                let span = definition.width_tiles as i32 * TILE_CELLS as i32;
+                let mouth = self.mouth();
+                let span = self.width_tiles as i32 * TILE_CELLS as i32;
                 (0..span).all(|offset| field.get(self.left() + offset, mouth) != Some(EMPTY))
             }
             Behaviour::Collect => {
-                let (x0, y0, x1, y1) = self.body(definition);
+                let (x0, y0, x1, y1) = self.body();
                 (y0..=y1).all(|y| (x0..=x1).all(|x| !is_edible(field.get(x, y), elements)))
             }
+            // A vault is a place, not a process. It cannot be blocked.
+            Behaviour::Store => false,
         }
     }
 }
@@ -294,6 +341,9 @@ pub fn tick<F: CellField + ?Sized>(
         match definition.behaviour {
             Behaviour::Emit => emit(field, entity, definition, elements, seed, tick, index),
             Behaviour::Collect => minted += collect(field, entity, definition, elements),
+            // A vault holds what falls into it and does nothing else. Gravity is the
+            // mechanism; the walls are the player's.
+            Behaviour::Store => {}
         }
     }
     minted
@@ -320,8 +370,8 @@ fn emit<F: CellField + ?Sized>(
         return;
     }
     let left = entity.left();
-    let mouth = entity.mouth(definition);
-    let span = definition.width_tiles * TILE_CELLS;
+    let mouth = entity.mouth();
+    let span = entity.width_tiles * TILE_CELLS;
 
     for grain in 0..definition.rate {
         // Salted by machine and by grain, so two emitters do not fire in lockstep and
@@ -357,7 +407,7 @@ fn collect<F: CellField + ?Sized>(
     definition: &EntityType,
     elements: &ElementTable,
 ) -> u64 {
-    let (x0, y0, x1, y1) = entity.body(definition);
+    let (x0, y0, x1, y1) = entity.body();
     let Some(currency) = elements.iter().find(|element| element.currency) else {
         return 0;
     };

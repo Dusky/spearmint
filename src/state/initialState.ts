@@ -125,6 +125,7 @@ export function initialState(): GameState {
       goldRate: 0,
       spawnersOwned: 0,
       collectorsOwned: 0,
+      vaultsOwned: 0,
       spawnersMax: BASE_SPAWNERS,
       blueprintSlots: 4,
       purchasedUpgrades: [],

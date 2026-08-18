@@ -15,7 +15,7 @@ use std::cell::RefCell;
 
 use sim_core::chunk::TILE_CELLS;
 use sim_core::field::CellField;
-use sim_core::{paint, scene, ElementTable, Entity, Rules, World};
+use sim_core::{paint, scene, Behaviour, ElementTable, Entity, Rules, World, EMPTY};
 
 mod sprites;
 
@@ -164,6 +164,13 @@ fn draw_entities(state: &mut State, origin_x: i32, origin_y: i32, width: u32, he
             continue;
         };
 
+        // A vault is a marked-out region rather than a machine, so it gets an outline
+        // at whatever size the player made it, not a sprite tiled across it.
+        if definition.behaviour == Behaviour::Store {
+            outline(state, &entity, origin_x, origin_y, width, height);
+            continue;
+        }
+
         let status = if entity.is_blocked(&definition, state.world.field(), &state.table) {
             sprites::Status::Blocked
         } else {
@@ -185,8 +192,8 @@ fn draw_entities(state: &mut State, origin_x: i32, origin_y: i32, width: u32, he
 
         // A footprint wider than one tile repeats the sprite across it. Bespoke art for
         // large machines can come when something actually needs it.
-        for tile_y in 0..definition.height_tiles as i32 {
-            for tile_x in 0..definition.width_tiles as i32 {
+        for tile_y in 0..entity.height_tiles as i32 {
+            for tile_x in 0..entity.width_tiles as i32 {
                 blit(
                     state,
                     &pixels,
@@ -199,6 +206,51 @@ fn draw_entities(state: &mut State, origin_x: i32, origin_y: i32, width: u32, he
                     height,
                 );
             }
+        }
+    }
+}
+
+/// Marks out a region the player declared — a vault — with a one-cell border.
+///
+/// Drawn over empty space only, so gold piled against the wall is never hidden by the
+/// line that says the gold counts.
+fn outline(
+    state: &mut State,
+    entity: &Entity,
+    origin_x: i32,
+    origin_y: i32,
+    width: u32,
+    height: u32,
+) {
+    const EDGE: [u8; 3] = [0xC9, 0xA8, 0x5A];
+    /// How far a corner bracket runs along each side, in cells.
+    const CORNER: i32 = 4;
+    let (x0, y0, x1, y1) = entity.body();
+
+    for y in y0..=y1 {
+        for x in x0..=x1 {
+            let edge = x == x0 || x == x1 || y == y0 || y == y1;
+            if !edge {
+                continue;
+            }
+            // A vault that is doing its job is full, and a border drawn only over empty
+            // space would disappear exactly when it is worth the most. The corners are
+            // drawn over whatever is there so the region is always visible; the rest of
+            // the border yields to the gold.
+            let corner = (x - x0 < CORNER || x1 - x < CORNER)
+                && (y - y0 < CORNER || y1 - y < CORNER);
+            if !corner && state.world.get(x, y) != EMPTY {
+                continue;
+            }
+            let (column, row) = (x - origin_x, y - origin_y);
+            if column < 0 || row < 0 || column >= width as i32 || row >= height as i32 {
+                continue;
+            }
+            let offset = (row as usize * width as usize + column as usize) * 4;
+            state.frame[offset] = EDGE[0];
+            state.frame[offset + 1] = EDGE[1];
+            state.frame[offset + 2] = EDGE[2];
+            state.frame[offset + 3] = 255;
         }
     }
 }
@@ -300,20 +352,40 @@ pub extern "C" fn sim_set_sleeping(enabled: u32) {
     with_state((), |state| state.world.set_sleeping(enabled != 0));
 }
 
-/// Places a machine on a tile. Returns 1 if it went down.
+/// Places an entity over a region of tiles. Returns 1 if it went down.
 ///
 /// Generic over kind: a belt or a teleporter needs no new export here, only a row in
-/// `data/entities.json` and a behaviour arm in the core.
+/// `data/entities.json` and a behaviour arm in the core. `width`/`height` of zero mean
+/// "as the type says", which is what a click on a machine sends; a vault sends the
+/// region the player marked out.
 #[no_mangle]
-pub extern "C" fn sim_place_entity(kind: u32, tile_x: i32, tile_y: i32, element: u32) -> u32 {
+pub extern "C" fn sim_place_entity(
+    kind: u32,
+    tile_x: i32,
+    tile_y: i32,
+    width: u32,
+    height: u32,
+    element: u32,
+) -> u32 {
     with_state(0, |state| {
-        // One machine per tile.
-        if state.world.entity_at(tile_x, tile_y).is_some() {
-            return 0;
+        let mut entity = Entity::new(kind as u8, tile_x, tile_y, element as u8);
+        entity.width_tiles = width;
+        entity.height_tiles = height;
+        if let Some(definition) = state.world.rules().entities.get(kind as u8) {
+            entity.size_from(definition);
         }
-        state
-            .world
-            .place(Entity::new(kind as u8, tile_x, tile_y, element as u8));
+
+        // Nothing may overlap anything else, however large either one is.
+        let (span_x, span_y) = (entity.width_tiles as i32, entity.height_tiles as i32);
+        for y in tile_y..tile_y + span_y {
+            for x in tile_x..tile_x + span_x {
+                if state.world.entity_at(x, y).is_some() {
+                    return 0;
+                }
+            }
+        }
+
+        state.world.place(entity);
         1
     })
 }

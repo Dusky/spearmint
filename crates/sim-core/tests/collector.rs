@@ -139,7 +139,9 @@ fn a_collector_never_eats_currency() {
     world.step_many(200);
 
     assert_eq!(count_in_body(&world, 4, 6, gold), CELLS, "it ate its own money");
-    assert_eq!(world.stored(), CELLS as u64);
+    // Not stored, either: a collector is where gold is made, not where it is kept
+    // (spec 5.1). Storage is a vault, and there is none here.
+    assert_eq!(world.stored(), 0);
 }
 
 /// Full of money and unable to work is a state worth showing, and the sprite already
@@ -178,64 +180,6 @@ fn a_collector_full_of_gold_reads_as_blocked() {
     assert!(!collector.is_blocked(definition, world.field(), &rules.elements));
 }
 
-/// The rule the whole design rests on: gold on the floor is not money.
-#[test]
-fn only_gold_inside_a_machine_counts() {
-    let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
-    let gold = rules.elements.id_of("gold").expect("gold");
-    let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall);
-
-    feed(&mut world, 4, 6, CELLS, gold);
-    // A pile of the same size lying on the arena floor, nowhere near a machine.
-    paint::stroke(world.field_mut(), (12, 20), (12, 20), gold);
-
-    assert_eq!(world.stored(), CELLS as u64, "only what the machine holds");
-    assert!(
-        world.count_of(gold) > world.stored() as usize,
-        "the loose pile is still gold, and still in the world"
-    );
-}
-
-#[test]
-fn spending_takes_the_exact_amount_or_nothing() {
-    let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
-    let gold = rules.elements.id_of("gold").expect("gold");
-    let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall);
-
-    feed(&mut world, 4, 6, CELLS, gold);
-    let held = world.stored();
-
-    // A partial charge is not a purchase.
-    assert_eq!(world.spend(held + 1), 0);
-    assert_eq!(world.stored(), held, "a refused purchase costs nothing");
-
-    assert_eq!(world.spend(4), 4);
-    assert_eq!(world.stored(), held - 4);
-
-    assert_eq!(world.spend(held - 4), held - 4);
-    assert_eq!(world.stored(), 0, "the machine is empty");
-}
-
-/// Spending reaches into machines only. Loose gold is not spendable, which is the same
-/// rule as `only_gold_inside_a_machine_counts` seen from the other side.
-#[test]
-fn spending_never_reaches_gold_on_the_floor() {
-    let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
-    let gold = rules.elements.id_of("gold").expect("gold");
-    let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall);
-    paint::stroke(world.field_mut(), (12, 20), (12, 20), gold);
-
-    let loose = world.count_of(gold);
-    assert_eq!(world.spend(1), 0, "nothing is being held");
-    assert_eq!(world.count_of(gold), loose, "the loose pile is untouched");
-}
-
 /// The accounting property, and the reason a sink is allowed at all: every cell that
 /// leaves the world is either destroyed as valueless input or pressed into a nugget.
 #[test]
@@ -268,12 +212,11 @@ fn everything_that_leaves_is_accounted_for() {
         "cells left the world without being eaten or minted"
     );
 
-    // And spending is the other way out, on the same books.
-    let held = world.stored();
-    assert_eq!(held, minted as u64, "every nugget is still in the machine");
-    world.spend(held);
-    let spent: usize = table.iter().map(|element| world.count_of(element.id)).sum();
-    assert_eq!(after - spent, held as usize);
+    // The nuggets are all still there — in the collector, which is not storage. Getting
+    // them somewhere that counts is the vault's job, and gravity's.
+    let gold = table.id_of("gold").expect("gold");
+    assert_eq!(world.count_of(gold), minted, "a nugget went missing");
+    assert_eq!(world.stored(), 0, "a collector is not a vault");
 }
 
 /// A settled pile stops moving, and a chunk where nothing moves goes to sleep. The

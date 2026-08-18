@@ -16,7 +16,14 @@ export interface SimBridge {
   /** Takes nuggets out of the machines holding them; returns how many it took. */
   spend(amount: number): number;
   elementAt(x: number, y: number): number;
-  placeEntity(kind: number, tileX: number, tileY: number, element: number): boolean;
+  placeEntity(
+    kind: number,
+    tileX: number,
+    tileY: number,
+    element: number,
+    width?: number,
+    height?: number,
+  ): boolean;
   entityAt(x: number, y: number): number | null;
   removeEntity(index: number): boolean;
   countOfKind(kind: number): number;
@@ -76,6 +83,10 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
         case 'collector':
           this.placeMachine(world);
           return;
+        case 'vault':
+          // A vault is marked out by dragging, and a press is a drag that has not
+          // happened yet. `designateVault` runs on release.
+          return;
         case 'erase':
           // Erase should erase. Removing an entity here rather than inventing another
           // tool, and on press only — never mid-drag, so sweeping erase across the
@@ -121,6 +132,26 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
 
       if (!sim.placeEntity(machine.id, toTile(world.x), toTile(world.y), element)) return;
       this.countMachines();
+    },
+
+    /**
+     * Declares a region a vault.
+     *
+     * Storage is something the player builds: dig a pit, wall it, then say that what
+     * lands inside counts (spec 5.1). Nothing here checks for walls — physics decides
+     * whether the gold stays in, which is the same bargain the collector makes.
+     */
+    designateVault(from: Vec2, to: Vec2): void {
+      const machine = entityForTool('vault');
+      if (!machine) return;
+
+      const { start, end } = strokeTiles(from, to);
+      const x = Math.min(start.x, end.x);
+      const y = Math.min(start.y, end.y);
+      const width = Math.abs(end.x - start.x) + 1;
+      const height = Math.abs(end.y - start.y) + 1;
+
+      sim.placeEntity(machine.id, x, y, EMPTY_ELEMENT, width, height);
     },
 
     /**

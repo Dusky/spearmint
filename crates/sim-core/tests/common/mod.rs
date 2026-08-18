@@ -46,13 +46,39 @@ pub fn collector_kind() -> EntityKind {
 /// A collector on a tile. It eats whatever falls in, so it carries no element.
 #[allow(dead_code)]
 pub fn collector(tile_x: i32, tile_y: i32) -> Entity {
-    Entity::new(collector_kind(), tile_x, tile_y, sim_core::EMPTY)
+    sized(Entity::new(collector_kind(), tile_x, tile_y, sim_core::EMPTY))
+}
+
+/// The vault's kind id.
+#[allow(dead_code)]
+pub fn vault_kind() -> EntityKind {
+    rules()
+        .entities
+        .id_of("vault")
+        .expect("a `vault` entity should be defined")
+}
+
+/// A vault over a marked-out region of tiles.
+#[allow(dead_code)]
+pub fn vault(tile_x: i32, tile_y: i32, width: u32, height: u32) -> Entity {
+    Entity::sized(vault_kind(), tile_x, tile_y, width, height)
+}
+
+fn sized(mut entity: Entity) -> Entity {
+    let rules = rules();
+    if let Some(definition) = rules.entities.get(entity.kind) {
+        entity.size_from(definition);
+    }
+    entity
 }
 
 /// An emitter on a tile, emitting one element.
+///
+/// Sized from its type here, which `World::place` would otherwise do — so a test can
+/// hit-test one without placing it first.
 #[allow(dead_code)]
 pub fn emitter(tile_x: i32, tile_y: i32, element: u8) -> Entity {
-    Entity::new(emitter_kind(), tile_x, tile_y, element)
+    sized(Entity::new(emitter_kind(), tile_x, tile_y, element))
 }
 
 #[allow(dead_code)]

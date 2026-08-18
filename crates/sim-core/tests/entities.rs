@@ -13,7 +13,17 @@ use sim_core::scene;
 #[test]
 fn entity_types_load_from_data() {
     let rules = common::rules();
-    assert_eq!(rules.entities.len(), 2, "two machines: the emitter and the collector");
+    assert_eq!(
+        rules.entities.len(),
+        3,
+        "the emitter, the collector, and the vault"
+    );
+
+    let vault = rules
+        .entities
+        .get(common::vault_kind())
+        .expect("the vault should be defined");
+    assert_eq!(vault.behaviour, sim_core::Behaviour::Store);
 
     let collector = rules
         .entities
@@ -34,19 +44,17 @@ fn entity_types_load_from_data() {
 
 #[test]
 fn an_entity_occupies_its_footprint() {
-    let rules = common::rules();
-    let definition = rules.entities.get(common::emitter_kind()).expect("emitter");
     let entity = common::emitter(3, 4, 2);
 
     assert_eq!(entity.left(), 3 * TILE_CELLS as i32);
     assert_eq!(entity.top(), 4 * TILE_CELLS as i32);
     // It emits from the row below its own tile, so its sprite can fill the tile without
     // the emitted matter appearing inside it.
-    assert_eq!(entity.mouth(definition), 5 * TILE_CELLS as i32);
+    assert_eq!(entity.mouth(), 5 * TILE_CELLS as i32);
 
-    assert!(entity.covers(definition, 3, 4));
-    assert!(!entity.covers(definition, 3, 5));
-    assert!(!entity.covers(definition, 4, 4));
+    assert!(entity.covers(3, 4));
+    assert!(!entity.covers(3, 5));
+    assert!(!entity.covers(4, 4));
 }
 
 #[test]
@@ -136,7 +144,7 @@ fn an_emitter_reports_being_blocked() {
     for offset in 0..TILE_CELLS as i32 {
         world
             .field_mut()
-            .set(entity.left() + offset, entity.mouth(definition), wall);
+            .set(entity.left() + offset, entity.mouth(), wall);
     }
     assert!(entity.is_blocked(definition, world.field(), &rules.elements));
 

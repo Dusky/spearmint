@@ -252,6 +252,14 @@ body {
   border-top: 13px solid var(--text-faint-dimmer);
 }
 
+/* An open box: a place, not a machine. */
+.glyph--vault {
+  width: 16px;
+  height: 13px;
+  border: 1px solid var(--text-faint-dimmer);
+  border-top: none;
+}
+
 .glyph--teleport {
   width: 14px;
   height: 14px;
