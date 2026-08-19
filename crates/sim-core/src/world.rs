@@ -16,6 +16,7 @@ use crate::entities::{Behaviour, self, Entity, EntityKind};
 use crate::field::{Bounds, CellField};
 use crate::grid::Grid;
 use crate::hash::Hasher;
+use crate::heat;
 use crate::rules::Rules;
 use crate::step;
 
@@ -75,6 +76,7 @@ fn content_hash_into<F: CellField + ?Sized>(hasher: &mut Hasher, field: &F) {
                 hasher.write_u32(x as u32);
                 hasher.write_u32(y as u32);
                 hasher.write_u8(id);
+                hasher.write_i16(field.temperature(x, y));
             }
         }
     }
@@ -246,6 +248,7 @@ impl World {
             self.seed,
             self.tick,
         );
+        heat::step(&mut self.field, &self.rules.elements);
         self.tick += 1;
     }
 
@@ -369,6 +372,7 @@ impl FlatWorld {
             self.seed,
             self.tick,
         );
+        heat::step(&mut self.field, &self.rules.elements);
         self.tick += 1;
     }
 

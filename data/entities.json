@@ -11,6 +11,8 @@
 
   "beltNote": "Belt and filter are both behaviour `belt` (spec 4.1-4.3): the same machine, distinguished only by whether an instance names an element to let through, exactly like one `emitter` tool is tuned per instance by which element it emits. `structure` names the indestructible element `World.place` fills the tile's own footprint with, so gravity holds cargo up on it the same way it holds anything up on solid ground.",
 
+  "heaterNote": "Burns `input` (fuel) to hold its own footprint at `heatOutput` Kelvin while fed (spec 5.3) — no banking, the same shape a burner or compactor has none. The generic conduction pass in crates/sim-core/src/heat.rs carries that into whatever touches it, and cools the footprint back down on its own once fuel runs out; nothing here needs a cooldown.",
+
   "entities": [
     {
       "id": 1,
@@ -202,7 +204,7 @@
       ]
     },
     {
-      "note": "Turns burntResidue into fuel, one cell at a time (spec 5.3). The last built step of the chain — nothing burns fuel yet.",
+      "note": "Turns burntResidue into fuel, one cell at a time (spec 5.3).",
       "id": 5,
       "name": "compactor",
       "behaviour": "refine",
@@ -347,6 +349,49 @@
               " # ooo # ",
               "  =ooo=  "
             ]
+          ]
+        }
+      ]
+    },
+    {
+      "note": "Burns fuel to hold its own footprint hot (spec 5.3) — the machine that finally gives fuel a consumer. Radiates via the generic conduction pass, not a special case; it carries no element, the same as a press.",
+      "id": 8,
+      "name": "heater",
+      "behaviour": "heater",
+      "tool": "heater",
+      "input": "fuel",
+      "widthTiles": 1,
+      "heightTiles": 1,
+      "rate": 4,
+      "heatOutput": 2200,
+      "sprites": [
+        {
+          "note": "No fuel — cold grate.",
+          "when": { "status": "blocked" },
+          "pixels": [
+            "#########",
+            "=========",
+            "#########",
+            "=========",
+            "#########",
+            "=========",
+            "#########",
+            "=========",
+            "  =====  "
+          ]
+        },
+        {
+          "when": {},
+          "pixels": [
+            "#########",
+            "=#=#=#=#=",
+            "#########",
+            "#=#=#=#=#",
+            "#########",
+            "=#=#=#=#=",
+            "#########",
+            "#=#=#=#=#",
+            "  =====  "
           ]
         }
       ]

@@ -40,14 +40,21 @@ pub enum Behaviour {
     /// element's `refined_into` (spec 5.3). Unlike a press, nothing is banked: one cell
     /// in is one cell out, because there is no threshold to accumulate toward.
     Refine,
-    /// Conveys whatever rests on top of it, and — when `let_through` is set — drops
-    /// that one element straight through instead. A filter is not a second behaviour;
-    /// it is this with one more field (spec 4.3).
+    /// Conveys whatever rests on top of it, and — when the instance names an element
+    /// (`Entity.element`, the same field an emitter uses) — drops that one element
+    /// straight through instead. A filter is not a second behaviour; it is this, tuned
+    /// per instance (spec 4.3).
     ///
     /// The entity's own footprint is filled with a real, indestructible structural
     /// element at placement (`World::place`), so gravity already holds cargo up — this
     /// behaviour only ever touches the row directly above its own body.
     Belt,
+    /// Burns fuel to hold its own footprint at `EntityType.heat_output`, so the
+    /// generic conduction pass (`heat.rs`) can carry that into whatever touches it
+    /// (spec 5.3). No banking: while it has fuel it forces its footprint hot, and once
+    /// it runs out conduction alone cools it back toward ambient — no special-cased
+    /// cooldown anywhere.
+    Heater,
 }
 
 impl Behaviour {
@@ -58,6 +65,7 @@ impl Behaviour {
             "store" => Some(Behaviour::Store),
             "refine" => Some(Behaviour::Refine),
             "belt" => Some(Behaviour::Belt),
+            "heater" => Some(Behaviour::Heater),
             _ => None,
         }
     }
@@ -256,6 +264,13 @@ impl Entity {
                         && field.get(x + direction, carry_y) != Some(EMPTY)
                 })
             }
+            // Blocked means idle: no fuel anywhere in the body to burn. Pure id
+            // equality against `input` — a heater does not consult the element table,
+            // unlike Press and Refine, because there is no further property to check.
+            Behaviour::Heater => {
+                let (x0, y0, x1, y1) = self.body();
+                (y0..=y1).all(|y| (x0..=x1).all(|x| field.get(x, y) != Some(definition.input)))
+            }
         }
     }
 }
@@ -270,11 +285,13 @@ pub struct EntityType {
     pub tool: String,
     pub width_tiles: u32,
     pub height_tiles: u32,
-    /// Cells emitted per tick, for emitters; cells pressed per tick, for presses.
+    /// Cells emitted per tick, for emitters; cells pressed per tick, for presses; cells
+    /// of fuel consumed per tick, for a heater.
     pub rate: u32,
     /// Points a press must take in to make one cell of currency.
     pub gold_per: u32,
-    /// The one element a `Refine` machine acts on. `EMPTY` for anything else.
+    /// The one element a `Refine` machine acts on, or a `Heater`'s fuel. `EMPTY` for
+    /// anything else.
     pub input: ElementId,
     /// Where an emitter's opening actually is, in cells from the tile's left edge —
     /// matching the funnel the sprite draws rather than the full tile width. Defaults
@@ -287,6 +304,9 @@ pub struct EntityType {
     /// rather than an entity-aware exception in `step.rs`. `EMPTY` for anything that is
     /// not a belt.
     pub structure: ElementId,
+    /// The whole-Kelvin temperature a `Heater` holds its own footprint at while it has
+    /// fuel (spec 5.3). Meaningless for anything else.
+    pub heat_output: i16,
 }
 
 /// Entity types indexed by id — a `Vec`, never a map, so iteration order cannot reach
@@ -419,6 +439,16 @@ fn parse_entity(entry: &Json<'_>, elements: &ElementTable) -> Result<EntityType,
             None if behaviour == Behaviour::Belt => return Err(bad("structure")),
             None => EMPTY,
         },
+        // Required for a heater, the same way `structure` is required for a belt.
+        // Meaningless — and absent — for anything else.
+        heat_output: match entry.get("heatOutput").and_then(Json::as_i32) {
+            Some(value) if (i32::from(i16::MIN)..=i32::from(i16::MAX)).contains(&value) => {
+                value as i16
+            }
+            Some(_) => return Err(bad("heatOutput")),
+            None if behaviour == Behaviour::Heater => return Err(bad("heatOutput")),
+            None => 0,
+        },
     })
 }
 
@@ -468,6 +498,7 @@ pub fn tick<F: CellField + ?Sized>(
             Behaviour::Emit => emit(field, entity, definition, elements, seed, tick, index),
             Behaviour::Press => minted += press(field, entity, definition, elements),
             Behaviour::Refine => refine(field, entity, definition, elements),
+            Behaviour::Heater => heater(field, entity, definition),
             // A vault holds what falls into it and does nothing else. Gravity is the
             // mechanism; the walls are the player's. A belt was already handled above.
             Behaviour::Store | Behaviour::Belt => {}
@@ -715,4 +746,53 @@ fn refine<F: CellField + ?Sized>(
             taken += 1;
         }
     }
+}
+
+/// Burns up to `rate` cells of fuel a tick and, if it burned any, holds its own
+/// footprint at `heat_output`.
+///
+/// No banking, the same reason `refine` has none — there is nothing to accumulate
+/// toward, since "hot" is not a threshold. Fed or not is decided fresh every tick: a
+/// heater that just ran dry simply stops forcing its footprint hot, and the generic
+/// conduction pass in `heat.rs` alone carries it back toward ambient afterward — this
+/// function has no cooldown logic of its own to have.
+fn heater<F: CellField + ?Sized>(field: &mut F, entity: &Entity, definition: &EntityType) {
+    if burn_fuel(field, entity, definition) == 0 {
+        return;
+    }
+    let (x0, y0, x1, y1) = entity.body();
+    for y in y0..=y1 {
+        for x in x0..=x1 {
+            field.set_temperature(x, y, definition.heat_output);
+        }
+    }
+}
+
+/// Deletes up to `rate` cells of `definition.input` from the body and reports how many
+/// it took. Bottom row up, same reason `press` and `refine` read that way.
+fn burn_fuel<F: CellField + ?Sized>(
+    field: &mut F,
+    entity: &Entity,
+    definition: &EntityType,
+) -> u32 {
+    let (x0, y0, x1, y1) = entity.body();
+
+    let mut burned = 0;
+    for y in (y0..=y1).rev() {
+        for x in x0..=x1 {
+            if burned == definition.rate {
+                return burned;
+            }
+            if field.get(x, y) != Some(definition.input) {
+                continue;
+            }
+            // Eaten as valueless input (spec 1.1) — a heater has no byproduct, unlike
+            // a press or a refiner, so this is a real deletion rather than a
+            // conversion.
+            field.set(x, y, EMPTY);
+            field.mark_active(x, y);
+            burned += 1;
+        }
+    }
+    burned
 }

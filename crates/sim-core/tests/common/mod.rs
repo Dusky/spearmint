@@ -135,6 +135,21 @@ pub fn filter(tile_x: i32, tile_y: i32, direction: i8, element: u8) -> Entity {
     ))
 }
 
+/// The heater's kind id.
+#[allow(dead_code)]
+pub fn heater_kind() -> EntityKind {
+    rules()
+        .entities
+        .id_of("heater")
+        .expect("a `heater` entity should be defined")
+}
+
+/// A heater on a tile. Its input is fixed by the data (fuel), not chosen here.
+#[allow(dead_code)]
+pub fn heater(tile_x: i32, tile_y: i32) -> Entity {
+    sized(Entity::new(heater_kind(), tile_x, tile_y, sim_core::EMPTY))
+}
+
 fn sized(mut entity: Entity) -> Entity {
     let rules = rules();
     if let Some(definition) = rules.entities.get(entity.kind) {

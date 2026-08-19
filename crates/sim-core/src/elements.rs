@@ -84,6 +84,13 @@ pub struct Element {
     /// Generic on purpose: a burner and a compactor are the same behaviour reading this
     /// field on whatever they are fed, not two hand-written machines.
     pub refined_into: ElementId,
+    /// What this becomes once its temperature (spec 5.3's heat system) reaches
+    /// `boiling_point`. `EMPTY` means nothing boils it — true of everything shipped so
+    /// far, since a real payoff needs gas-state physics that does not exist yet.
+    pub boils_into: ElementId,
+    /// What this becomes once its temperature reaches `melting_point`. `EMPTY` means
+    /// nothing melts it, the default for anything that has not declared a product.
+    pub melts_into: ElementId,
 }
 
 /// Elements indexed by id. A `Vec` rather than a map: spec 3.1 forbids hash-map
@@ -141,6 +148,24 @@ impl ElementTable {
                     .as_mut()
                     .expect("just inserted above")
                     .refined_into = refined_id;
+            }
+            if let Some(name) = entry.get("boilsInto").and_then(Json::as_str) {
+                let boils_id = table
+                    .id_of(name)
+                    .ok_or(DataError::BadField { field: "boilsInto" })?;
+                table.slots[usize::from(id)]
+                    .as_mut()
+                    .expect("just inserted above")
+                    .boils_into = boils_id;
+            }
+            if let Some(name) = entry.get("meltsInto").and_then(Json::as_str) {
+                let melts_id = table
+                    .id_of(name)
+                    .ok_or(DataError::BadField { field: "meltsInto" })?;
+                table.slots[usize::from(id)]
+                    .as_mut()
+                    .expect("just inserted above")
+                    .melts_into = melts_id;
             }
         }
 
@@ -241,6 +266,8 @@ fn parse_element(entry: &Json<'_>) -> Result<Element, DataError> {
         // the entry says, so this function never depends on parse order (spec 3.2).
         residue: EMPTY,
         refined_into: EMPTY,
+        boils_into: EMPTY,
+        melts_into: EMPTY,
     })
 }
 

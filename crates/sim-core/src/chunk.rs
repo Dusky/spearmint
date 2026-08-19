@@ -17,6 +17,7 @@ use std::collections::BTreeMap;
 
 use crate::elements::{ElementId, EMPTY};
 use crate::field::{Bounds, CellField};
+use crate::heat::AMBIENT_TEMPERATURE;
 
 /// Cells per tile edge. Odd on purpose: every tile has a true centre cell, which
 /// matters for rotation, symmetry and teleporter endpoints (spec 2.3). Final tile size
@@ -37,6 +38,9 @@ pub type ChunkCoord = (i32, i32);
 #[derive(Clone, Debug)]
 struct Chunk {
     cells: Vec<ElementId>,
+    /// Whole Kelvin, one per cell, parallel to `cells`. Ambient until something heats
+    /// or cools it (spec 5.3).
+    heat: Vec<i16>,
     moved: Vec<u64>,
     /// Something moved in this chunk during the tick now running.
     dirty: bool,
@@ -50,6 +54,7 @@ impl Chunk {
     fn new() -> Chunk {
         Chunk {
             cells: vec![EMPTY; CHUNK_AREA],
+            heat: vec![AMBIENT_TEMPERATURE; CHUNK_AREA],
             moved: vec![0; CHUNK_AREA.div_ceil(64)],
             // A chunk that has just come into existence has never been simulated, so it
             // must run before it can be trusted to be at rest.
@@ -253,6 +258,8 @@ impl CellField for ChunkMap {
         self.chunks[slot].cells[index] = id;
     }
 
+    /// Element id and temperature swap together — heat belongs to the matter, not the
+    /// position, so a falling grain carries its own warmth with it.
     fn swap(&mut self, ax: i32, ay: i32, bx: i32, by: i32) {
         let (a_coord, a_index) = self.locate(ax, ay);
         let (b_coord, b_index) = self.locate(bx, by);
@@ -260,6 +267,7 @@ impl CellField for ChunkMap {
         if a_coord == b_coord {
             let slot = self.slot_or_create(a_coord);
             self.chunks[slot].cells.swap(a_index, b_index);
+            self.chunks[slot].heat.swap(a_index, b_index);
             self.chunks[slot].dirty = true;
             return;
         }
@@ -268,11 +276,12 @@ impl CellField for ChunkMap {
         // borrowed mutably at once, and going through values keeps that from mattering.
         let a_value = self.get(ax, ay).unwrap_or(EMPTY);
         let b_value = self.get(bx, by).unwrap_or(EMPTY);
-        if a_value == b_value {
-            return;
-        }
+        let a_heat = self.temperature(ax, ay);
+        let b_heat = self.temperature(bx, by);
         self.set(ax, ay, b_value);
         self.set(bx, by, a_value);
+        self.set_temperature(ax, ay, b_heat);
+        self.set_temperature(bx, by, a_heat);
         for coord in [a_coord, b_coord] {
             let slot = self.slot_or_create(coord);
             self.chunks[slot].dirty = true;
@@ -283,6 +292,25 @@ impl CellField for ChunkMap {
         let (coord, _) = self.locate(x, y);
         let slot = self.slot_or_create(coord);
         self.chunks[slot].dirty = true;
+    }
+
+    fn temperature(&self, x: i32, y: i32) -> i16 {
+        let (coord, index) = self.locate(x, y);
+        match self.slot(coord) {
+            Some(slot) => self.chunks[slot].heat[index],
+            None => AMBIENT_TEMPERATURE,
+        }
+    }
+
+    fn set_temperature(&mut self, x: i32, y: i32, value: i16) {
+        let (coord, index) = self.locate(x, y);
+        // Writing ambient into a chunk that does not exist would allocate a chunk to
+        // store nothing, the same shortcut `set` takes for `EMPTY`.
+        if value == AMBIENT_TEMPERATURE && self.slot(coord).is_none() {
+            return;
+        }
+        let slot = self.slot_or_create(coord);
+        self.chunks[slot].heat[index] = value;
     }
 
     fn is_moved(&self, x: i32, y: i32) -> bool {

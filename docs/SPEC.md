@@ -493,7 +493,43 @@ real simulated quantity other things key off, not a side effect of one machine. 
 its own round: what carries heat, how conductivity moves it, what crossing a melting or
 boiling point does. Fuel sits ready for it, the same way residue sat ready for this.
 
+**Heat is built, and it is a quantity rather than a machine's side effect.** Every cell
+carries a temperature in whole Kelvin (`crates/sim-core/src/heat.rs`), stored parallel
+to the element grid in both `Grid` and `ChunkMap`, and swapped along with the matter
+when a cell moves — a falling grain carries its own warmth. `heat::step` runs once a
+tick after the movement sweep, deliberately *not* folded into it: that sweep's
+`is_moved` bookkeeping exists to stop a particle being carried twice, which has nothing
+to do with heat.
+
+- **Heat only exists where matter does.** It does not conduct through empty space, and
+  an empty cell never reads as anything but ambient. That sidesteps diffusing across an
+  unbounded empty canvas (§2.1), and is the more honest reading of conductivity anyway:
+  two things exchange heat by touching, not by sharing a void.
+- **Conduction is pairwise and capped at the midpoint.** Each occupied cell trades with
+  its right and lower neighbour — the same "each adjacent pair considered exactly once"
+  pattern reactions use — moving the temperature difference scaled by the *lower* of the
+  two conductivities, clamped to half the difference. Using the lower is what makes an
+  insulator insulate: `beltStructure` is `0.0`, so nothing conducts into or out of a
+  belt's body, a second independent guarantee of §4.3's "lava does not melt them". The
+  half-difference cap is load-bearing: gold conducts at `3.17`, and without it a good
+  conductor would swap the two temperatures outright and flip which side is hotter.
+- **Melting and boiling are one generic mechanism.** `meltsInto`/`boilsInto` name what
+  an element becomes on reaching its `melting_point`/`boiling_point`, resolved in the
+  same name pass `residue`/`refinedInto` already use. Boiling is checked first: anything
+  hot enough to boil crossed its melting point on the way. Sand melts into
+  **moltenSand**, a real liquid that flows and settles immediately. `boilsInto` ships
+  real but unpopulated — steam needs gas-state physics, which is still a no-op.
+- **The heater banks nothing.** It burns up to `rate` cells of fuel from its body and,
+  if it burned any, holds its footprint at `heatOutput`. Cooldown is free and not
+  special-cased: it simply stops forcing the temperature, and the same generic
+  conduction pass carries the heat away.
+
 **[OPEN]** The rest of the element roster and tech tree beyond this one chain.
+
+**[OPEN]** Heat is not gated by chunk sleeping — `heat::step` walks full bounds every
+tick. Folding it in means deciding whether "still conducting toward equilibrium" counts
+as quiescent, which today it would not. No live regression, since the client never
+enables sleeping, but a real gap once it does.
 
 ### 5.4 Byproduct accumulation **[OPEN]**
 

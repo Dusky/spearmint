@@ -5,6 +5,7 @@
 
 use crate::elements::{ElementId, EMPTY};
 use crate::field::{Bounds, CellField};
+use crate::heat::AMBIENT_TEMPERATURE;
 
 /// Cells outside the grid behave as immovable boundary, so a closed world stays closed
 /// and nothing falls out of it. Milestone 2 replaces this with real chunk neighbours.
@@ -13,6 +14,9 @@ pub struct Grid {
     width: u32,
     height: u32,
     cells: Vec<ElementId>,
+    /// Whole Kelvin, one per cell, parallel to `cells`. Ambient until something heats
+    /// or cools it (spec 5.3).
+    heat: Vec<i16>,
     /// One bit per cell: this cell's contents already moved this tick, and must not be
     /// carried along again by a later visit.
     moved: Vec<u64>,
@@ -25,6 +29,7 @@ impl Grid {
             width,
             height,
             cells: vec![EMPTY; count],
+            heat: vec![AMBIENT_TEMPERATURE; count],
             moved: vec![0; count.div_ceil(64)],
         }
     }
@@ -57,8 +62,11 @@ impl Grid {
         self.cells.iter().filter(|&&cell| cell == id).count()
     }
 
+    /// Element id and temperature swap together — heat belongs to the matter, not the
+    /// position, so a falling grain carries its own warmth with it.
     fn swap_indices(&mut self, a: usize, b: usize) {
         self.cells.swap(a, b);
+        self.heat.swap(a, b);
     }
 
     fn moved_at(&self, index: usize) -> bool {
@@ -87,6 +95,16 @@ impl CellField for Grid {
     fn swap(&mut self, ax: i32, ay: i32, bx: i32, by: i32) {
         if let (Some(a), Some(b)) = (self.index(ax, ay), self.index(bx, by)) {
             self.swap_indices(a, b);
+        }
+    }
+
+    fn temperature(&self, x: i32, y: i32) -> i16 {
+        self.index(x, y).map_or(AMBIENT_TEMPERATURE, |index| self.heat[index])
+    }
+
+    fn set_temperature(&mut self, x: i32, y: i32, value: i16) {
+        if let Some(index) = self.index(x, y) {
+            self.heat[index] = value;
         }
     }
 

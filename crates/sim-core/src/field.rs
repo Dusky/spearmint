@@ -37,8 +37,22 @@ pub trait CellField {
     fn set(&mut self, x: i32, y: i32, id: ElementId);
 
     /// Exchanges two cells. Movement is always a swap, so no rule can create or destroy
-    /// a particle (spec 1.1).
+    /// a particle (spec 1.1). Temperature moves with the matter, not the position — a
+    /// falling grain carries its own heat, so an implementation must swap `temperature`
+    /// here too, not just the element id.
     fn swap(&mut self, ax: i32, ay: i32, bx: i32, by: i32);
+
+    /// A cell's temperature, in whole Kelvin. Ambient (`heat::AMBIENT_TEMPERATURE`) for
+    /// anywhere never explicitly heated, including storage that does not exist yet —
+    /// reading it never allocates, the same guarantee `get` makes for element ids.
+    fn temperature(&self, x: i32, y: i32) -> i16;
+
+    /// Sets a cell's temperature, independently of what element occupies it — `set`
+    /// changes identity in place and leaves whatever was already there, the same way it
+    /// never touches a neighbour. Storage that grows on demand allocates here, the same
+    /// as `set`, and by the same logic skips allocating when the write is ambient into
+    /// storage that does not exist yet.
+    fn set_temperature(&mut self, x: i32, y: i32, value: i16);
 
     /// Reports that something happened at this cell that was not a move — matter
     /// appearing, or a reaction firing.

@@ -25,6 +25,7 @@ pub mod field;
 pub mod fixed;
 pub mod grid;
 pub mod hash;
+pub mod heat;
 pub mod json;
 pub mod paint;
 pub mod reactions;

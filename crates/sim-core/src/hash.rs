@@ -46,6 +46,11 @@ impl Hasher {
         self.write_bytes(&value.to_le_bytes());
     }
 
+    /// Little-endian, explicitly, so the hash does not depend on host byte order.
+    pub fn write_i16(&mut self, value: i16) {
+        self.write_bytes(&value.to_le_bytes());
+    }
+
     pub const fn finish(self) -> u64 {
         self.0
     }

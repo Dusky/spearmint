@@ -2,6 +2,7 @@
   "note": "Element definitions live in data, not code. Adding an element means editing this file (spec 3.2). Ids are declared here and are permanent: they are baked into saves and world hashes, so reordering this list must never change behaviour. Id 0 is reserved for empty space.",
 
   "valueNote": "`value` is what a cell is worth to a press, in points. A press takes only what has value, so zero also means the machine ignores it entirely and lets it fall through. `currency` marks the element those points are pressed into: currency has no value of its own, so no press ever takes it back, and currency inside a vault is the player's balance. `refinedInto` is separate from all of that: it names what a Refine machine (a burner, a compactor) turns this element into, one cell at a time, regardless of value.",
+  "heatNote": "`melting_point`/`boiling_point` are Kelvin; `thermal_conductivity` decides how fast a cell trades heat with whatever touches it (spec 5.3) — a heater is the source, everything else just conducts. `meltsInto`/`boilsInto` name what this becomes once its own temperature reaches the matching point; absent means nothing does, which is still true of most of the roster. Checked hottest-first, so something hot enough to boil never gets stuck being evaluated as merely melted.",
   "elements": [
     {
       "id": 1,
@@ -27,7 +28,8 @@
       "color": "#C8A24A",
       "color_variance": 10,
       "flammability": 0.0,
-      "hardness": 0.6
+      "hardness": 0.6,
+      "meltsInto": "moltenSand"
     },
     {
       "id": 3,
@@ -130,6 +132,20 @@
       "flammability": 0.0,
       "hardness": 1.0,
       "internal": true
+    },
+    {
+      "note": "What sand becomes past its melting point (spec 5.3) — a real liquid immediately, not a dead end: it flows and settles like any other liquid the moment it exists. Nothing consumes it yet, the same shape residue and burntResidue shipped in before their own machines existed.",
+      "id": 10,
+      "name": "moltenSand",
+      "state": "liquid",
+      "density": 1700,
+      "melting_point": 1986,
+      "boiling_point": 2503,
+      "thermal_conductivity": 0.9,
+      "color": "#E8622C",
+      "color_variance": 14,
+      "flammability": 0.0,
+      "hardness": 0.0
     }
   ],
   "reactions": [
