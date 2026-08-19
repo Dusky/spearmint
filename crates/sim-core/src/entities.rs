@@ -99,6 +99,17 @@ pub struct Entity {
     /// Which way a belt conveys: `1` for increasing x, `-1` for decreasing. Meaningless
     /// off a `Behaviour::Belt`, same as `bank` is meaningless off a press.
     pub direction: i8,
+    /// Whether this machine runs at all. A disabled machine does nothing, of any
+    /// behaviour, while physics carries on around it untouched.
+    ///
+    /// For working on a running factory: pausing the emitter feeding the part you are
+    /// rebuilding beats deleting and replacing it, which loses where it was pointed.
+    pub enabled: bool,
+    /// How much this machine does per action, overriding its type's `rate`. Zero means
+    /// "as the type says" and is filled in at placement, the same convention
+    /// `width_tiles`/`height_tiles` already use, so nothing downstream has to ask which
+    /// of instance or type is authoritative.
+    pub rate: u32,
 }
 
 impl Entity {
@@ -112,6 +123,8 @@ impl Entity {
             height_tiles: 0,
             bank: 0,
             direction: 1,
+            enabled: true,
+            rate: 0,
         }
     }
 
@@ -132,6 +145,8 @@ impl Entity {
             height_tiles,
             bank: 0,
             direction: 1,
+            enabled: true,
+            rate: 0,
         }
     }
 
@@ -146,6 +161,8 @@ impl Entity {
             height_tiles: 0,
             bank: 0,
             direction,
+            enabled: true,
+            rate: 0,
         }
     }
 
@@ -168,17 +185,36 @@ impl Entity {
             height_tiles: 0,
             bank: 0,
             direction,
+            enabled: true,
+            rate: 0,
         }
     }
 
-    /// Fills in a footprint of zero from the type. Called once, when the entity is
-    /// placed, so everything downstream can read the instance and never the type.
-    pub fn size_from(&mut self, definition: &EntityType) {
+    /// Fills in whatever the instance left as zero from the type. Called once, when the
+    /// entity is placed, so everything downstream can read the instance and never the
+    /// type.
+    pub fn defaults_from(&mut self, definition: &EntityType) {
         if self.width_tiles == 0 {
             self.width_tiles = definition.width_tiles;
         }
         if self.height_tiles == 0 {
             self.height_tiles = definition.height_tiles;
+        }
+        if self.rate == 0 {
+            self.rate = definition.rate;
+        }
+    }
+
+    /// How much this machine does per action.
+    ///
+    /// Reads the instance, falling back to the type — `defaults_from` normally settles
+    /// this at placement, so the fallback only covers an entity that was never placed,
+    /// which is a thing tests construct.
+    pub fn effective_rate(&self, definition: &EntityType) -> u32 {
+        if self.rate == 0 {
+            definition.rate
+        } else {
+            self.rate
         }
     }
 
@@ -514,7 +550,10 @@ pub fn tick<F: CellField + ?Sized>(
         let Some(definition) = types.get(entity.kind) else {
             continue;
         };
-        if !acts_this_tick(definition, tick) {
+        // A disabled machine does nothing, whatever it is — one check rather than an
+        // arm in each behaviour. Physics carries on around it untouched: what it
+        // already made stays, and matter still falls through it.
+        if !entity.enabled || !acts_this_tick(definition, tick) {
             continue;
         }
         match definition.behaviour {
@@ -556,9 +595,10 @@ fn convey<F: CellField + ?Sized>(
         .iter()
         .enumerate()
         .filter(|(_, entity)| {
-            types.get(entity.kind).is_some_and(|definition| {
-                definition.behaviour == Behaviour::Belt && acts_this_tick(definition, tick)
-            })
+            entity.enabled
+                && types.get(entity.kind).is_some_and(|definition| {
+                    definition.behaviour == Behaviour::Belt && acts_this_tick(definition, tick)
+                })
         })
         .map(|(index, _)| index)
         .collect();
@@ -670,7 +710,7 @@ fn emit<F: CellField + ?Sized>(
     let mouth = entity.mouth();
     let span = definition.mouth_width;
 
-    for grain in 0..definition.rate {
+    for grain in 0..entity.effective_rate(definition) {
         // Salted by machine and by grain, so two emitters do not fire in lockstep and
         // one machine's grains do not stack up in a single column.
         let salt = (index as u32)
@@ -716,7 +756,7 @@ fn press<F: CellField + ?Sized>(
     // out of it, so that is what gets pressed first.
     for y in (y0..=y1).rev() {
         for x in x0..=x1 {
-            if taken == definition.rate {
+            if taken == entity.effective_rate(definition) {
                 return minted;
             }
             let cell = field.get(x, y);
@@ -765,7 +805,7 @@ fn refine<F: CellField + ?Sized>(
     let mut taken = 0;
     for y in (y0..=y1).rev() {
         for x in x0..=x1 {
-            if taken == definition.rate {
+            if taken == entity.effective_rate(definition) {
                 return;
             }
             if !is_refinable(field.get(x, y), elements, definition.input) {
@@ -815,7 +855,7 @@ fn burn_fuel<F: CellField + ?Sized>(
     let mut burned = 0;
     for y in (y0..=y1).rev() {
         for x in x0..=x1 {
-            if burned == definition.rate {
+            if burned == entity.effective_rate(definition) {
                 return burned;
             }
             if field.get(x, y) != Some(definition.input) {

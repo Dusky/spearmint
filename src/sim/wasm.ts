@@ -33,6 +33,11 @@ interface SimExports {
     direction: number,
   ): number;
   sim_entity_at(x: number, y: number): number;
+  sim_entity_kind(index: number): number;
+  sim_entity_enabled(index: number): number;
+  sim_set_entity_enabled(index: number, enabled: number): number;
+  sim_entity_rate(index: number): number;
+  sim_set_entity_rate(index: number, rate: number): number;
   sim_remove_entity(index: number): number;
   sim_entity_count(): number;
   sim_entity_count_of_kind(kind: number): number;
@@ -149,6 +154,34 @@ export class Sim {
   /** Removes a machine and frees its slot in full. */
   removeEntity(index: number): boolean {
     return this.#exports.sim_remove_entity(index) === 1;
+  }
+
+  /** What kind of machine sits at this index, or null. Turns a hit-test into a name. */
+  entityKind(index: number): number | null {
+    const kind = this.#exports.sim_entity_kind(index);
+    return kind < 0 ? null : kind;
+  }
+
+  /** Whether a machine is switched on, or null if there is none at that index. */
+  entityEnabled(index: number): boolean | null {
+    const enabled = this.#exports.sim_entity_enabled(index);
+    return enabled < 0 ? null : enabled === 1;
+  }
+
+  /** Switches a machine on or off, leaving everything else about it alone. */
+  setEntityEnabled(index: number, enabled: boolean): void {
+    this.#exports.sim_set_entity_enabled(index, enabled ? 1 : 0);
+  }
+
+  /** How much a machine does per action, or null if there is none at that index. */
+  entityRate(index: number): number | null {
+    const rate = this.#exports.sim_entity_rate(index);
+    return rate < 0 ? null : rate;
+  }
+
+  /** Retunes how much a machine does per action. Zero means "as its type says". */
+  setEntityRate(index: number, rate: number): void {
+    this.#exports.sim_set_entity_rate(index, rate);
   }
 
   countOfKind(kind: number): number {

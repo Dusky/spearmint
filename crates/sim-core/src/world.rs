@@ -113,7 +113,7 @@ impl World {
     /// two is authoritative.
     pub fn place(&mut self, mut entity: Entity) {
         if let Some(definition) = self.rules.entities.get(entity.kind) {
-            entity.size_from(definition);
+            entity.defaults_from(definition);
             fill_structure(&mut self.field, &entity, definition);
         }
         self.entities.push(entity);
@@ -121,6 +121,19 @@ impl World {
 
     pub fn entities(&self) -> &[Entity] {
         &self.entities
+    }
+
+    /// Retunes a placed machine: the settings a player can change after placing it,
+    /// rather than having to remove and replace it (which loses where it was pointed).
+    ///
+    /// A closure rather than a setter per field: the caller already has to name the
+    /// machine, and every such setting is a plain assignment on an instance.
+    pub fn retune(&mut self, index: usize, change: impl FnOnce(&mut Entity)) -> bool {
+        let Some(entity) = self.entities.get_mut(index) else {
+            return false;
+        };
+        change(entity);
+        true
     }
 
     /// The machine covering this tile, if any.
@@ -350,7 +363,7 @@ impl FlatWorld {
 
     pub fn place(&mut self, mut entity: Entity) {
         if let Some(definition) = self.rules.entities.get(entity.kind) {
-            entity.size_from(definition);
+            entity.defaults_from(definition);
             fill_structure(&mut self.field, &entity, definition);
         }
         self.entities.push(entity);

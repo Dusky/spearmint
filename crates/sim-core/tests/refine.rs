@@ -212,3 +212,75 @@ fn the_chain_conserves_every_cell_from_residue_to_fuel() {
         "every cell of burnt residue should have become exactly one cell of fuel"
     );
 }
+
+/// A disabled machine does nothing at all, and picks straight back up when re-enabled.
+///
+/// For working on a running factory: pausing the part you are rebuilding beats deleting
+/// and replacing it. So what matters is that it is genuinely inert while off — not
+/// merely slower — and that switching it back on needs no other repair.
+#[test]
+fn a_disabled_machine_does_nothing_until_switched_back_on() {
+    let rules = common::rules_without_reactions();
+    let structure = rules.elements.id_of("structure").expect("structure");
+    let residue = rules.elements.id_of("residue").expect("residue");
+    let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
+    let mut world = scene::arena(200, 200, 1, &rules);
+    hopper(&mut world, 4, 6, structure, common::burner(4, 6));
+    feed(&mut world, 4, 6, CELLS, residue);
+
+    assert!(world.retune(0, |entity| entity.enabled = false), "there is a machine at 0");
+    world.step_many(200);
+    assert_eq!(
+        count_in_body(&world, 4, 6, burnt),
+        0,
+        "a switched-off machine refined something anyway"
+    );
+    assert_eq!(
+        count_in_body(&world, 4, 6, residue),
+        CELLS,
+        "and its input should still be sitting there untouched"
+    );
+
+    world.retune(0, |entity| entity.enabled = true);
+    world.step_many(200);
+    assert_eq!(
+        count_in_body(&world, 4, 6, burnt),
+        CELLS,
+        "switching it back on should need no other repair"
+    );
+}
+
+/// A per-instance rate overrides the type's, so two machines of one kind can run at
+/// different speeds. Zero keeps meaning "as the type says", which is what makes the
+/// field safe to default.
+#[test]
+fn a_per_instance_rate_overrides_the_types() {
+    let rules = common::rules_without_reactions();
+    let structure = rules.elements.id_of("structure").expect("structure");
+    let residue = rules.elements.id_of("residue").expect("residue");
+    let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
+    let definition = rules.entities.get(common::burner_kind()).expect("burner");
+    assert!(definition.rate > 1, "this test needs room to slow the machine down");
+
+    let mut world = scene::arena(200, 200, 1, &rules);
+    hopper(&mut world, 4, 6, structure, common::burner(4, 6));
+    feed(&mut world, 4, 6, CELLS, residue);
+
+    world.retune(0, |entity| entity.rate = 1);
+    world.step();
+    assert_eq!(
+        count_in_body(&world, 4, 6, burnt),
+        1,
+        "one beat at a retuned rate of 1 should convert exactly one cell"
+    );
+
+    // Zero is not "off" — it means defer to the type, which is why placement can use it
+    // as "unset" without a separate flag.
+    world.retune(0, |entity| entity.rate = 0);
+    world.step_many(definition.interval as u64);
+    assert_eq!(
+        count_in_body(&world, 4, 6, burnt),
+        1 + definition.rate as i32,
+        "a rate of zero should fall back to the type's"
+    );
+}

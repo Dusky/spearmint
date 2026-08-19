@@ -153,7 +153,7 @@ pub fn heater(tile_x: i32, tile_y: i32) -> Entity {
 fn sized(mut entity: Entity) -> Entity {
     let rules = rules();
     if let Some(definition) = rules.entities.get(entity.kind) {
-        entity.size_from(definition);
+        entity.defaults_from(definition);
     }
     entity
 }

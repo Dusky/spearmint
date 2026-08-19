@@ -55,11 +55,14 @@ pub fn colour_of(ink: Ink, element_colour: [u8; 3]) -> Option<[u8; 3]> {
     }
 }
 
-/// Whether a machine is working or has backed up.
+/// Whether a machine is working, has backed up, or has been switched off.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Status {
     Running,
     Blocked,
+    /// Switched off by the player. Distinct from `Blocked` on purpose: blocked is the
+    /// factory telling you something is wrong, off is you telling the factory.
+    Disabled,
 }
 
 #[derive(Clone, Debug)]
@@ -199,6 +202,7 @@ fn parse_rule(sprite: &Json<'_>) -> Result<Rule, DataError> {
     let status = match text("status") {
         Some("running") => Some(Status::Running),
         Some("blocked") => Some(Status::Blocked),
+        Some("disabled") => Some(Status::Disabled),
         Some(_) => return Err(bad("status")),
         None => None,
     };

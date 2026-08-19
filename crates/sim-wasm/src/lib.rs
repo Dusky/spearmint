@@ -176,7 +176,11 @@ fn draw_entities(state: &mut State, origin_x: i32, origin_y: i32, width: u32, he
             continue;
         }
 
-        let status = if entity.is_blocked(&definition, state.world.field(), &state.table) {
+        // Switched off outranks blocked: if the player stopped it, "it has nothing to
+        // work on" is not the interesting fact about it.
+        let status = if !entity.enabled {
+            sprites::Status::Disabled
+        } else if entity.is_blocked(&definition, state.world.field(), &state.table) {
             sprites::Status::Blocked
         } else {
             sprites::Status::Running
@@ -214,6 +218,7 @@ fn draw_entities(state: &mut State, origin_x: i32, origin_y: i32, width: u32, he
                     &pixels,
                     element_colour,
                     not_burial,
+                    !entity.enabled,
                     entity.left() + tile_x * TILE_CELLS as i32,
                     entity.top() + tile_y * TILE_CELLS as i32,
                     origin_x,
@@ -282,6 +287,7 @@ fn blit(
     pixels: &[u8],
     element_colour: [u8; 3],
     not_burial: Option<ElementId>,
+    dim: bool,
     tile_left: i32,
     tile_top: i32,
     origin_x: i32,
@@ -314,6 +320,12 @@ fn blit(
             if screen_x >= width || screen_y >= height {
                 continue;
             }
+
+            // A switched-off machine draws its ordinary sprite, dimmed. Doing it here
+            // rather than as per-machine "off" art means every machine gets it, including
+            // ones added later, and it reads as off at a glance without competing with
+            // the blocked/running shapes each machine already has.
+            let colour = if dim { dimmed(colour) } else { colour };
 
             let offset = (screen_y as usize * width as usize + screen_x as usize) * 4;
             state.frame[offset] = colour[0];
@@ -397,7 +409,7 @@ pub extern "C" fn sim_place_entity(
         entity.height_tiles = height;
         entity.direction = if direction < 0 { -1 } else { 1 };
         if let Some(definition) = state.world.rules().entities.get(kind as u8) {
-            entity.size_from(definition);
+            entity.defaults_from(definition);
         }
 
         // Nothing may overlap anything else, however large either one is.
@@ -521,5 +533,81 @@ pub extern "C" fn sim_contact_area() -> u32 {
             }
         }
         contacts
+    })
+}
+
+/// Knocks a sprite colour back for a machine the player has switched off.
+///
+/// Scaled toward black rather than toward the background, so it reads as unlit whatever
+/// it is drawn over.
+fn dimmed(colour: [u8; 3]) -> [u8; 3] {
+    [
+        (colour[0] as u32 * 2 / 5) as u8,
+        (colour[1] as u32 * 2 / 5) as u8,
+        (colour[2] as u32 * 2 / 5) as u8,
+    ]
+}
+
+/// Which kind of machine this is, or -1. Turns a hit-test index into something the
+/// client can name — the properties panel and the hover tooltip both need it.
+#[no_mangle]
+pub extern "C" fn sim_entity_kind(index: u32) -> i32 {
+    with_state(-1, |state| {
+        state
+            .world
+            .entities()
+            .get(index as usize)
+            .map_or(-1, |entity| i32::from(entity.kind))
+    })
+}
+
+/// Whether a machine is switched on. -1 if there is no machine at that index.
+#[no_mangle]
+pub extern "C" fn sim_entity_enabled(index: u32) -> i32 {
+    with_state(-1, |state| {
+        state
+            .world
+            .entities()
+            .get(index as usize)
+            .map_or(-1, |entity| i32::from(entity.enabled))
+    })
+}
+
+/// Switches a machine on or off. Returns 1 if there was a machine to switch.
+#[no_mangle]
+pub extern "C" fn sim_set_entity_enabled(index: u32, enabled: u32) -> u32 {
+    with_state(0, |state| {
+        u32::from(
+            state
+                .world
+                .retune(index as usize, |entity| entity.enabled = enabled != 0),
+        )
+    })
+}
+
+/// How much a machine does per action. -1 if there is no machine at that index.
+#[no_mangle]
+pub extern "C" fn sim_entity_rate(index: u32) -> i32 {
+    with_state(-1, |state| {
+        state
+            .world
+            .entities()
+            .get(index as usize)
+            .map_or(-1, |entity| entity.rate as i32)
+    })
+}
+
+/// Retunes how much a machine does per action. Returns 1 if there was one to retune.
+///
+/// Zero is allowed and means the type's own rate, the same convention the field itself
+/// uses — it is not "off", which is `sim_set_entity_enabled`.
+#[no_mangle]
+pub extern "C" fn sim_set_entity_rate(index: u32, rate: u32) -> u32 {
+    with_state(0, |state| {
+        u32::from(
+            state
+                .world
+                .retune(index as usize, |entity| entity.rate = rate),
+        )
     })
 }
