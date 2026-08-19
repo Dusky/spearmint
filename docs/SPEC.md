@@ -460,8 +460,24 @@ This turned out to make pressing fully particle-conserving: eight physical cells
 eight out — one nugget and seven residue, every time. The only place matter still leaves
 the world outright is spending (§5.1), which is the one case §1.1 already licenses.
 
-**[OPEN]** The actual element roster and tech tree — what residue is *for*. Needed before
-content work, not before framework work.
+**The first chain is built: residue → burn → burnt residue → compact → fuel.** One
+generic mechanism serves both steps — `Behaviour::Refine`, which turns up to `rate`
+cells of one declared input element into whatever that element's `refined_into` names,
+no banking or threshold the way pressing has, because there is nothing to accumulate
+toward. A burner (`input: residue`) and a compactor (`input: burntResidue`) are the same
+code with different data rows, exactly as burn and compact are the same shape with
+different verbs. Both new elements ship inert, same as residue did: nothing burns fuel
+yet.
+
+**What fuel is for: a generic heater, not a boiler.** A machine that burns fuel next to
+water to make steam was the first idea and the wrong scope — `data/elements.json`
+already carries `melting_point`, `boiling_point` and `thermal_conductivity` on every
+element, parsed and stored since Milestone 1, read by nothing. Heat is meant to be a
+real simulated quantity other things key off, not a side effect of one machine. That is
+its own round: what carries heat, how conductivity moves it, what crossing a melting or
+boiling point does. Fuel sits ready for it, the same way residue sat ready for this.
+
+**[OPEN]** The rest of the element roster and tech tree beyond this one chain.
 
 ### 5.4 Byproduct accumulation **[OPEN]**
 

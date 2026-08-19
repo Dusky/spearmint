@@ -64,6 +64,36 @@ pub fn vault(tile_x: i32, tile_y: i32, width: u32, height: u32) -> Entity {
     Entity::sized(vault_kind(), tile_x, tile_y, width, height)
 }
 
+/// The burner's kind id.
+#[allow(dead_code)]
+pub fn burner_kind() -> EntityKind {
+    rules()
+        .entities
+        .id_of("burner")
+        .expect("a `burner` entity should be defined")
+}
+
+/// A burner on a tile. Its input is fixed by the data (residue), not chosen here.
+#[allow(dead_code)]
+pub fn burner(tile_x: i32, tile_y: i32) -> Entity {
+    sized(Entity::new(burner_kind(), tile_x, tile_y, sim_core::EMPTY))
+}
+
+/// The compactor's kind id.
+#[allow(dead_code)]
+pub fn compactor_kind() -> EntityKind {
+    rules()
+        .entities
+        .id_of("compactor")
+        .expect("a `compactor` entity should be defined")
+}
+
+/// A compactor on a tile. Its input is fixed by the data (burntResidue), not chosen here.
+#[allow(dead_code)]
+pub fn compactor(tile_x: i32, tile_y: i32) -> Entity {
+    sized(Entity::new(compactor_kind(), tile_x, tile_y, sim_core::EMPTY))
+}
+
 fn sized(mut entity: Entity) -> Entity {
     let rules = rules();
     if let Some(definition) = rules.entities.get(entity.kind) {

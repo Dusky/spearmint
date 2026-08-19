@@ -78,6 +78,12 @@ pub struct Element {
     /// grains in, eight cells out — one nugget and seven residue — and only spending
     /// ever removes matter from the world outright.
     pub residue: ElementId,
+    /// What a machine built to refine this turns it into — residue burns into burnt
+    /// residue, which compacts into fuel (spec 5.3). `EMPTY` means nothing refines it.
+    ///
+    /// Generic on purpose: a burner and a compactor are the same behaviour reading this
+    /// field on whatever they are fed, not two hand-written machines.
+    pub refined_into: ElementId,
 }
 
 /// Elements indexed by id. A `Vec` rather than a map: spec 3.1 forbids hash-map
@@ -112,21 +118,30 @@ impl ElementTable {
             return Err(DataError::Empty);
         }
 
-        // A second pass to resolve `residue` by name, the same shape reactions.rs uses
-        // for reactants and products: every id has to exist before any name can be
+        // A second pass to resolve name-referencing fields, the same shape reactions.rs
+        // uses for reactants and products: every id has to exist before any name can be
         // looked up, so this cannot be done inline with the loop above.
         for entry in elements {
-            let Some(name) = entry.get("residue").and_then(Json::as_str) else {
-                continue;
-            };
             let id = field_id(entry)?;
-            let residue_id = table
-                .id_of(name)
-                .ok_or(DataError::BadField { field: "residue" })?;
-            table.slots[usize::from(id)]
-                .as_mut()
-                .expect("just inserted above")
-                .residue = residue_id;
+
+            if let Some(name) = entry.get("residue").and_then(Json::as_str) {
+                let residue_id = table
+                    .id_of(name)
+                    .ok_or(DataError::BadField { field: "residue" })?;
+                table.slots[usize::from(id)]
+                    .as_mut()
+                    .expect("just inserted above")
+                    .residue = residue_id;
+            }
+            if let Some(name) = entry.get("refinedInto").and_then(Json::as_str) {
+                let refined_id = table
+                    .id_of(name)
+                    .ok_or(DataError::BadField { field: "refinedInto" })?;
+                table.slots[usize::from(id)]
+                    .as_mut()
+                    .expect("just inserted above")
+                    .refined_into = refined_id;
+            }
         }
 
         Ok(table)
@@ -225,6 +240,7 @@ fn parse_element(entry: &Json<'_>) -> Result<Element, DataError> {
         // exists — see `ElementTable::from_json`. Left as EMPTY here regardless of what
         // the entry says, so this function never depends on parse order (spec 3.2).
         residue: EMPTY,
+        refined_into: EMPTY,
     })
 }
 

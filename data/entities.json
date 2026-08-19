@@ -152,6 +152,90 @@
       "tool": "vault",
       "widthTiles": 1,
       "heightTiles": 1
+    },
+    {
+      "note": "Turns residue into burntResidue, one cell at a time (spec 5.3). Same shape as a compactor with a different input — both are Refine, distinguished by data, not by code.",
+      "id": 4,
+      "name": "burner",
+      "behaviour": "refine",
+      "tool": "burner",
+      "input": "residue",
+      "widthTiles": 1,
+      "heightTiles": 1,
+      "rate": 6,
+      "sprites": [
+        {
+          "note": "Nothing to burn. Idle rather than broken — usually a routing mistake worth seeing, same as an unfed press.",
+          "when": { "status": "blocked" },
+          "pixels": [
+            "  #####  ",
+            " #'''''# ",
+            " #'==='# ",
+            " #'==='# ",
+            "=#'==='#=",
+            "#'''''''#",
+            "#'#===#'#",
+            "#'#===#'#",
+            "=##===##="
+          ]
+        },
+        {
+          "when": {},
+          "pixels": [
+            "  #####  ",
+            " #'''''# ",
+            " #'ooo'# ",
+            " #'ooo'# ",
+            "=#'ooo'#=",
+            "#'''''''#",
+            "#'#ooo#'#",
+            "#'#ooo#'#",
+            "=##ooo##="
+          ]
+        }
+      ]
+    },
+    {
+      "note": "Turns burntResidue into fuel, one cell at a time (spec 5.3). The last built step of the chain — nothing burns fuel yet.",
+      "id": 5,
+      "name": "compactor",
+      "behaviour": "refine",
+      "tool": "compactor",
+      "input": "burntResidue",
+      "widthTiles": 1,
+      "heightTiles": 1,
+      "rate": 6,
+      "sprites": [
+        {
+          "note": "Nothing to compact.",
+          "when": { "status": "blocked" },
+          "pixels": [
+            "#########",
+            "='''''''=",
+            " ####### ",
+            " #=====# ",
+            " #=====# ",
+            " ####### ",
+            "='''''''=",
+            "#########",
+            "   ===   "
+          ]
+        },
+        {
+          "when": {},
+          "pixels": [
+            "#########",
+            "='''''''=",
+            " ####### ",
+            " #ooooo# ",
+            " #ooooo# ",
+            " ####### ",
+            "='''''''=",
+            "#########",
+            "   ooo   "
+          ]
+        }
+      ]
     }
   ]
 }

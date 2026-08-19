@@ -252,6 +252,23 @@ body {
   border-top: 13px solid var(--text-faint-dimmer);
 }
 
+/* A flame: press's triangle, mirrored — press pushes down, this rises. */
+.glyph--burner {
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 13px solid var(--text-faint-dimmer);
+}
+
+/* Two plates squeezing together. */
+.glyph--compactor {
+  width: 16px;
+  height: 10px;
+  border-top: 4px solid var(--text-faint-dimmer);
+  border-bottom: 4px solid var(--text-faint-dimmer);
+}
+
 /* An open box: a place, not a machine. */
 .glyph--vault {
   width: 16px;

@@ -81,6 +81,8 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
       switch (store.state.ui.selectedTool) {
         case 'spawner':
         case 'press':
+        case 'burner':
+        case 'compactor':
           this.placeMachine(world);
           return;
         case 'vault':

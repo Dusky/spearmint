@@ -1,7 +1,7 @@
 {
   "note": "Element definitions live in data, not code. Adding an element means editing this file (spec 3.2). Ids are declared here and are permanent: they are baked into saves and world hashes, so reordering this list must never change behaviour. Id 0 is reserved for empty space.",
 
-  "valueNote": "`value` is what a cell is worth to a press, in points. A press takes only what has value, so zero also means the machine ignores it entirely and lets it fall through. `currency` marks the element those points are pressed into: currency has no value of its own, so no press ever takes it back, and currency inside a vault is the player's balance.",
+  "valueNote": "`value` is what a cell is worth to a press, in points. A press takes only what has value, so zero also means the machine ignores it entirely and lets it fall through. `currency` marks the element those points are pressed into: currency has no value of its own, so no press ever takes it back, and currency inside a vault is the player's balance. `refinedInto` is separate from all of that: it names what a Refine machine (a burner, a compactor) turns this element into, one cell at a time, regardless of value.",
   "elements": [
     {
       "id": 1,
@@ -73,7 +73,7 @@
       "currency": true
     },
     {
-      "note": "The byproduct of pressing. Nothing gives it value yet — spec 5.3 marks the roster and tech tree that would as open — so today it just accumulates. Denser than sand and wet sand, so it settles below them in a mixed pile rather than mixing back in; far short of gold, so it never buries a nugget.",
+      "note": "The byproduct of pressing. Denser than sand and wet sand, so it settles below them in a mixed pile rather than mixing back in; far short of gold, so it never buries a nugget. Burns into burntResidue (spec 5.3) — a burner is the intended consumer, not the press itself.",
       "id": 6,
       "name": "residue",
       "state": "powder",
@@ -84,7 +84,37 @@
       "color": "#6E6255",
       "color_variance": 12,
       "flammability": 0.0,
-      "hardness": 0.4
+      "hardness": 0.4,
+      "refinedInto": "burntResidue"
+    },
+    {
+      "note": "The next stage: what a burner leaves behind. Denser again — burning drives off what was loose in it — and, once compacted, waiting to be fuel.",
+      "id": 7,
+      "name": "burntResidue",
+      "state": "powder",
+      "density": 2600,
+      "melting_point": 1300,
+      "boiling_point": 2600,
+      "thermal_conductivity": 0.25,
+      "color": "#4A4038",
+      "color_variance": 10,
+      "flammability": 0.0,
+      "hardness": 0.5,
+      "refinedInto": "fuel"
+    },
+    {
+      "note": "The end of the chain so far: nothing burns it yet, and nothing spends it. A generic heater is the intended consumer (spec 5.3), not one machine built just for this.",
+      "id": 8,
+      "name": "fuel",
+      "state": "powder",
+      "density": 3000,
+      "melting_point": 1200,
+      "boiling_point": 2400,
+      "thermal_conductivity": 0.3,
+      "color": "#2E2A26",
+      "color_variance": 10,
+      "flammability": 0.0,
+      "hardness": 0.6
     }
   ],
   "reactions": [

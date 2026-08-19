@@ -35,6 +35,11 @@ pub enum Behaviour {
     /// rules themselves to destroy a particle, and a machine that consumes what it is
     /// fed is such a rule.
     Press,
+    /// Turns one specific element into whatever it is declared to refine into — a
+    /// burner and a compactor are both this, reading `EntityType::input` and each
+    /// element's `refined_into` (spec 5.3). Unlike a press, nothing is banked: one cell
+    /// in is one cell out, because there is no threshold to accumulate toward.
+    Refine,
 }
 
 impl Behaviour {
@@ -43,6 +48,7 @@ impl Behaviour {
             "emit" => Some(Behaviour::Emit),
             "press" => Some(Behaviour::Press),
             "store" => Some(Behaviour::Store),
+            "refine" => Some(Behaviour::Refine),
             _ => None,
         }
     }
@@ -179,6 +185,12 @@ impl Entity {
                 let (x0, y0, x1, y1) = self.body();
                 (y0..=y1).all(|y| (x0..=x1).all(|x| !is_pressable(field.get(x, y), elements)))
             }
+            Behaviour::Refine => {
+                let (x0, y0, x1, y1) = self.body();
+                (y0..=y1).all(|y| {
+                    (x0..=x1).all(|x| !is_refinable(field.get(x, y), elements, definition.input))
+                })
+            }
             // A vault is a place, not a process. It cannot be blocked.
             Behaviour::Store => false,
         }
@@ -199,6 +211,8 @@ pub struct EntityType {
     pub rate: u32,
     /// Points a press must take in to make one cell of currency.
     pub gold_per: u32,
+    /// The one element a `Refine` machine acts on. `EMPTY` for anything else.
+    pub input: ElementId,
 }
 
 /// Entity types indexed by id — a `Vec`, never a map, so iteration order cannot reach
@@ -211,7 +225,7 @@ pub struct EntityTable {
 impl EntityTable {
     /// Reads the `entities` array. Its absence is not an error: a world with no machines
     /// is a perfectly good world, and Milestone 1 had one.
-    pub fn from_json(source: &str) -> Result<EntityTable, DataError> {
+    pub fn from_json(source: &str, elements: &ElementTable) -> Result<EntityTable, DataError> {
         let document = json::parse(source).map_err(DataError::Json)?;
         let Some(entries) = document.get("entities").and_then(Json::as_array) else {
             return Ok(EntityTable::default());
@@ -219,7 +233,7 @@ impl EntityTable {
 
         let mut table = EntityTable::default();
         for entry in entries {
-            let definition = parse_entity(entry)?;
+            let definition = parse_entity(entry, elements)?;
             let index = usize::from(definition.id);
             if index >= table.slots.len() {
                 table.slots.resize(index + 1, None);
@@ -255,7 +269,7 @@ impl EntityTable {
     }
 }
 
-fn parse_entity(entry: &Json<'_>) -> Result<EntityType, DataError> {
+fn parse_entity(entry: &Json<'_>, elements: &ElementTable) -> Result<EntityType, DataError> {
     let field = |name: &'static str| {
         entry
             .get(name)
@@ -301,6 +315,13 @@ fn parse_entity(entry: &Json<'_>) -> Result<EntityType, DataError> {
             .and_then(Json::as_i32)
             .unwrap_or(1)
             .max(1) as u32,
+        // Optional: only Refine machines declare one. Resolved directly against the
+        // already-complete element table — unlike `residue` on Element, entities load
+        // after elements finish, so there is no forward-reference problem to solve.
+        input: match entry.get("input").and_then(Json::as_str) {
+            Some(name) => elements.id_of(name).ok_or_else(|| bad("input"))?,
+            None => EMPTY,
+        },
     })
 }
 
@@ -344,12 +365,29 @@ pub fn tick<F: CellField + ?Sized>(
         match definition.behaviour {
             Behaviour::Emit => emit(field, entity, definition, elements, seed, tick, index),
             Behaviour::Press => minted += press(field, entity, definition, elements),
+            Behaviour::Refine => refine(field, entity, definition, elements),
             // A vault holds what falls into it and does nothing else. Gravity is the
             // mechanism; the walls are the player's.
             Behaviour::Store => {}
         }
     }
     minted
+}
+
+/// Whether a `Refine` machine of this `input` would take this cell.
+///
+/// Checked against the element table rather than trusting `input` alone, the same way
+/// `is_pressable` does not trust `currency` alone — a machine whose input happens to
+/// name something with no declared `refined_into` should read as blocked, not quietly
+/// delete what it is fed.
+fn is_refinable(cell: Option<ElementId>, elements: &ElementTable, input: ElementId) -> bool {
+    let Some(id) = cell else {
+        return false;
+    };
+    if id != input {
+        return false;
+    }
+    elements.get(id).is_some_and(|element| element.refined_into != EMPTY)
 }
 
 /// Introduces matter. A machine cannot force material into an occupied cell, so a
@@ -452,4 +490,39 @@ fn press<F: CellField + ?Sized>(
         }
     }
     minted
+}
+
+/// Turns cells of `definition.input` into their declared `refined_into`, up to `rate`
+/// a tick.
+///
+/// One cell in, one cell out — unlike `press`, there is no threshold to bank toward, so
+/// nothing here accumulates across ticks. Bottom row up, same reason `press` reads that
+/// way: the material that has fallen furthest in is the material about to fall out.
+fn refine<F: CellField + ?Sized>(
+    field: &mut F,
+    entity: &Entity,
+    definition: &EntityType,
+    elements: &ElementTable,
+) {
+    let (x0, y0, x1, y1) = entity.body();
+
+    let mut taken = 0;
+    for y in (y0..=y1).rev() {
+        for x in x0..=x1 {
+            if taken == definition.rate {
+                return;
+            }
+            if !is_refinable(field.get(x, y), elements, definition.input) {
+                continue;
+            }
+            // `is_refinable` already confirmed the id resolves and has a target.
+            let target = elements.get(definition.input).expect("refinable cell").refined_into;
+
+            field.set(x, y, target);
+            // Writing a cell is not a move, so nothing else reports it — and a pile
+            // that stops being told it is settling stops feeding the machine.
+            field.mark_active(x, y);
+            taken += 1;
+        }
+    }
 }

@@ -19,7 +19,7 @@ impl Rules {
     pub fn load(elements_json: &str, entities_json: &str) -> Result<Rules, DataError> {
         let elements = ElementTable::from_json(elements_json)?;
         let reactions = ReactionTable::from_json(elements_json, &elements)?;
-        let entities = EntityTable::from_json(entities_json)?;
+        let entities = EntityTable::from_json(entities_json, &elements)?;
         Ok(Rules {
             elements,
             reactions,

@@ -15,8 +15,8 @@ fn entity_types_load_from_data() {
     let rules = common::rules();
     assert_eq!(
         rules.entities.len(),
-        3,
-        "the emitter, the press, and the vault"
+        5,
+        "the emitter, the press, the vault, the burner, and the compactor"
     );
 
     let vault = rules

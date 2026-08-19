@@ -7,8 +7,9 @@
  *    (§1.1) and there is no offline accrual to feed (§6), so the interface
  *    reports physical conditions and never a rate of production. */
 
-/* The press and the vault sit next to the spawner: input, conversion, storage, in the
- * order the material moves. That pushes teleport and blueprint down from the handoff's
+/* Press, burner and compactor sit between spawner and vault in the order material
+ * actually moves: input, convert to currency, burn the byproduct, compact what's
+ * burnt, store. That pushes teleport and blueprint further down from the handoff's
  * 1-6, which is the lesser evil against live tools sitting below dead ones. */
 export const TOOLS = [
   'draw',
@@ -16,6 +17,8 @@ export const TOOLS = [
   'belt',
   'spawner',
   'press',
+  'burner',
+  'compactor',
   'vault',
   'teleport',
   'blueprint',

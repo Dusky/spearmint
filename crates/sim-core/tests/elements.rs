@@ -10,9 +10,9 @@ fn the_shipped_data_file_loads() {
     let table = common::table();
     assert_eq!(
         table.len(),
-        6,
+        8,
         "wall, sand, water, the wet sand they react into, the gold it presses into, \
-         and the residue left over"
+         the residue left over, and the burntResidue and fuel it refines into"
     );
 
     // Currency is matter like everything else, and exactly one element is money.
@@ -68,6 +68,25 @@ fn wet_sand_presses_into_a_declared_residue() {
     let wet_sand = table.get(table.id_of("wetSand").unwrap()).unwrap();
     let residue = table.get(wet_sand.residue).expect("wetSand's residue should resolve");
     assert_eq!(residue.name, "residue");
+}
+
+/// The refine chain (spec 5.3): residue burns into burntResidue, which compacts into
+/// fuel. Same resolution as `residue` above — a name that has to resolve to a real
+/// element, not an id a machine could be pointed at nothing with.
+#[test]
+fn residue_refines_all_the_way_to_fuel() {
+    let table = common::table();
+    let residue = table.get(table.id_of("residue").unwrap()).unwrap();
+    let burnt = table
+        .get(residue.refined_into)
+        .expect("residue's refinedInto should resolve");
+    assert_eq!(burnt.name, "burntResidue");
+
+    let fuel = table
+        .get(burnt.refined_into)
+        .expect("burntResidue's refinedInto should resolve");
+    assert_eq!(fuel.name, "fuel");
+    assert_eq!(fuel.refined_into, sim_core::EMPTY, "the chain ends at fuel, for now");
 }
 
 /// Ids are declared in the file, not derived from its order, so the table must be
