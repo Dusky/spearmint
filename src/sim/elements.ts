@@ -12,6 +12,10 @@ export interface ElementInfo {
   readonly name: string;
   readonly state: 'solid' | 'powder' | 'liquid' | 'gas';
   readonly color: string;
+  /** Scenery, not a material anyone chooses — a belt's own structural fill, so far.
+   *  Sim-core never reads this field (spec 3.2 tolerates unknown fields); it exists so
+   *  the client can hide such rows from every player-facing element picker. */
+  readonly internal: boolean;
 }
 
 interface RawElement {
@@ -19,6 +23,7 @@ interface RawElement {
   name: string;
   state: string;
   color: string;
+  internal?: boolean;
 }
 
 export const ELEMENTS: readonly ElementInfo[] = (elementData.elements as RawElement[]).map(
@@ -27,7 +32,18 @@ export const ELEMENTS: readonly ElementInfo[] = (elementData.elements as RawElem
     name: element.name,
     state: element.state as ElementInfo['state'],
     color: element.color,
+    internal: element.internal ?? false,
   }),
+);
+
+/**
+ * Everything a filter could plausibly be tuned to — the full roster, not the curated
+ * three the draw tool offers. A filter only ever routes matter that already exists in
+ * the world; unlike drawing or spawning it, letting a player pick gold or fuel here
+ * cannot hand them anything for free.
+ */
+export const FILTER_TARGETS: readonly ElementInfo[] = ELEMENTS.filter(
+  (element) => !element.internal,
 );
 
 export const EMPTY_ELEMENT = 0;

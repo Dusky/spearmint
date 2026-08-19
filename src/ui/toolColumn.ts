@@ -1,7 +1,7 @@
 import { MATERIALS, TOOLS } from '../state/types';
 import type { Component } from './component';
 import type { GameState, Material, Tool } from '../state/types';
-import { canBeEmitted, elementByName } from '../sim/elements';
+import { canBeEmitted, elementByName, FILTER_TARGETS } from '../sim/elements';
 import { isToolBuilt } from '../sim/entities';
 import { TILE_CELLS } from '../constants';
 import { el, setClass } from './dom';
@@ -9,6 +9,7 @@ import { el, setClass } from './dom';
 interface ToolColumnActions {
   selectTool(tool: Tool): void;
   selectMaterial(material: Material): void;
+  selectFilterTarget(elementName: string): void;
 }
 
 const TOOL_LABELS: Record<Tool, string> = {
@@ -34,6 +35,7 @@ const MATERIAL_LABELS: Record<Material, string> = Object.fromEntries(
 export function createToolColumn(actions: ToolColumnActions): Component {
   const toolRows = new Map<Tool, HTMLElement>();
   const swatches = new Map<Material, HTMLElement>();
+  const filterSwatches = new Map<string, HTMLElement>();
 
   const rows = TOOLS.map((tool, index) => {
     // Unbuilt tools are shown rather than hidden — the shape of the game is part of the
@@ -65,14 +67,31 @@ export function createToolColumn(actions: ToolColumnActions): Component {
     }),
   );
 
+  // A filter's target is the full element roster (`FILTER_TARGETS`), not the curated
+  // three `MATERIALS` offers — it only ever routes matter that already exists, so
+  // letting it target gold or fuel cannot hand the player anything for free.
+  const filterSwatchRow = el(
+    'div',
+    { class: 'swatch-row' },
+    FILTER_TARGETS.map((element) => {
+      const swatch = el('div', { class: 'swatch', title: element.name });
+      swatch.style.background = element.color;
+      swatch.addEventListener('pointerdown', () => actions.selectFilterTarget(element.name));
+      filterSwatches.set(element.name, swatch);
+      return swatch;
+    }),
+  );
+
+  const sectionLabel = el('div', { class: 'section-label' }, ['MATERIAL']);
   const caption = el('div', { class: 'material-caption' });
 
   const root = el('div', { class: 'tool-column' }, [
     el('div', { class: 'section-label' }, ['TOOLS']),
     ...rows,
     el('div', { class: 'tool-column__rule' }),
-    el('div', { class: 'section-label' }, ['MATERIAL']),
+    sectionLabel,
     swatchRow,
+    filterSwatchRow,
     caption,
     // Load-bearing, and permanent: live particle state is never persisted (spec §7.1),
     // so every machine must be self-starting. The spec requires this be communicated
@@ -87,6 +106,12 @@ export function createToolColumn(actions: ToolColumnActions): Component {
       for (const [tool, row] of toolRows) {
         setClass(row, 'tool-row--selected', tool === state.ui.selectedTool);
       }
+
+      const isFilter = state.ui.selectedTool === 'filter';
+      sectionLabel.textContent = isFilter ? 'FILTER TARGET' : 'MATERIAL';
+      swatchRow.hidden = isFilter;
+      filterSwatchRow.hidden = !isFilter;
+
       // An emitter cannot emit a solid, so those swatches read as unavailable while the
       // spawner tool is up rather than silently doing nothing when clicked.
       const emitting = state.ui.selectedTool === 'spawner';
@@ -98,8 +123,13 @@ export function createToolColumn(actions: ToolColumnActions): Component {
           emitting && !canBeEmitted(elementByName(material)),
         );
       }
-      const label = MATERIAL_LABELS[state.ui.selectedMaterial];
-      caption.textContent = `${label} · ${TILE_CELLS}×${TILE_CELLS} snap`;
+      for (const [name, swatch] of filterSwatches) {
+        setClass(swatch, 'swatch--selected', name === state.ui.filterTarget);
+      }
+
+      caption.textContent = isFilter
+        ? `${state.ui.filterTarget} · lets it fall through`
+        : `${MATERIAL_LABELS[state.ui.selectedMaterial]} · ${TILE_CELLS}×${TILE_CELLS} snap`;
     },
   };
 }

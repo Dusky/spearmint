@@ -4,7 +4,7 @@
 
 import { spawnerSlotPrice, TILE_CELLS } from '../constants';
 import { constrainToAxis, placementRefusal, strokeTiles, toTile } from './build';
-import { elementByName, EMPTY_ELEMENT } from '../sim/elements';
+import { elementByName, FILTER_TARGETS, EMPTY_ELEMENT } from '../sim/elements';
 import { entityForTool, isToolBuilt } from '../sim/entities';
 import { MATERIALS } from './types';
 import type { Store } from './store';
@@ -39,6 +39,10 @@ const MATERIAL_BY_ELEMENT = new Map<number, Material>(
   MATERIALS.map((material) => [MATERIAL_ELEMENTS[material], material]),
 );
 
+/** A filter's target names are the full element roster, so this is a straight lookup
+ *  rather than a curated table like `MATERIAL_ELEMENTS`. */
+const FILTER_TARGET_NAMES = new Set(FILTER_TARGETS.map((element) => element.name));
+
 export function createActions(store: Store<GameState>, sim: SimBridge) {
   const patchUi = (patch: Partial<GameState['ui']>): void => {
     store.update((state) => ({ ...state, ui: { ...state.ui, ...patch } }));
@@ -54,6 +58,14 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
 
     selectMaterial(material: Material): void {
       patchUi({ selectedMaterial: material });
+    },
+
+    /** What a filter is tuned to. The full element roster, not the curated three
+     *  `selectMaterial` offers — a filter only ever routes matter that already exists,
+     *  so letting it target gold or fuel cannot hand the player anything for free. */
+    selectFilterTarget(elementName: string): void {
+      if (!FILTER_TARGET_NAMES.has(elementName)) return;
+      patchUi({ filterTarget: elementName });
     },
 
     moveCursor(cursor: Vec2): void {
@@ -175,8 +187,7 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
 
       let element = EMPTY_ELEMENT;
       if (ui.selectedTool === 'filter') {
-        element = MATERIAL_ELEMENTS[ui.selectedMaterial];
-        if (element === undefined) return;
+        element = elementByName(ui.filterTarget).id;
       }
 
       const { start, end } = strokeTiles(from, to);

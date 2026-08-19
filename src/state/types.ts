@@ -166,6 +166,10 @@ export type DrawerName = 'capability' | 'blueprints';
 export interface UiState {
   readonly selectedTool: Tool;
   readonly selectedMaterial: Material;
+  /** What a filter is tuned to, by element name — the full roster (`FILTER_TARGETS`),
+   *  not the curated three `selectedMaterial` offers, since a filter only routes
+   *  matter that already exists rather than creating any. */
+  readonly filterTarget: string;
   /** The selected construct's id, or null. Drives the inspector and the marquee. */
   readonly selection: ConstructId | null;
   readonly showTileGrid: boolean;

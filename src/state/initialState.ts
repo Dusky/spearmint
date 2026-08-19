@@ -103,6 +103,9 @@ export function initialState(): GameState {
     ui: {
       selectedTool: 'draw',
       selectedMaterial: 'wall',
+      // Gold is the flagship case (spec 4.3): "run the wash output along a filter set
+      // to gold and the nuggets drop into the vault while the rest carries on."
+      filterTarget: 'gold',
       selection: null,
       showTileGrid: false,
       // Centred on the arena. Starting outside it would show empty space with no floor,
