@@ -22,7 +22,7 @@ import type { SimSurface } from '../sim/surface';
  * existed only because it sat on a page; in-game the HUD is edge-to-edge.
  */
 export function createHud(surface: SimSurface, actions: Actions): Component {
-  const topBar = createTopBar();
+  const topBar = createTopBar(actions);
   const toolColumn = createToolColumn(actions);
   const viewport = createViewport(surface, actions);
   const statusBar = createStatusBar();

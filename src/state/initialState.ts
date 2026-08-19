@@ -112,6 +112,12 @@ export function initialState(): GameState {
       // alone says what it is.
       showTooltips: true,
       hoverLabel: null,
+      // Off by default. It answers a question the player has not asked yet, and on a
+      // cold world it correctly changes nothing, which would read as broken.
+      showHeat: false,
+      // Full speed. The control is there for watching something slowly, not for
+      // deciding how fast the game is.
+      speed: 1,
       showTileGrid: false,
       // Centred on the arena. Starting outside it would show empty space with no floor,
       // and anything drawn there falls forever (spec 3.6).

@@ -138,9 +138,10 @@ export interface Construct {
  * Read-only, sim-derived. Every field is measured, not modelled.
  *
  * The design handoff's inspector shows temperature, residence and mixing alongside
- * these. Those are absent because nothing computes them: there is no heat system, and
- * residence needs a machine boundary that only per-construct selection would give.
- * Showing them would mean inventing numbers over real physics.
+ * these. Temperature is here now that there is a heat system to measure. Residence and
+ * mixing are still absent because nothing computes them — residence needs a machine
+ * boundary that only per-construct selection would give — and inventing numbers over
+ * real physics would be worse than a shorter panel.
  *
  * Measurements are whole-world for now. Per-machine selection is the real design and
  * is what makes the inspector answer "why is *this* machine underperforming".
@@ -155,6 +156,9 @@ export interface SimReadout {
   readonly wetSand: number;
   /** Nuggets lying in the world with no machine holding them. Gold, but not money. */
   readonly looseGold: number;
+  /** The hottest cell holding matter, in whole Kelvin. Ambient when the world is cold,
+   *  which is most of the time and is itself the answer to "why is nothing melting". */
+  readonly hottest: number;
 }
 
 /** An active clog or burial. Emergent physics, not a rule — so this is information. */
@@ -207,6 +211,16 @@ export interface UiState {
   readonly selectedEntity: SelectedMachine | null;
   /** Whether hovering the world describes what is under the cursor. */
   readonly showTooltips: boolean;
+  /** Whether cells are tinted by temperature. Heat is invisible otherwise — it moves
+   *  through matter that looks exactly the same either way. */
+  readonly showHeat: boolean;
+  /** How fast the simulation runs, as a multiple of `tickRate`. Zero is paused.
+   *
+   *  A multiplier rather than a second tick rate, so `tickRate` stays the one number
+   *  describing the sim's own pace and this stays a viewing choice. Spec 3.1 puts the
+   *  fixed timestep in the host, so slowing down or pausing cannot reach determinism —
+   *  the sim still advances in whole ticks and is only asked for fewer of them. */
+  readonly speed: number;
   /** What is under the cursor, when tooltips are on. Computed as the cursor moves —
    *  the readout feed runs at a few hertz, which is too slow for something that has to
    *  track a pointer. Null when there is nothing there or tooltips are off. */

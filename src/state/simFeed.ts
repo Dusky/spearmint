@@ -17,7 +17,6 @@ import type { Store } from './store';
  * number that changes too fast to read would be pure waste.
  */
 export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
-  const tickMs = 1000 / store.state.tickRate;
   const readoutMs = 1000 / READOUT_HZ;
 
   const sand = elementByName('sand').id;
@@ -44,10 +43,19 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
     const elapsed = Math.min(now - last, 250);
     last = now;
 
-    tickDebt += elapsed;
-    const ticks = Math.floor(tickDebt / tickMs);
-    tickDebt -= ticks * tickMs;
-    if (ticks > 0) sim.step(ticks);
+    // Read per frame rather than once at startup, so the speed control is live. Zero
+    // speed is paused: no ticks run and no debt accrues, so releasing the pause resumes
+    // rather than fast-forwarding through everything that was missed.
+    const speed = store.state.ui.speed;
+    if (speed > 0) {
+      const tickMs = 1000 / (store.state.tickRate * speed);
+      tickDebt += elapsed;
+      const ticks = Math.floor(tickDebt / tickMs);
+      tickDebt -= ticks * tickMs;
+      if (ticks > 0) sim.step(ticks);
+    } else {
+      tickDebt = 0;
+    }
 
     sinceReadout += elapsed;
     if (sinceReadout < readoutMs) return;
@@ -86,6 +94,7 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
         sand: sandCells,
         water: sim.count(water),
         wetSand: wetCells,
+        hottest: sim.hottest,
       },
     }));
   };

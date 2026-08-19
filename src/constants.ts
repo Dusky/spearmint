@@ -17,6 +17,19 @@ export const READOUT_HZ = 4;
  *  press", and that has to mean it. */
 export const RATE_WINDOW_MS = 2000;
 
+/** Room temperature, in Kelvin, and what an untouched cell reads. Mirrors
+ *  `heat::AMBIENT_TEMPERATURE` in the core, which is the authority — this copy exists
+ *  so the panel can tell "nobody has heated anything" apart from "heat is being made
+ *  and is not arriving", and is only ever compared against, never simulated with. */
+export const AMBIENT_TEMPERATURE = 293;
+
+/** Speeds the sim can be watched at, as multiples of `tickRate`. Zero is paused.
+ *
+ *  Halves and doubles rather than a slider: the reason to change speed is to watch
+ *  something specific, and a handful of steps you can hit with one click beats a
+ *  continuous control you have to aim. */
+export const SPEEDS = [0, 0.25, 0.5, 1, 2] as const;
+
 /** Spawner slots the player starts with. The cap on spawners is the game's only hard
  *  limit on production (spec 3.4). */
 export const BASE_SPAWNERS = 5;

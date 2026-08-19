@@ -44,6 +44,9 @@ interface SimExports {
   sim_entity_tile_x(index: number): number;
   sim_entity_tile_y(index: number): number;
   sim_contact_area(): number;
+  sim_temperature(x: number, y: number): number;
+  sim_hottest(): number;
+  sim_set_heat_overlay(enabled: number): void;
 }
 
 /**
@@ -215,5 +218,21 @@ export class Sim {
    *  readout rate rather than per frame. */
   get contactArea(): number {
     return this.#exports.sim_contact_area();
+  }
+
+  /** A cell's temperature in whole Kelvin. Every cell has one, empty ones included. */
+  temperatureAt(x: number, y: number): number {
+    return this.#exports.sim_temperature(x, y);
+  }
+
+  /** The hottest cell holding matter. Walks the world, so read it at the readout rate
+   *  rather than per frame, like `contactArea`. */
+  get hottest(): number {
+    return this.#exports.sim_hottest();
+  }
+
+  /** Draws cells tinted by how far above ambient they sit. */
+  setHeatOverlay(enabled: boolean): void {
+    this.#exports.sim_set_heat_overlay(enabled ? 1 : 0);
   }
 }

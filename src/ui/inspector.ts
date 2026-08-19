@@ -10,8 +10,9 @@ import type { GameState } from '../state/types';
  * what it is doing, and it never reports an abstracted throughput number (spec 1.1, 6).
  *
  * Every row here is measured. The design handoff also shows temperature, residence and
- * mixing; those are absent because nothing computes them yet, and inventing numbers to
- * fill the panel would be worse than a shorter one.
+ * mixing; temperature arrived with the heat system, and the other two are still absent
+ * because nothing computes them yet — inventing numbers to fill the panel would be
+ * worse than a shorter one.
  *
  * Measurements are whole-world. Per-machine selection is the real design — "why is
  * *this* machine underperforming" — and needs a way to mark out a machine first.

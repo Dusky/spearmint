@@ -2,7 +2,7 @@
  *  the components share one vocabulary, and the shape of what the sim and the server
  *  will eventually own stays visible in one file. */
 
-import { spawnerSlotPrice, TILE_CELLS } from '../constants';
+import { spawnerSlotPrice, SPEEDS, TILE_CELLS } from '../constants';
 import { constrainToAxis, placementRefusal, strokeTiles, toTile } from './build';
 import { ELEMENTS, elementByName, FILTER_TARGETS, EMPTY_ELEMENT } from '../sim/elements';
 import { entityByKind, entityForTool, isToolBuilt } from '../sim/entities';
@@ -41,6 +41,8 @@ export interface SimBridge {
   setEntityEnabled(index: number, enabled: boolean): void;
   entityRate(index: number): number | null;
   setEntityRate(index: number, rate: number): void;
+  temperatureAt(x: number, y: number): number;
+  setHeatOverlay(enabled: boolean): void;
 }
 
 /** Materials are element names, so these resolve straight out of the data file. */
@@ -105,17 +107,27 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
     describeAt(world: Vec2): string | null {
       if (!store.state.ui.showTooltips) return null;
 
+      // Reported always, not only when it differs from ambient. This is a probe: "it is
+      // still stone cold" is exactly the reading you are hovering to get, and a number
+      // that only sometimes appears is one you cannot trust the absence of.
+      const temperature = `${sim.temperatureAt(world.x, world.y)}K`;
+
       const index = sim.entityAt(world.x, world.y);
       if (index !== null) {
         const kind = sim.entityKind(index);
         const machine = kind === null ? undefined : entityByKind(kind);
         if (machine) {
-          return sim.entityEnabled(index) === false ? `${machine.name} · off` : machine.name;
+          const off = sim.entityEnabled(index) === false ? ' · off' : '';
+          return `${machine.name}${off} · ${temperature}`;
         }
       }
 
       const element = sim.elementAt(world.x, world.y);
-      return ELEMENTS.find((candidate) => candidate.id === element)?.name ?? null;
+      const name = ELEMENTS.find((candidate) => candidate.id === element)?.name;
+      // The void reads as nothing rather than as a cold nothing — there is no matter
+      // there to have a temperature, only a grid cell that records one.
+      if (name === undefined) return null;
+      return `${name} · ${temperature}`;
     },
 
     toggleTooltips(): void {
@@ -126,6 +138,32 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
       // the pointer happens to cross into another cell.
       patchUi({ showTooltips });
       patchUi({ hoverLabel: this.describeAt(store.state.ui.cursor) });
+    },
+
+    /** Tints cells by temperature. Heat is otherwise invisible: it moves through
+     *  matter that looks identical either way, so a cold factory and a factory whose
+     *  heat is not reaching anything are the same picture. */
+    toggleHeatOverlay(): void {
+      const showHeat = !store.state.ui.showHeat;
+      sim.setHeatOverlay(showHeat);
+      patchUi({ showHeat });
+    },
+
+    /** How fast the sim runs, as a multiple of its tick rate. Zero pauses it.
+     *
+     *  Only the host's timestep changes (spec 3.1) — the sim still advances in whole
+     *  ticks and is simply asked for fewer or more of them, so nothing here can reach
+     *  determinism. */
+    setSpeed(speed: number): void {
+      if (!SPEEDS.includes(speed as (typeof SPEEDS)[number])) return;
+      patchUi({ speed });
+    },
+
+    /** Space is taken by panning, so pause is its own key. Resumes to full speed rather
+     *  than to whatever it was: a remembered 0.25x that only reappears on unpause is a
+     *  worse surprise than losing the setting. */
+    togglePause(): void {
+      this.setSpeed(store.state.ui.speed === 0 ? 1 : 0);
     },
 
     panBy(dx: number, dy: number): void {

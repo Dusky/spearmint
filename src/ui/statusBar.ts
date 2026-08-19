@@ -12,6 +12,8 @@ export function createStatusBar(): Component {
     el('span', {}, ['space — pan']),
     el('span', {}, ['alt — pick material']),
     el('span', {}, ['t — tooltips']),
+    el('span', {}, ['h — heat']),
+    el('span', {}, ['p — pause']),
     el('div', { class: 'status-bar__spacer' }),
     coordinates,
   ]);

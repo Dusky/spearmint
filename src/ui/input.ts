@@ -5,8 +5,8 @@ import type { Actions } from '../state/actions';
  * Keyboard bindings.
  *
  * Tool keys and `F` are from the handoff. The rest — `G` for the tile grid, `T` for
- * hover tooltips, `C` and `B` for the two drawers, `Escape` to back out — are
- * implementation choices:
+ * hover tooltips, `H` for the heat overlay, `P` for pause, `C` and `B` for the two
+ * drawers, `Escape` to back out — are implementation choices:
  * the handoff says the grid is toggleable and that the panels become overlays, but
  * never says what opens them. Flagged in the README, not settled here.
  */
@@ -36,6 +36,14 @@ export function bindKeyboard(actions: Actions): () => void {
         break;
       case 't':
         actions.toggleTooltips();
+        break;
+      case 'h':
+        actions.toggleHeatOverlay();
+        break;
+      case 'p':
+        // Not space: space pans, and a modal pause on the key you hold to move the
+        // camera would be unusable.
+        actions.togglePause();
         break;
       case 'escape':
         // Back out of the drawer first, then the selection.

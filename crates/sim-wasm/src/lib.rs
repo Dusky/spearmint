@@ -39,6 +39,10 @@ struct State {
     sprites: sprites::SpriteTable,
     /// RGBA, one pixel per cell, reused between frames.
     frame: Vec<u8>,
+    /// Whether the render pass tints cells by temperature. A stored flag rather than a
+    /// `sim_render` argument: it is a display mode the player leaves on, not something
+    /// the caller decides afresh each frame.
+    heat_overlay: bool,
 }
 
 thread_local! {
@@ -69,6 +73,7 @@ pub extern "C" fn sim_init(seed: u32, width: u32, height: u32) -> u32 {
             table,
             sprites,
             frame: Vec::new(),
+            heat_overlay: false,
         });
     });
     1
@@ -133,6 +138,16 @@ pub extern "C" fn sim_render(origin_x: i32, origin_y: i32, width: u32, height: u
                     }
                     // The void. Matches the client's --sim-void token.
                     None => (0x07, 0x08, 0x06),
+                };
+
+                // Tinted rather than replaced, so a cold world still shows what its
+                // matter *is* — which is half of what you are reading the overlay to
+                // find out. Empty cells are left alone: the void has no temperature
+                // worth drawing, only the ambient one it is filled with by definition.
+                let [red, green, blue] = if state.heat_overlay && id != EMPTY {
+                    heat_tint([red, green, blue], state.world.field().temperature(x, y))
+                } else {
+                    [red, green, blue]
                 };
 
                 let offset = (row as usize * width as usize + column as usize) * 4;
@@ -544,6 +559,87 @@ pub extern "C" fn sim_contact_area() -> u32 {
     })
 }
 
+/// The temperature the ramp saturates at, in Kelvin. Near sand's melting point, so the
+/// range that decides whether anything melts is the range the ramp spends its colour on.
+const HEAT_DISPLAY_CEILING: i32 = 2000;
+
+/// What a cell at the ceiling is tinted toward. Saturated orange rather than the pale
+/// white-hot it would really be: sand and gold are already pale yellow, and a hot one
+/// has to be told apart from a cold one at a glance.
+const HEAT_COLOUR: [u8; 3] = [0xFF, 0x5A, 0x1E];
+
+/// Blends a cell's own colour toward the hot colour by how far above ambient it sits.
+///
+/// A tint rather than a replacement. A thermal-camera mode that recoloured everything
+/// would always show *something*, but it would throw away what the material is — and
+/// "nothing here is hot" is both the honest answer to "why is nothing melting" and the
+/// most common one, so it is worth being able to see alongside the material.
+fn heat_tint(colour: [u8; 3], temperature: i16) -> [u8; 3] {
+    let ambient = i32::from(sim_core::heat::AMBIENT_TEMPERATURE);
+    let span = HEAT_DISPLAY_CEILING - ambient;
+    // Clamped at both ends: below ambient reads as cold rather than wrapping round to
+    // hot, and above the ceiling saturates rather than overshooting the hot colour.
+    let above = (i32::from(temperature) - ambient).clamp(0, span);
+    if above == 0 {
+        return colour;
+    }
+
+    let mut tinted = colour;
+    for channel in 0..3 {
+        let from = i32::from(colour[channel]);
+        let to = i32::from(HEAT_COLOUR[channel]);
+        tinted[channel] = (from + (to - from) * above / span) as u8;
+    }
+    tinted
+}
+
+/// Draws cells tinted by temperature. Off by default.
+#[no_mangle]
+pub extern "C" fn sim_set_heat_overlay(enabled: u32) {
+    with_state((), |state| state.heat_overlay = enabled != 0);
+}
+
+/// The temperature of one cell, in whole Kelvin. The hover probe.
+///
+/// Every cell has one, including empty ones — heat is a property of the grid rather
+/// than of what occupies it, which is what lets a cooling machine chill the space it
+/// sits in whether or not anything is passing through.
+#[no_mangle]
+pub extern "C" fn sim_temperature(x: i32, y: i32) -> i32 {
+    with_state(i32::from(sim_core::heat::AMBIENT_TEMPERATURE), |state| {
+        i32::from(state.world.field().temperature(x, y))
+    })
+}
+
+/// The hottest cell holding matter, in whole Kelvin, or ambient if the world is empty.
+///
+/// Restricted to occupied cells because that is the question being asked: heat only
+/// does anything where there is something for it to melt or ignite, and the hot air
+/// above a burner is not the reading you are after.
+///
+/// Walks the world like `sim_contact_area`, so read it at the readout rate rather than
+/// per frame.
+#[no_mangle]
+pub extern "C" fn sim_hottest() -> i32 {
+    let ambient = i32::from(sim_core::heat::AMBIENT_TEMPERATURE);
+    with_state(ambient, |state| {
+        let Some(bounds) = state.world.field().bounds() else {
+            return ambient;
+        };
+
+        let mut hottest = ambient;
+        for y in bounds.min_y..=bounds.max_y {
+            for x in bounds.min_x..=bounds.max_x {
+                if state.world.get(x, y) == EMPTY {
+                    continue;
+                }
+                hottest = hottest.max(i32::from(state.world.field().temperature(x, y)));
+            }
+        }
+        hottest
+    })
+}
+
 /// Knocks a sprite colour back for a machine the player has switched off.
 ///
 /// Scaled toward black rather than toward the background, so it reads as unlit whatever
@@ -618,4 +714,136 @@ pub extern "C" fn sim_set_entity_rate(index: u32, rate: u32) -> u32 {
                 .retune(index as usize, |entity| entity.rate = rate),
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sim_core::heat::AMBIENT_TEMPERATURE;
+
+    /// Sand, roughly — a real element colour rather than a convenient one, so the
+    /// arithmetic is exercised on channels that are neither 0 nor 255.
+    const COLD: [u8; 3] = [0xC2, 0xA7, 0x6B];
+
+    /// A cell nobody has heated must look exactly as it does with the overlay off, or
+    /// switching the overlay on would recolour the whole world and say nothing.
+    #[test]
+    fn a_cell_at_ambient_keeps_its_own_colour() {
+        assert_eq!(heat_tint(COLD, AMBIENT_TEMPERATURE), COLD);
+    }
+
+    /// Clamped at both ends rather than wrapping — the same class of bug as the
+    /// conduction clamp, where letting a value run past its meaning flipped the sign of
+    /// what it described.
+    #[test]
+    fn the_ramp_clamps_rather_than_wrapping() {
+        // Below ambient reads as cold. Nothing chills anything yet, but `set_temperature`
+        // is public and a cooling machine is the obvious next user of it.
+        assert_eq!(heat_tint(COLD, 0), COLD);
+        assert_eq!(heat_tint(COLD, -200), COLD);
+
+        // At and above the ceiling, saturated. i16 tops out around 32767K, which is
+        // well past anything the sim produces and still must not overshoot.
+        let ceiling = heat_tint(COLD, HEAT_DISPLAY_CEILING as i16);
+        assert_eq!(ceiling, HEAT_COLOUR, "the ceiling should reach the hot colour");
+        assert_eq!(heat_tint(COLD, i16::MAX), HEAT_COLOUR);
+    }
+
+    /// Monotonic per channel, so a hotter cell always reads as hotter. A ramp that
+    /// doubled back would make two different temperatures draw the same colour.
+    #[test]
+    fn the_ramp_moves_toward_the_hot_colour_without_doubling_back() {
+        let mut previous = heat_tint(COLD, AMBIENT_TEMPERATURE);
+        for temperature in (AMBIENT_TEMPERATURE..HEAT_DISPLAY_CEILING as i16).step_by(17) {
+            let current = heat_tint(COLD, temperature);
+            for channel in 0..3 {
+                let (was, now) = (i32::from(previous[channel]), i32::from(current[channel]));
+                let target = i32::from(HEAT_COLOUR[channel]);
+                assert!(
+                    (target - now).abs() <= (target - was).abs(),
+                    "channel {channel} moved away from the hot colour at {temperature}K"
+                );
+            }
+            previous = current;
+        }
+
+        // And it actually travels: a hot cell is not merely a rounding error away from
+        // a cold one.
+        assert_ne!(heat_tint(COLD, 1200), COLD);
+    }
+
+    /// Reads one cell out of the last rendered frame.
+    fn pixel(frame: *const u8, width: u32, column: u32, row: u32) -> [u8; 3] {
+        let offset = (row as usize * width as usize + column as usize) * 4;
+        // Safe: the pointer came from `sim_render`, which sized the buffer for exactly
+        // this window and has not been called again since.
+        let bytes = unsafe { std::slice::from_raw_parts(frame, offset + 3) };
+        [bytes[offset], bytes[offset + 1], bytes[offset + 2]]
+    }
+
+    /// The whole overlay path, end to end: heat exists in the world, the exports report
+    /// it, and the render pass draws it — but only when asked.
+    ///
+    /// Worth having as a test rather than as a screenshot, because getting a cell hot in
+    /// the running game means building the entire sand → press → burner → compactor →
+    /// fuel → heater chain first. Here the arena's own wall is the probe.
+    #[test]
+    fn the_overlay_tints_a_hot_cell_and_only_when_it_is_switched_on() {
+        const WINDOW: u32 = 16;
+        assert_eq!(sim_init(7, 64, 64), 1, "the world should build");
+
+        // The arena is walled, so its border is matter that is already there. Row 8 of
+        // the left wall, and its neighbour below as the untouched control.
+        let (hot_x, hot_y) = (0, 8);
+        assert_ne!(sim_get(hot_x, hot_y), u32::from(EMPTY), "the arena wall should be solid");
+
+        let cold = pixel(sim_render(0, 0, WINDOW, WINDOW), WINDOW, 0, 8);
+        assert_eq!(
+            sim_temperature(hot_x, hot_y),
+            i32::from(sim_core::heat::AMBIENT_TEMPERATURE)
+        );
+        assert_eq!(sim_hottest(), i32::from(sim_core::heat::AMBIENT_TEMPERATURE));
+
+        STATE.with(|cell| {
+            let mut borrow = cell.borrow_mut();
+            let state = borrow.as_mut().expect("initialised above");
+            state.world.field_mut().set_temperature(hot_x, hot_y, 1600);
+        });
+
+        assert_eq!(sim_temperature(hot_x, hot_y), 1600, "the probe should read it");
+        assert_eq!(sim_hottest(), 1600, "and it should be the hottest matter there is");
+
+        // Still invisible with the overlay off. Heat that recoloured the world whether
+        // or not you asked would make the toggle meaningless.
+        assert_eq!(
+            pixel(sim_render(0, 0, WINDOW, WINDOW), WINDOW, 0, 8),
+            cold,
+            "the overlay is off, so nothing should have changed"
+        );
+
+        sim_set_heat_overlay(1);
+        let frame = sim_render(0, 0, WINDOW, WINDOW);
+        let hot = pixel(frame, WINDOW, 0, 8);
+        assert_ne!(hot, cold, "the hot cell should be tinted");
+        // Measured as distance rather than per channel: the wall's blue already sits
+        // where the hot colour's does, so that channel has nowhere to travel.
+        let distance = |colour: [u8; 3]| -> i32 {
+            (0..3)
+                .map(|c| (i32::from(colour[c]) - i32::from(HEAT_COLOUR[c])).abs())
+                .sum()
+        };
+        assert!(
+            distance(hot) < distance(cold),
+            "the tint should move toward the hot colour: {cold:?} -> {hot:?}"
+        );
+
+        // Its neighbour was never heated and must look exactly as it did.
+        let neighbour = pixel(sim_render(0, 0, WINDOW, WINDOW), WINDOW, 0, 9);
+        sim_set_heat_overlay(0);
+        assert_eq!(
+            pixel(sim_render(0, 0, WINDOW, WINDOW), WINDOW, 0, 9),
+            neighbour,
+            "a cold cell should look the same either way"
+        );
+    }
 }

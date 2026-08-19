@@ -129,6 +129,57 @@ body {
   color: var(--text-muted);
 }
 
+/* View controls: how fast the sim is watched, and how cells are coloured. Both sit in
+   the status group because neither changes the world — they change what you see of it. */
+.speed-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.speed-button,
+.view-toggle {
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint-dim);
+  cursor: pointer;
+}
+
+.speed-button:hover,
+.view-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.speed-button--active {
+  background: var(--surface-raised);
+  border-color: var(--text-faint);
+  color: var(--text-primary);
+}
+
+.view-toggle {
+  letter-spacing: 0.09em;
+}
+
+.view-toggle--active {
+  background: var(--surface-raised);
+  border-color: var(--signal-attention);
+  color: var(--signal-attention);
+}
+
+/* Paused is a state worth seeing without reading: the tick indicator stops being the
+   green "running" dot, because nothing is. */
+.top-bar--paused .tick-rate__dot {
+  background: var(--signal-attention);
+}
+
+.top-bar--paused .tick-rate {
+  color: var(--signal-attention);
+}
+
 .tick-rate {
   display: flex;
   align-items: center;

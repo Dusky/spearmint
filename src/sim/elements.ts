@@ -16,6 +16,11 @@ export interface ElementInfo {
    *  Sim-core never reads this field (spec 3.2 tolerates unknown fields); it exists so
    *  the client can hide such rows from every player-facing element picker. */
   readonly internal: boolean;
+  /** Kelvin at which this turns into `meltsInto`. Meaningless when nothing does. */
+  readonly meltingPoint: number;
+  /** What this becomes once it reaches `meltingPoint`, or null if nothing does — which
+   *  is still true of most of the roster. */
+  readonly meltsInto: string | null;
 }
 
 interface RawElement {
@@ -24,6 +29,8 @@ interface RawElement {
   state: string;
   color: string;
   internal?: boolean;
+  melting_point: number;
+  meltsInto?: string;
 }
 
 export const ELEMENTS: readonly ElementInfo[] = (elementData.elements as RawElement[]).map(
@@ -33,7 +40,22 @@ export const ELEMENTS: readonly ElementInfo[] = (elementData.elements as RawElem
     state: element.state as ElementInfo['state'],
     color: element.color,
     internal: element.internal ?? false,
+    meltingPoint: element.melting_point,
+    meltsInto: element.meltsInto ?? null,
   }),
+);
+
+/**
+ * The coldest temperature at which anything in the world turns into something else.
+ *
+ * Derived rather than written down, so it follows the data: the moment an element with
+ * a lower melting point ships, the inspector starts measuring against that instead.
+ * `Infinity` if nothing melts at all, which reads correctly as "no heat is ever enough".
+ */
+export const LOWEST_MELTING_POINT: number = Math.min(
+  ...ELEMENTS.filter((element) => element.meltsInto !== null).map(
+    (element) => element.meltingPoint,
+  ),
 );
 
 /**

@@ -9,6 +9,8 @@
  */
 
 import { formatInteger, formatPercent } from '../ui/format';
+import { LOWEST_MELTING_POINT } from '../sim/elements';
+import { AMBIENT_TEMPERATURE } from '../constants';
 import type { GameState, SimReadout } from './types';
 
 export interface Measurement {
@@ -32,6 +34,14 @@ export function measurementsOf(readout: SimReadout): readonly Measurement[] {
       label: 'washed',
       value: `${formatInteger(readout.wetSand)} cells`,
       limiting: false,
+    },
+    {
+      label: 'hottest',
+      value: `${formatInteger(readout.hottest)} K`,
+      // Something is burning and nothing is melting: the heat is being made but is not
+      // reaching anything, or not fast enough. Ambient is not flagged — a cold world is
+      // not a fault, it is just a world with no heater in it.
+      limiting: readout.hottest > AMBIENT_TEMPERATURE && readout.hottest < LOWEST_MELTING_POINT,
     },
     {
       label: 'gold outside a vault',
