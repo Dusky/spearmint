@@ -30,7 +30,18 @@ export interface ViewportActions {
  * placeholder without touching this file.
  */
 /** Tools that place something on the tile grid, and so want to see it. */
-const BUILD_TOOLS = new Set<Tool>(['draw', 'erase', 'spawner', 'vault', 'belt', 'filter']);
+const BUILD_TOOLS = new Set<Tool>([
+  'draw',
+  'erase',
+  'spawner',
+  'press',
+  'burner',
+  'compactor',
+  'heater',
+  'vault',
+  'belt',
+  'filter',
+]);
 
 export function createViewport(surface: SimSurface, actions: ViewportActions): Component {
   const grid = el('div', { class: 'tile-grid' });

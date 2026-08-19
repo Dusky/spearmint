@@ -4,8 +4,9 @@ import type { Actions } from '../state/actions';
 /**
  * Keyboard bindings.
  *
- * Tool keys 1–6 and `F` are from the handoff. The rest — `G` for the tile grid, `C`
- * and `B` for the two drawers, `Escape` to back out — are implementation choices:
+ * Tool keys and `F` are from the handoff. The rest — `G` for the tile grid, `T` for
+ * hover tooltips, `C` and `B` for the two drawers, `Escape` to back out — are
+ * implementation choices:
  * the handoff says the grid is toggleable and that the panels become overlays, but
  * never says what opens them. Flagged in the README, not settled here.
  */
@@ -32,6 +33,9 @@ export function bindKeyboard(actions: Actions): () => void {
         break;
       case 'b':
         actions.toggleDrawer('blueprints');
+        break;
+      case 't':
+        actions.toggleTooltips();
         break;
       case 'escape':
         // Back out of the drawer first, then the selection.

@@ -4,11 +4,19 @@
 
 import { spawnerSlotPrice, TILE_CELLS } from '../constants';
 import { constrainToAxis, placementRefusal, strokeTiles, toTile } from './build';
-import { elementByName, FILTER_TARGETS, EMPTY_ELEMENT } from '../sim/elements';
-import { entityForTool, isToolBuilt } from '../sim/entities';
+import { ELEMENTS, elementByName, FILTER_TARGETS, EMPTY_ELEMENT } from '../sim/elements';
+import { entityByKind, entityForTool, isToolBuilt } from '../sim/entities';
 import { MATERIALS } from './types';
 import type { Store } from './store';
-import type { DrawerName, GameState, Material, NoticeId, Tool, Vec2 } from './types';
+import type {
+  DrawerName,
+  GameState,
+  Material,
+  NoticeId,
+  SelectedMachine,
+  Tool,
+  Vec2,
+} from './types';
 
 /** What the actions need from the running simulation. */
 export interface SimBridge {
@@ -28,6 +36,11 @@ export interface SimBridge {
   entityAt(x: number, y: number): number | null;
   removeEntity(index: number): boolean;
   countOfKind(kind: number): number;
+  entityKind(index: number): number | null;
+  entityEnabled(index: number): boolean | null;
+  setEntityEnabled(index: number, enabled: boolean): void;
+  entityRate(index: number): number | null;
+  setEntityRate(index: number, rate: number): void;
 }
 
 /** Materials are element names, so these resolve straight out of the data file. */
@@ -46,6 +59,16 @@ const FILTER_TARGET_NAMES = new Set(FILTER_TARGETS.map((element) => element.name
 export function createActions(store: Store<GameState>, sim: SimBridge) {
   const patchUi = (patch: Partial<GameState['ui']>): void => {
     store.update((state) => ({ ...state, ui: { ...state.ui, ...patch } }));
+  };
+
+  /** Reads a machine's live settings out of the sim, for the store to mirror. */
+  const readMachine = (index: number | null): SelectedMachine | null => {
+    if (index === null) return null;
+    const kind = sim.entityKind(index);
+    const enabled = sim.entityEnabled(index);
+    const rate = sim.entityRate(index);
+    if (kind === null || enabled === null || rate === null) return null;
+    return { index, kind, enabled, rate };
   };
 
   return {
@@ -71,7 +94,38 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
     moveCursor(cursor: Vec2): void {
       const current = store.state.ui.cursor;
       if (current.x === cursor.x && current.y === cursor.y) return;
-      patchUi({ cursor });
+      // Described here rather than in the readout feed: that runs at a few hertz, which
+      // is fine for numbers and far too slow for a label chasing a pointer.
+      patchUi({ cursor, hoverLabel: this.describeAt(cursor) });
+    },
+
+    /** What is under a world cell, in words, or null if tooltips are off or it is
+     *  empty space. A machine wins over the cell it is drawn on: you hover a press to
+     *  ask about the press, not about the sand falling through it. */
+    describeAt(world: Vec2): string | null {
+      if (!store.state.ui.showTooltips) return null;
+
+      const index = sim.entityAt(world.x, world.y);
+      if (index !== null) {
+        const kind = sim.entityKind(index);
+        const machine = kind === null ? undefined : entityByKind(kind);
+        if (machine) {
+          return sim.entityEnabled(index) === false ? `${machine.name} · off` : machine.name;
+        }
+      }
+
+      const element = sim.elementAt(world.x, world.y);
+      return ELEMENTS.find((candidate) => candidate.id === element)?.name ?? null;
+    },
+
+    toggleTooltips(): void {
+      const showTooltips = !store.state.ui.showTooltips;
+      // Patched first, because `describeAt` reads the flag and would otherwise still be
+      // answering for the old one. Recomputed rather than left null so switching them
+      // on describes what is already under the cursor, instead of staying blank until
+      // the pointer happens to cross into another cell.
+      patchUi({ showTooltips });
+      patchUi({ hoverLabel: this.describeAt(store.state.ui.cursor) });
     },
 
     panBy(dx: number, dy: number): void {
@@ -92,10 +146,14 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
      */
     press(world: Vec2): void {
       switch (store.state.ui.selectedTool) {
+        case 'select':
+          this.selectEntityAt(world);
+          return;
         case 'spawner':
         case 'press':
         case 'burner':
         case 'compactor':
+        case 'heater':
           this.placeMachine(world);
           return;
         case 'vault':
@@ -249,8 +307,48 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
       if (index === null) return false;
 
       sim.removeEntity(index);
+      // Removing shifts every later index, so a held selection would silently start
+      // pointing at a different machine.
+      patchUi({ selectedEntity: null });
       this.countMachines();
       return true;
+    },
+
+    /**
+     * Picks the machine under the cursor, or clears the selection when there is none.
+     *
+     * This is what the properties panel reads. It is a tool of its own rather than a
+     * modifier on the others because every other tool's click already means "place
+     * this here", and overloading that would make selecting a machine and building
+     * next to one the same gesture.
+     */
+    selectEntityAt(world: Vec2): void {
+      patchUi({ selectedEntity: readMachine(sim.entityAt(world.x, world.y)) });
+    },
+
+    /** Switches the selected machine on or off, for working on a running factory. */
+    setSelectedEnabled(enabled: boolean): void {
+      const selected = store.state.ui.selectedEntity;
+      if (!selected) return;
+      sim.setEntityEnabled(selected.index, enabled);
+      patchUi({ selectedEntity: readMachine(selected.index) });
+    },
+
+    /** Retunes how much the selected machine does per action. */
+    setSelectedRate(rate: number): void {
+      const selected = store.state.ui.selectedEntity;
+      if (!selected) return;
+      sim.setEntityRate(selected.index, Math.max(1, Math.round(rate)));
+      patchUi({ selectedEntity: readMachine(selected.index) });
+    },
+
+    /** Removes the selected machine, and clears the selection with it. */
+    removeSelected(): void {
+      const selected = store.state.ui.selectedEntity;
+      if (!selected) return;
+      sim.removeEntity(selected.index);
+      patchUi({ selectedEntity: null });
+      this.countMachines();
     },
 
     /** Click a construct to select it; clicking past everything clears the selection. */

@@ -107,6 +107,11 @@ export function initialState(): GameState {
       // to gold and the nuggets drop into the vault while the rest carries on."
       filterTarget: 'gold',
       selection: null,
+      selectedEntity: null,
+      // On by default: the roster has grown past the point where a machine's silhouette
+      // alone says what it is.
+      showTooltips: true,
+      hoverLabel: null,
       showTileGrid: false,
       // Centred on the arena. Starting outside it would show empty space with no floor,
       // and anything drawn there falls forever (spec 3.6).

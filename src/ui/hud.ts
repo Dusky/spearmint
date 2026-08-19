@@ -6,6 +6,7 @@ import { createMarquee } from './marquee';
 import { createNotice } from './notice';
 import { createStatusBar } from './statusBar';
 import { createToolColumn } from './toolColumn';
+import { createTooltip } from './tooltip';
 import { createTopBar } from './topBar';
 import { createViewport } from './viewport';
 import { el } from './dom';
@@ -33,8 +34,9 @@ export function createHud(surface: SimSurface, actions: Actions): Component {
   const notice = createNotice({ dismiss: actions.dismissNotice });
   const capability = createCapabilityDrawer(actions);
   const blueprints = createBlueprintsDrawer();
+  const tooltip = createTooltip(viewport.root);
 
-  const overlays = [ghost, marquee, inspector, notice, capability, blueprints];
+  const overlays = [ghost, marquee, inspector, notice, capability, blueprints, tooltip];
   viewport.root.append(...overlays.map((component) => component.root));
 
   const components: readonly Component[] = [topBar, toolColumn, viewport, statusBar, ...overlays];

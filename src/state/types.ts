@@ -7,11 +7,12 @@
  *    (§1.1) and there is no offline accrual to feed (§6), so the interface
  *    reports physical conditions and never a rate of production. */
 
-/* Press, burner and compactor sit between spawner and vault in the order material
- * actually moves: input, convert to currency, burn the byproduct, compact what's
- * burnt, store. That pushes teleport and blueprint further down from the handoff's
- * 1-6, which is the lesser evil against live tools sitting below dead ones. */
+/* Ordered so the column can be grouped (see TOOL_GROUPS): select and the drawing tools
+ * first, then transport, then the machines in the order material actually moves —
+ * input, convert to currency, burn the byproduct, compact what's burnt, heat — then
+ * the places you put things. Hotkeys are row order, so this is also the key order. */
 export const TOOLS = [
+  'select',
   'draw',
   'erase',
   'belt',
@@ -20,11 +21,22 @@ export const TOOLS = [
   'press',
   'burner',
   'compactor',
+  'heater',
   'vault',
   'teleport',
   'blueprint',
 ] as const;
 export type Tool = (typeof TOOLS)[number];
+
+/** The tool column, in labelled groups. A flat list of thirteen is a wall of text to
+ *  scan; these are the four questions you are actually asking ("what am I drawing with",
+ *  "how does material move", "what processes it", "where does it go"). */
+export const TOOL_GROUPS: readonly { readonly label: string; readonly tools: readonly Tool[] }[] = [
+  { label: 'BUILD', tools: ['select', 'draw', 'erase'] },
+  { label: 'TRANSPORT', tools: ['belt', 'filter', 'teleport'] },
+  { label: 'MACHINES', tools: ['spawner', 'press', 'burner', 'compactor', 'heater'] },
+  { label: 'PLACES', tools: ['vault', 'blueprint'] },
+];
 
 /**
  * What the draw tool can place, by element name from `data/elements.json`.
@@ -163,6 +175,19 @@ export interface Camera {
 
 export type DrawerName = 'capability' | 'blueprints';
 
+/** A placed machine as the properties panel sees it: which one, and the settings a
+ *  player can change without removing and replacing it. */
+export interface SelectedMachine {
+  /** Its index in the sim. Shifts when an earlier machine is removed, which is why
+   *  removing anything clears the selection rather than trying to track it. */
+  readonly index: number;
+  /** Its kind id, for looking the machine up in `data/entities.json`. */
+  readonly kind: number;
+  readonly enabled: boolean;
+  /** How much it does per action. */
+  readonly rate: number;
+}
+
 export interface UiState {
   readonly selectedTool: Tool;
   readonly selectedMaterial: Material;
@@ -172,6 +197,20 @@ export interface UiState {
   readonly filterTarget: string;
   /** The selected construct's id, or null. Drives the inspector and the marquee. */
   readonly selection: ConstructId | null;
+  /** The selected machine, or null. What the properties panel shows and retunes.
+   *
+   *  Separate from `selection` above, which addresses the placeholder `constructs`
+   *  list rather than anything the simulation knows about. A mirror rather than just
+   *  an index: components are handed state and nothing else, so the values they render
+   *  have to be in it. The sim stays authoritative — this is refreshed from it on every
+   *  selection and every retune. */
+  readonly selectedEntity: SelectedMachine | null;
+  /** Whether hovering the world describes what is under the cursor. */
+  readonly showTooltips: boolean;
+  /** What is under the cursor, when tooltips are on. Computed as the cursor moves —
+   *  the readout feed runs at a few hertz, which is too slow for something that has to
+   *  track a pointer. Null when there is nothing there or tooltips are off. */
+  readonly hoverLabel: string | null;
   readonly showTileGrid: boolean;
   readonly camera: Camera;
   /** Last known cursor position in world cells. Retained when the pointer leaves the

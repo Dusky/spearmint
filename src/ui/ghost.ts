@@ -46,6 +46,9 @@ export function createGhost(viewport: HTMLElement): Component {
 function ghostRect(state: GameState): TileRect | null {
   const { selectedTool, cursor, strokeAnchor, painting } = state.ui;
   if (!isToolBuilt(selectedTool)) return null;
+  // Select places nothing, so previewing a footprint for it would promise a build that
+  // is never going to happen.
+  if (selectedTool === 'select') return null;
   // While a free stroke is being painted the paint is the feedback; a box chasing the
   // cursor over it is just noise.
   if (painting && !strokeAnchor) return null;
