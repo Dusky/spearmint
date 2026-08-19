@@ -1,7 +1,7 @@
 {
   "note": "Element definitions live in data, not code. Adding an element means editing this file (spec 3.2). Ids are declared here and are permanent: they are baked into saves and world hashes, so reordering this list must never change behaviour. Id 0 is reserved for empty space.",
 
-  "valueNote": "`value` is what a cell is worth to a collector, in points, and is absent for everything a collector should not reward — feeding one unwashed sand destroys it for nothing. `currency` marks the element those points are pressed into: a collector never eats currency, and what a collector is holding is the player's balance.",
+  "valueNote": "`value` is what a cell is worth to a press, in points. A press takes only what has value, so zero also means the machine ignores it entirely and lets it fall through. `currency` marks the element those points are pressed into: currency has no value of its own, so no press ever takes it back, and currency inside a vault is the player's balance.",
   "elements": [
     {
       "id": 1,
@@ -57,7 +57,7 @@
       "value": 1
     },
     {
-      "note": "Currency, and matter like everything else. A collector presses product into nuggets; a nugget only counts as money while a machine is holding it (spec 5.1). Denser than anything else here, because it is gold.",
+      "note": "Currency, and matter like everything else. A press turns product into nuggets; a nugget only counts as money once a vault is holding it (spec 5.1). Denser than anything else here, because it is gold — it sinks through water to the bottom of a vault.",
       "id": 5,
       "name": "gold",
       "state": "powder",

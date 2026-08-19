@@ -37,8 +37,8 @@ export function placementRefusal(state: GameState): string | null {
   const { selectedTool, selectedMaterial } = state.ui;
   if (!entityForTool(selectedTool)) return null;
 
-  // Only emitters have refusals so far: a collector eats whatever falls in and is not
-  // capped, because the cap that matters is on input (spec 3.4).
+  // Only emitters have refusals so far: a press and a vault are uncapped, because the
+  // cap that matters is on input (spec 3.4).
   if (selectedTool !== 'spawner') return null;
 
   const { spawnersOwned, spawnersMax } = state.economy;

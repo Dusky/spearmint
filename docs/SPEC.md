@@ -37,12 +37,12 @@ machine is something you drew.
    themselves. This constraint is load-bearing — see §2.4 and §6.
 
 **Currency is matter too.** Gold was the last number standing in for stuff, and it is now
-an element like any other: a collector presses what falls into it into nuggets, the
+an element like any other: a press turns product into nuggets, the
 nuggets are cells that fall and stack and can be buried or spilled, and the player's
 balance is what a machine is holding (§5.1). Nothing anywhere converts matter into a
 figure — the pile *is* the figure.
 
-**Machines may still consume, and that is allowed.** A collector destroys what it eats:
+**Machines may still consume, and that is allowed.** A press destroys what it presses:
 seven grains of an eight-grain nugget leave the world, and so do the nuggets themselves
 when they are spent. That is a physics rule operating on matter in place, which is what
 the pillar leaves room for. What it rules out is *summarising* — no offline accrual, no
@@ -51,7 +51,7 @@ physically received.
 
 The line between the two is accounting, so it gets a test rather than a promise: every
 cell that leaves the world is either eaten as valueless input, pressed into a nugget, or
-spent, pinned by `crates/sim-core/tests/collector.rs`.
+spent, pinned by `crates/sim-core/tests/press.rs`.
 
 ---
 
@@ -328,7 +328,7 @@ into directed material: run the output of a washer along a filter set to gold an
 nuggets drop into the vault below while the rest carries on.
 
 Worth noting what this implies for §5.1: today a vault has to sit directly under the
-collector, because gravity is the only transport. Filters make a vault somewhere else
+press, because gravity is the only transport. Filters make a vault somewhere else
 possible, which is when a factory stops being one vertical column.
 
 ### 4.4 Teleporters **[DECIDED]**
@@ -367,8 +367,8 @@ These cannot both be true. Pick one before implementing blueprints.
 
 **Gold** is the spendable currency, produced by processing refined products.
 
-**A nugget is a particle, and a balance is a place.** A collector banks the value of what
-it eats and, every `goldPer` points, the cell it is eating becomes gold instead of empty
+**A nugget is a particle, and a balance is a place.** A press banks the value of what it
+takes and, every `goldPer` points, the cell it is working on becomes gold instead of empty
 space — several grains in, one nugget where the last one was, which is pillar 2 as an
 object rather than a curve. Nuggets fall, stack, and are subject to everything else in
 the world.
@@ -379,18 +379,34 @@ is whatever was dragged, not a fixed machine size — and it does nothing each t
 makes it work is only that gold inside one counts.
 
 Nothing checks the walls. A vault marked over open ground is a perfectly legal vault that
-happens to leak, exactly as a collector with an open bottom is a legal collector that
-happens to leak. Physics decides whether the gold stays, not a validity rule.
+happens to leak, exactly as a press with an open bottom is a legal press that happens to
+leak. Physics decides whether the gold stays, not a validity rule.
 
-**Minting and storing are separate jobs, and gravity connects them.** A collector presses
-nuggets and holds them only until they can fall somewhere; a collector standing on a
-solid floor fills with its own output, has nothing edible left, and reports itself
-blocked. The build that works is a collector over an open pit that has been declared a
-vault. When belts exist this becomes routing rather than plumbing — see §4.3.
+**Pressing and storing are separate jobs, and gravity connects them.** A **press** turns
+product into nuggets; it holds them only until they can fall somewhere, so a press on a
+solid floor fills with its own output and reports itself blocked. The build that works is
+a press over an open pit that has been declared a vault.
 
-Spending reaches into vaults only, takes the exact price or nothing, and the pile
-visibly shrinks. And a collector never eats currency, or it would grind its own output
-back to nothing.
+**A press takes only what it can press.** Everything else — walls, water, unwashed sand,
+and the nuggets it has already made — falls straight through and is none of its business.
+That is what stops a machine from competing with the reaction feeding it: an earlier
+version ate whatever entered it, which meant a fast one consumed the sand and water
+before they could meet and a slow one let the raw material pour past into the vault.
+`rate` is now a real throughput limit rather than a race — product arriving faster than
+the press can work carries on falling.
+
+Spending reaches into vaults only, takes the exact price or nothing, and the pile visibly
+shrinks. A press never takes currency back, or it would grind its own output into nothing.
+
+**Open, and waiting on §4.3: vaults contaminate.** Everything the press does not take
+falls into the vault below it and stays there, so a heavy feed silts the vault up with
+product and water instead of gold. Nothing is lost — it is all still matter — but a
+vault packed with wet sand has no room for nuggets. Filters are the intended answer.
+A second candidate is worth recording: letting a **denser powder sink through a lighter
+one**, which `displaces` currently allows only for liquids and gases. Gold at 19300
+would settle out of a mixed pile the way panning works, and the vault would sort itself.
+That is a real physics change that moves the golden hash and touches §3.5, so it wants
+its own round.
 
 ### 5.2 Sinks **[PROPOSED]**
 
@@ -526,9 +542,9 @@ hash + resource totals) mean the server never replays from tick zero.
 This makes the sim core's isolation a hard architectural requirement: no rendering, no
 platform APIs, no I/O inside it.
 
-**Gap, found while building the collector.** Nothing about the entity layer is in any
+**Gap, found while building the press.** Nothing about the entity layer is in any
 hash. `canonical_hash` covers cells, tick and seed; machines, their placement, and the
-part-nugget each collector has banked are all outside it. Two replays could therefore
+part-nugget each press has banked are all outside it. Two replays could therefore
 differ in machine state and agree on every checkpoint, which is precisely the case this
 section exists to catch.
 

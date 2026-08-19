@@ -16,7 +16,7 @@ const TOOL_LABELS: Record<Tool, string> = {
   erase: 'Erase',
   belt: 'Belt',
   spawner: 'Spawner',
-  collector: 'Collector',
+  press: 'Press',
   vault: 'Vault',
   teleport: 'Teleport',
   blueprint: 'Blueprint',

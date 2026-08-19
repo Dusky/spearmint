@@ -49,26 +49,32 @@ Sequenced so the riskiest and most informative parts come first.
 | 3 | **Drawing** — wire `paint()` and `pickMaterialAt()` | Answers half the hypothesis on its own: does drawing into live particles feel good? |
 | 4 | **Spawners** | Turns a static scene into a running process. |
 | 5 | **Reaction + yield** — sand + water → wet sand | The actual novel claim: yield varying with layout, not fixed ratios (§3.3). |
-| 6 | **Collector + gold** | Closes the loop and gives routing a purpose. |
+| 6 | **Press, vault + gold** | Closes the loop and gives routing a purpose. |
 
 Steps 1–3 already produce a partial answer. If drawing into a live sim is unpleasant,
 stop there.
 
 **Built.** All six. The loop runs: draw a basin, spawn sand and water, watch them mix,
-and a collector set into the floor takes the product out for gold that buys more spawner
+and a press set into the floor turns the product into gold that buys more spawner
 capacity. Two things the build settled that the scope did not anticipate:
 
-- **A machine is not matter, so nothing rests on one.** A collector is fed by what falls
-  *into* it, and an open-bottomed one lets product fall straight through. Building it a
-  pocket of wall is the player's job, and getting that wrong is visible.
-- **Only product pays.** Value is a property of the element (`data/elements.json`), so a
-  collector under an unmixed stream destroys raw sand for nothing. Routing has a cost
-  for being wrong, which is what makes it a decision.
+- **A machine is not matter, so nothing rests on one.** A press works on what falls
+  *into* it, and an open-bottomed one lets material fall straight through. Where it goes
+  next is the player's problem, which is what makes the pit under the press worth
+  building.
+- **Only product pays.** Value is a property of the element (`data/elements.json`), and
+  it doubles as what a press will touch at all — so an unmixed stream simply flows past
+  one. Routing has a cost for being wrong, which is what makes it a decision.
 - **Gold is a particle, and a balance is a place.** Currency started as a counter and
-  became matter: the collector presses product into nuggets and only gold inside a
-  **vault** counts. A vault is not a machine — the player digs a pit, walls it, and marks
-  the interior out at whatever size they like. Spending drains it. That closes the last
-  gap between §1.1 and the economy, and it makes storage something you build.
+  became matter: a **press** turns product into nuggets and only gold inside a **vault**
+  counts. A vault is not a machine — the player digs a pit, walls it, and marks the
+  interior out at whatever size they like. Spending drains it. That closes the last gap
+  between §1.1 and the economy, and it makes storage something you build.
+- **A machine should not compete with the physics it depends on.** The press takes only
+  what it can press. The version that ate anything in reach had two failure modes and no
+  good setting between them: fast enough to keep up meant eating the sand and water
+  before they could react, slow enough to leave them alone meant raw material pouring
+  past into the vault.
 
 What remains is the part no amount of building substitutes for: sitting down with it and
 finding out whether tuning a washer is satisfying or fiddly.

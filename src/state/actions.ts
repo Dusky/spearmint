@@ -80,7 +80,7 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
     press(world: Vec2): void {
       switch (store.state.ui.selectedTool) {
         case 'spawner':
-        case 'collector':
+        case 'press':
           this.placeMachine(world);
           return;
         case 'vault':
@@ -122,8 +122,8 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
       // The same rule the ghost previews, so what you see is what happens.
       if (placementRefusal(store.state) !== null) return;
 
-      // An emitter works on the selected material; a collector eats whatever falls in,
-      // so it carries none.
+      // An emitter works on the selected material; a press works on whatever it can
+      // press, so it carries none.
       let element = EMPTY_ELEMENT;
       if (ui.selectedTool === 'spawner') {
         element = MATERIAL_ELEMENTS[ui.selectedMaterial];
@@ -139,7 +139,7 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
      *
      * Storage is something the player builds: dig a pit, wall it, then say that what
      * lands inside counts (spec 5.1). Nothing here checks for walls — physics decides
-     * whether the gold stays in, which is the same bargain the collector makes.
+     * whether the gold stays in, which is the same bargain a press makes.
      */
     designateVault(from: Vec2, to: Vec2): void {
       const machine = entityForTool('vault');

@@ -7,16 +7,15 @@
  *    (§1.1) and there is no offline accrual to feed (§6), so the interface
  *    reports physical conditions and never a rate of production. */
 
-/* Collector sits next to spawner: they are the two ends of the loop and the two tools
- * that currently do anything. That pushes teleport and blueprint down a key each from
- * the handoff's 1-6, which is the lesser evil against a live tool below three dead
- * ones. */
+/* The press and the vault sit next to the spawner: input, conversion, storage, in the
+ * order the material moves. That pushes teleport and blueprint down from the handoff's
+ * 1-6, which is the lesser evil against live tools sitting below dead ones. */
 export const TOOLS = [
   'draw',
   'erase',
   'belt',
   'spawner',
-  'collector',
+  'press',
   'vault',
   'teleport',
   'blueprint',
@@ -61,9 +60,9 @@ export interface EconomyState {
   readonly goldRate: number;
   readonly spawnersOwned: number;
   readonly spawnersMax: number;
-  /** Collectors are uncapped — the cap that matters is on input (spec 3.4) — but the
+  /** Presses are uncapped — the cap that matters is on input (spec 3.4) — but the
    *  panel needs to know whether there is one at all to explain flat gold. */
-  readonly collectorsOwned: number;
+  readonly pressesOwned: number;
   /** Same, for the vaults that make gold count as money. */
   readonly vaultsOwned: number;
   readonly blueprintSlots: number;

@@ -63,12 +63,12 @@ pub struct Element {
     pub color_variance: u8,
     pub flammability: Fixed,
     pub hardness: Fixed,
-    /// What a collector pays per cell of it, in points. Zero for everything that is not
-    /// a product, which is what makes routing raw input into a collector a visible waste
-    /// rather than a neutral one.
+    /// What a press pays per cell of it, in points. Zero for everything that is not a
+    /// product — and since a press only takes what it can press, zero also means the
+    /// machine ignores it entirely.
     pub value: u32,
-    /// Whether this *is* money. A collector presses points into currency and never eats
-    /// it back, and currency held by a machine is the player's balance (spec 5.1).
+    /// Whether this *is* money. A press turns points into currency and never takes it
+    /// back, and currency inside a vault is the player's balance (spec 5.1).
     pub currency: bool,
 }
 

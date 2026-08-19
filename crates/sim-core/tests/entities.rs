@@ -16,7 +16,7 @@ fn entity_types_load_from_data() {
     assert_eq!(
         rules.entities.len(),
         3,
-        "the emitter, the collector, and the vault"
+        "the emitter, the press, and the vault"
     );
 
     let vault = rules
@@ -25,12 +25,12 @@ fn entity_types_load_from_data() {
         .expect("the vault should be defined");
     assert_eq!(vault.behaviour, sim_core::Behaviour::Store);
 
-    let collector = rules
+    let press = rules
         .entities
-        .get(common::collector_kind())
-        .expect("the collector should be defined");
-    assert_eq!(collector.behaviour, sim_core::Behaviour::Collect);
-    assert!(collector.rate > 0, "a collector that eats nothing is useless");
+        .get(common::press_kind())
+        .expect("the press should be defined");
+    assert_eq!(press.behaviour, sim_core::Behaviour::Press);
+    assert!(press.rate > 0, "a press that eats nothing is useless");
 
     let emitter = rules
         .entities

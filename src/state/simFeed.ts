@@ -25,7 +25,7 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
   const wetSand = elementByName('wetSand').id;
   const gold = elementByName('gold').id;
   const emitterKind = entityForTool('spawner')?.id ?? 0;
-  const collectorKind = entityForTool('collector')?.id ?? 0;
+  const pressKind = entityForTool('press')?.id ?? 0;
   const vaultKind = entityForTool('vault')?.id ?? 0;
 
   let last = performance.now();
@@ -76,7 +76,7 @@ export function startSimFeed(store: Store<GameState>, sim: Sim): () => void {
         gold: stored,
         goldRate,
         spawnersOwned: sim.countOfKind(emitterKind),
-        collectorsOwned: sim.countOfKind(collectorKind),
+        pressesOwned: sim.countOfKind(pressKind),
         vaultsOwned: sim.countOfKind(vaultKind),
       },
       readout: {

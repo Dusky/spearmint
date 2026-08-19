@@ -156,14 +156,16 @@ cat <<'INSTRUCTIONS'
     Once it is up, open the URL below and try this:
 
       1. Draw a basin with a one-tile gap in its floor   drag with the mouse (Draw, 1)
-      2. Drop a collector into the gap                   key 5, then click
-      3. Switch to the spawner tool                      key 4
-      4. Pick sand, click above the basin                second swatch, then click
-      5. Pick water, click just beside it                third swatch, then click
-      6. Watch the inspector, and the gold counter
+      2. Wall a pit under the gap, and floor it          same tool
+      3. Drop a press into the gap                       key 5, then click
+      4. Drag the vault tool over the pit interior       key 6, then drag
+      5. Switch to the spawner tool                      key 4
+      6. Pick sand, click above the basin                second swatch, then click
+      7. Pick water, click just beside it                third swatch, then click
+      8. Watch the inspector, and the gold counter
 
-    Yield rises when sand and water actually touch, and gold only moves when the
-    product they make reaches the collector. Raw sand falling in pays nothing. That
+    Yield rises when sand and water actually touch. The press turns what they make
+    into nuggets, and nuggets only count as gold once they land in the vault. That
     is the whole loop, and the thing worth judging.
 
     Spend the gold on spawner capacity with `C`.

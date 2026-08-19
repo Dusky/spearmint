@@ -171,9 +171,9 @@ impl World {
 
     /// Visits every currency cell inside a vault, top row down.
     ///
-    /// Only vaults. Gold anywhere else — on the floor, or sitting in the collector that
-    /// pressed it — is matter, not money (spec 5.1). Storage is something the player
-    /// builds and then declares.
+    /// Only vaults. Gold anywhere else — on the floor, or still inside the press that
+    /// made it — is matter, not money (spec 5.1). Storage is something the player builds
+    /// and then declares.
     fn for_each_stored_cell(&self, mut visit: impl FnMut(i32, i32)) {
         for entity in &self.entities {
             let Some(definition) = self.rules.entities.get(entity.kind) else {

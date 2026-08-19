@@ -68,11 +68,11 @@ export function diagnose(state: GameState): string {
   }
   // Gold before contact: product that exists and is not being sold is the more
   // actionable problem, and the one with no feedback anywhere else on screen.
-  if (readout.wetSand > 0 && state.economy.collectorsOwned === 0) {
-    return 'Washed sand is piling up with nowhere to go. Gold only moves when product reaches a collector.';
+  if (readout.wetSand > 0 && state.economy.pressesOwned === 0) {
+    return 'Washed sand is piling up with nowhere to go. Gold only appears when product reaches a press.';
   }
   if (readout.wetSand > 0 && state.economy.goldRate === 0) {
-    return 'Product is not reaching a collector. Check that it can fall in, and that the collector has a floor under it — anything that falls through is gone.';
+    return 'Product is not reaching a press. Check that it can fall into one — a press only works on what passes through it.';
   }
   // Currency is matter, so it has to end up somewhere. Gold that exists but is not in a
   // vault is the most common way for a working factory to look broken.
@@ -80,7 +80,7 @@ export function diagnose(state: GameState): string {
     return `${formatInteger(readout.looseGold)} nuggets and nowhere to keep them. Dig a pit, wall it, and mark the inside with the vault tool — gold only counts as money once a vault is holding it.`;
   }
   if (readout.looseGold > 0 && state.economy.gold === 0) {
-    return `${formatInteger(readout.looseGold)} nuggets are outside the vault. Gold only counts once it lands inside one — the collector needs somewhere below it for the nuggets to fall.`;
+    return `${formatInteger(readout.looseGold)} nuggets are outside the vault. Gold only counts once it lands inside one — the press needs a vault below it for the nuggets to fall into.`;
   }
   if (readout.contactArea === 0) {
     return readout.wetSand > 0

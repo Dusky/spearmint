@@ -31,17 +31,17 @@ pub enum Behaviour {
     /// declared, and what makes it work is that gold inside one counts as money
     /// (spec 5.1). Physics keeps the gold in; the walls are the player's problem.
     Store,
-    /// Takes matter out of the world and pays for it. The one licensed sink: spec 1.1
-    /// allows the physics rules themselves to destroy a particle, and a machine that
-    /// consumes what falls into it is such a rule.
-    Collect,
+    /// Presses product into currency. The one licensed sink: spec 1.1 allows the physics
+    /// rules themselves to destroy a particle, and a machine that consumes what it is
+    /// fed is such a rule.
+    Press,
 }
 
 impl Behaviour {
     fn parse(text: &str) -> Option<Behaviour> {
         match text {
             "emit" => Some(Behaviour::Emit),
-            "collect" => Some(Behaviour::Collect),
+            "press" => Some(Behaviour::Press),
             "store" => Some(Behaviour::Store),
             _ => None,
         }
@@ -132,13 +132,12 @@ impl Entity {
         (self.tile_y + self.height_tiles as i32) * TILE_CELLS as i32
     }
 
-    /// The cells inside the machine, which is where a collector takes from.
+    /// The cells inside the machine, which is what a press works on.
     ///
     /// A machine is not matter (spec 4.1), so nothing rests on top of one: material
-    /// falls straight *through* the tile. A collector therefore eats what is inside it
-    /// rather than what is stacked above it. Build it into a floor and it is a hopper;
-    /// leave the bottom open and product falls past, which is a routing mistake the
-    /// player can watch happen.
+    /// falls straight *through* the tile. A press therefore works on what is inside it
+    /// rather than on what is stacked above it, and anything it does not press — or
+    /// cannot keep up with — carries on falling. Gravity is the conveyor.
     pub fn body(&self) -> (i32, i32, i32, i32) {
         let left = self.left();
         let top = self.top();
@@ -159,7 +158,7 @@ impl Entity {
     }
 
     /// The machine cannot do its job, which for an emitter means every cell it would
-    /// emit into is occupied and for a collector means there is nothing to eat.
+    /// emit into is occupied and for a press means there is nothing in it to press.
     ///
     /// Not a failure state — back-pressure is physical here as it is on belts (spec
     /// 4.2), and a machine that has backed up into its own input, or is being fed
@@ -176,9 +175,9 @@ impl Entity {
                 let span = self.width_tiles as i32 * TILE_CELLS as i32;
                 (0..span).all(|offset| field.get(self.left() + offset, mouth) != Some(EMPTY))
             }
-            Behaviour::Collect => {
+            Behaviour::Press => {
                 let (x0, y0, x1, y1) = self.body();
-                (y0..=y1).all(|y| (x0..=x1).all(|x| !is_edible(field.get(x, y), elements)))
+                (y0..=y1).all(|y| (x0..=x1).all(|x| !is_pressable(field.get(x, y), elements)))
             }
             // A vault is a place, not a process. It cannot be blocked.
             Behaviour::Store => false,
@@ -196,9 +195,9 @@ pub struct EntityType {
     pub tool: String,
     pub width_tiles: u32,
     pub height_tiles: u32,
-    /// Cells emitted per tick, for emitters; cells eaten per tick, for collectors.
+    /// Cells emitted per tick, for emitters; cells pressed per tick, for presses.
     pub rate: u32,
-    /// Points a collector must take in to press one cell of currency.
+    /// Points a press must take in to make one cell of currency.
     pub gold_per: u32,
 }
 
@@ -296,7 +295,7 @@ fn parse_entity(entry: &Json<'_>) -> Result<EntityType, DataError> {
             .ok_or_else(|| bad("heightTiles"))? as u32,
         // Optional: only emitters use it.
         rate: entry.get("rate").and_then(Json::as_i32).unwrap_or(1).max(0) as u32,
-        // Optional: only collectors use it, and a zero would mint infinitely.
+        // Optional: only presses use it, and a zero would mint infinitely.
         gold_per: entry
             .get("goldPer")
             .and_then(Json::as_i32)
@@ -305,23 +304,27 @@ fn parse_entity(entry: &Json<'_>) -> Result<EntityType, DataError> {
     })
 }
 
-/// Whether a collector would take this cell.
+/// Whether a press would take this cell.
 ///
-/// Solids are structure, not throughput — a collector that ate walls would be a
-/// demolition tool, and erase already is one. Currency is skipped for a different
-/// reason: a machine must not grind its own output back into nothing.
-fn is_edible(cell: Option<ElementId>, elements: &ElementTable) -> bool {
+/// **Only what it can actually press.** Everything else — walls, water, unwashed sand,
+/// and the nuggets it has already made — falls straight through and is none of its
+/// business. That is what keeps a press from competing with the reaction it depends on:
+/// a machine that ate reactants would starve itself of product by consuming the sand and
+/// water before they could meet.
+fn is_pressable(cell: Option<ElementId>, elements: &ElementTable) -> bool {
     let Some(id) = cell else {
         return false;
     };
     let Some(element) = elements.get(id) else {
         return false;
     };
-    id != EMPTY && element.state != State::Solid && !element.currency
+    // Currency has no value by definition, so the check for it is belt and braces: a
+    // machine must never grind its own output back into nothing.
+    id != EMPTY && element.value > 0 && !element.currency
 }
 
-/// Runs every machine, in placement order, and returns what the collectors earned this
-/// tick.
+/// Runs every machine, in placement order, and returns how many nuggets were pressed
+/// this tick.
 ///
 /// This is the one place behaviour dispatches. Adding a belt means adding an arm here
 /// and a row in the data file, and touching nothing else.
@@ -340,7 +343,7 @@ pub fn tick<F: CellField + ?Sized>(
         };
         match definition.behaviour {
             Behaviour::Emit => emit(field, entity, definition, elements, seed, tick, index),
-            Behaviour::Collect => minted += collect(field, entity, definition, elements),
+            Behaviour::Press => minted += press(field, entity, definition, elements),
             // A vault holds what falls into it and does nothing else. Gravity is the
             // mechanism; the walls are the player's.
             Behaviour::Store => {}
@@ -389,19 +392,20 @@ fn emit<F: CellField + ?Sized>(
     }
 }
 
-/// Presses matter into money, and returns how many nuggets it made.
+/// Presses product into money, and returns how many nuggets it made.
 ///
-/// A collector eats whatever falls into its body and banks each cell's declared value,
-/// which is zero for everything that is not product. Every `goldPer` points, the cell it
-/// is currently eating becomes currency instead of empty space — eight grains in, one
-/// nugget where the eighth was, which is what pillar 2 looks like as an object.
+/// A press takes only what it can press and banks each cell's declared value. Every
+/// `goldPer` points, the cell it is working on becomes currency instead of empty space —
+/// eight grains in, one nugget where the eighth was, which is what pillar 2 looks like
+/// as an object.
 ///
-/// That is also why routing matters: dumping unwashed sand in destroys it and mints
-/// nothing.
+/// Everything it cannot press falls through untouched, so a press never competes with
+/// the reaction feeding it, and `rate` is a real throughput limit rather than a race:
+/// product arriving faster than it can be pressed carries on past.
 ///
 /// Bottom row up, left to right, up to `rate` cells a tick — no randomness, because
 /// there is nothing here for it to decide.
-fn collect<F: CellField + ?Sized>(
+fn press<F: CellField + ?Sized>(
     field: &mut F,
     entity: &mut Entity,
     definition: &EntityType,
@@ -415,16 +419,17 @@ fn collect<F: CellField + ?Sized>(
     let mut minted = 0;
     let mut taken = 0;
     // Material that has fallen furthest into the machine is the material about to fall
-    // out of it, so that is what gets eaten first.
+    // out of it, so that is what gets pressed first.
     for y in (y0..=y1).rev() {
         for x in x0..=x1 {
             if taken == definition.rate {
                 return minted;
             }
             let cell = field.get(x, y);
-            if !is_edible(cell, elements) {
+            if !is_pressable(cell, elements) {
                 continue;
             }
+
             let value = cell
                 .and_then(|id| elements.get(id))
                 .map_or(0, |element| element.value);

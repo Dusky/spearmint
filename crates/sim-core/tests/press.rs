@@ -1,6 +1,6 @@
 //! Product in, currency out.
 //!
-//! Currency is matter (spec 5.1): a collector presses what falls into it into nuggets,
+//! Currency is matter (spec 5.1): a press presses what falls into it into nuggets,
 //! the nuggets are cells like any other, and the player's balance is what a machine is
 //! holding. So the things worth testing are the exchange rate, the refusal to grind its
 //! own output, and the accounting — matter may leave the world, but never quietly.
@@ -13,11 +13,11 @@ use sim_core::{paint, scene, World};
 
 const CELLS: i32 = TILE_CELLS as i32;
 
-/// A collector set into a pocket of wall, which is how one is meant to be used: a
+/// A press set into a pocket of wall, which is how one is meant to be used: a
 /// machine is not matter (spec 4.1), so material falls straight through an
-/// open-bottomed collector and slides out of an unwalled one.
+/// open-bottomed press and slides out of an unwalled one.
 fn hopper(world: &mut World, tile_x: i32, tile_y: i32, wall: u8) {
-    world.place(common::collector(tile_x, tile_y));
+    world.place(common::press(tile_x, tile_y));
     let field = world.field_mut();
     paint::stroke(field, (tile_x - 1, tile_y + 1), (tile_x + 1, tile_y + 1), wall);
     paint::stroke(field, (tile_x - 1, tile_y), (tile_x - 1, tile_y), wall);
@@ -55,8 +55,8 @@ fn product_is_pressed_into_nuggets() {
     let gold = rules.elements.id_of("gold").expect("gold");
     let per = rules
         .entities
-        .get(common::collector_kind())
-        .expect("collector")
+        .get(common::press_kind())
+        .expect("press")
         .gold_per as i32;
     let mut world = scene::arena(200, 200, 1, &rules);
     hopper(&mut world, 4, 6, wall);
@@ -77,8 +77,8 @@ fn a_part_load_mints_nothing_yet() {
     let wet = rules.elements.id_of("wetSand").expect("wetSand");
     let per = rules
         .entities
-        .get(common::collector_kind())
-        .expect("collector")
+        .get(common::press_kind())
+        .expect("press")
         .gold_per as i32;
     let mut world = scene::arena(200, 200, 1, &rules);
     hopper(&mut world, 4, 6, wall);
@@ -93,25 +93,32 @@ fn a_part_load_mints_nothing_yet() {
     assert_eq!(world.collected(), 1, "the bank carried across ticks");
 }
 
+/// The rule that keeps a press from starving itself: it takes only product, so the sand
+/// and water it depends on flow past untouched and go on reacting.
 #[test]
-fn raw_material_mints_nothing_and_is_still_eaten() {
+fn raw_material_is_left_alone() {
     let rules = common::rules_without_reactions();
     let wall = rules.elements.id_of("wall").expect("wall");
     let sand = rules.elements.id_of("sand").expect("sand");
     let mut world = scene::arena(200, 200, 1, &rules);
     hopper(&mut world, 4, 6, wall);
 
+    let before = world.count_of(sand);
     feed(&mut world, 4, 6, CELLS, sand);
     world.step_many(40);
 
-    // Routing unwashed material into a collector destroys it for nothing. That is the
-    // cost of getting the routing wrong, and it should be visible.
-    assert_eq!(world.count_of(sand), 0);
+    assert_eq!(
+        world.count_of(sand),
+        before + CELLS as usize,
+        "unwashed sand is not the press's business"
+    );
     assert_eq!(world.collected(), 0);
 }
 
+/// Walls have no value, so they are not pressable, and a press set into one does not
+/// chew its way out.
 #[test]
-fn a_collector_refuses_solids() {
+fn a_press_leaves_structure_alone() {
     let rules = common::rules_without_reactions();
     let wall = rules.elements.id_of("wall").expect("wall");
     let mut world = scene::arena(200, 200, 1, &rules);
@@ -121,14 +128,14 @@ fn a_collector_refuses_solids() {
     let before = world.count_of(wall);
     world.step_many(20);
 
-    // A collector that ate walls would be a demolition tool, and erase already is one.
+    // A press that ate walls would be a demolition tool, and erase already is one.
     assert_eq!(world.count_of(wall), before);
     assert_eq!(world.collected(), 0);
 }
 
 /// A machine must not grind its own output back into nothing.
 #[test]
-fn a_collector_never_eats_currency() {
+fn a_press_never_eats_currency() {
     let rules = common::rules_without_reactions();
     let wall = rules.elements.id_of("wall").expect("wall");
     let gold = rules.elements.id_of("gold").expect("gold");
@@ -139,7 +146,7 @@ fn a_collector_never_eats_currency() {
     world.step_many(200);
 
     assert_eq!(count_in_body(&world, 4, 6, gold), CELLS, "it ate its own money");
-    // Not stored, either: a collector is where gold is made, not where it is kept
+    // Not stored, either: a press is where gold is made, not where it is kept
     // (spec 5.1). Storage is a vault, and there is none here.
     assert_eq!(world.stored(), 0);
 }
@@ -147,27 +154,27 @@ fn a_collector_never_eats_currency() {
 /// Full of money and unable to work is a state worth showing, and the sprite already
 /// draws it.
 #[test]
-fn a_collector_full_of_gold_reads_as_blocked() {
+fn a_press_full_of_gold_reads_as_blocked() {
     let rules = common::rules_without_reactions();
     let wall = rules.elements.id_of("wall").expect("wall");
     let wet = rules.elements.id_of("wetSand").expect("wetSand");
     let gold = rules.elements.id_of("gold").expect("gold");
     let definition = rules
         .entities
-        .get(common::collector_kind())
-        .expect("collector");
+        .get(common::press_kind())
+        .expect("press");
     let mut world = scene::arena(200, 200, 1, &rules);
-    let collector = common::collector(4, 6);
+    let press = common::press(4, 6);
     hopper(&mut world, 4, 6, wall);
 
     assert!(
-        collector.is_blocked(definition, world.field(), &rules.elements),
+        press.is_blocked(definition, world.field(), &rules.elements),
         "nothing has fallen in yet"
     );
 
     feed(&mut world, 4, 6, CELLS, gold);
     assert!(
-        collector.is_blocked(definition, world.field(), &rules.elements),
+        press.is_blocked(definition, world.field(), &rules.elements),
         "a body holding only money has nothing left to work on"
     );
 
@@ -177,7 +184,7 @@ fn a_collector_full_of_gold_reads_as_blocked() {
     for offset in 0..CELLS {
         world.field_mut().set(4 * CELLS + offset, top, wet);
     }
-    assert!(!collector.is_blocked(definition, world.field(), &rules.elements));
+    assert!(!press.is_blocked(definition, world.field(), &rules.elements));
 }
 
 /// The accounting property, and the reason a sink is allowed at all: every cell that
@@ -204,7 +211,7 @@ fn everything_that_leaves_is_accounted_for() {
 
     let after: usize = table.iter().map(|element| world.count_of(element.id)).sum();
     let minted = world.collected() as usize;
-    assert!(minted > 0, "nothing reached the collector");
+    assert!(minted > 0, "nothing reached the press");
     assert_eq!(world.count_of(wet), 0, "the chute did not empty");
     assert_eq!(
         before - after,
@@ -212,19 +219,19 @@ fn everything_that_leaves_is_accounted_for() {
         "cells left the world without being eaten or minted"
     );
 
-    // The nuggets are all still there — in the collector, which is not storage. Getting
+    // The nuggets are all still there — in the press, which is not storage. Getting
     // them somewhere that counts is the vault's job, and gravity's.
     let gold = table.id_of("gold").expect("gold");
     assert_eq!(world.count_of(gold), minted, "a nugget went missing");
-    assert_eq!(world.stored(), 0, "a collector is not a vault");
+    assert_eq!(world.stored(), 0, "a press is not a vault");
 }
 
 /// A settled pile stops moving, and a chunk where nothing moves goes to sleep. The
-/// collector eats regardless — machines tick whether or not their chunk does — so
+/// press eats regardless — machines tick whether or not their chunk does — so
 /// without waking what it takes from, it hollows out the product resting inside it and
 /// then starves under a pile that never collapses.
 #[test]
-fn a_collector_wakes_the_pile_resting_on_it() {
+fn a_press_wakes_the_pile_resting_on_it() {
     let rules = common::rules_without_reactions();
     let wall = rules.elements.id_of("wall").expect("wall");
     let wet = rules.elements.id_of("wetSand").expect("wetSand");
@@ -244,15 +251,15 @@ fn a_collector_wakes_the_pile_resting_on_it() {
     assert_eq!(
         world.content_hash(),
         settled,
-        "the pile should be at rest before the collector arrives"
+        "the pile should be at rest before the press arrives"
     );
 
-    world.place(common::collector(4, 11));
+    world.place(common::press(4, 11));
     world.step_many(3_000);
 
     assert_eq!(
         world.count_of(wet),
         0,
-        "the collector hollowed out the pile and then starved under it"
+        "the press hollowed out the pile and then starved under it"
     );
 }

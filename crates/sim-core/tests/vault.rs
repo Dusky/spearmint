@@ -50,10 +50,10 @@ fn only_gold_inside_a_vault_counts() {
     world.place(common::vault(4, 6, 1, 1));
     fill(&mut world, 4, 6, gold);
 
-    // A pile lying on the arena floor, and another sitting inside a collector — neither
+    // A pile lying on the arena floor, and another sitting inside a press — neither
     // is in a vault, so neither is money.
     fill(&mut world, 12, 20, gold);
-    world.place(common::collector(20, 6));
+    world.place(common::press(20, 6));
     paint::stroke(world.field_mut(), (20, 7), (20, 7), wall);
     fill(&mut world, 20, 6, gold);
 
@@ -97,22 +97,22 @@ fn spending_never_reaches_gold_outside_a_vault() {
     assert_eq!(world.count_of(gold), loose, "the loose pile is untouched");
 }
 
-/// The whole point of separating minting from storage: a collector over an open pit
+/// The whole point of separating minting from storage: a press over an open pit
 /// drops its nuggets into the vault below, and gravity is the only transport involved.
 #[test]
-fn nuggets_fall_from_a_collector_into_the_vault_below() {
+fn nuggets_fall_from_a_press_into_the_vault_below() {
     let rules = common::rules_without_reactions();
     let wall = rules.elements.id_of("wall").expect("wall");
     let wet = rules.elements.id_of("wetSand").expect("wetSand");
     let mut world = scene::arena(400, 400, 3, &rules);
 
-    // A chute down to a collector, and a walled pit under it declared a vault.
+    // A chute down to a press, and a walled pit under it declared a vault.
     paint::stroke(world.field_mut(), (3, 6), (3, 9), wall);
     paint::stroke(world.field_mut(), (5, 6), (5, 9), wall);
     paint::stroke(world.field_mut(), (3, 10), (3, 12), wall);
     paint::stroke(world.field_mut(), (5, 10), (5, 12), wall);
     paint::stroke(world.field_mut(), (3, 13), (5, 13), wall);
-    world.place(common::collector(4, 9));
+    world.place(common::press(4, 9));
     world.place(common::vault(4, 10, 1, 3));
 
     for tile_y in 6..9 {
