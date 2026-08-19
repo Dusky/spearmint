@@ -14,12 +14,12 @@ const CELLS: i32 = TILE_CELLS as i32;
 /// stays put and stays in thermal contact with something, rather than radiating into
 /// open (and thus thermally silent) space. The same shape `refine.rs`'s own `hopper`
 /// uses.
-fn hopper(world: &mut World, tile_x: i32, tile_y: i32, wall: u8, machine: Entity) {
+fn hopper(world: &mut World, tile_x: i32, tile_y: i32, structure: u8, machine: Entity) {
     world.place(machine);
     let field = world.field_mut();
-    paint::stroke(field, (tile_x - 1, tile_y + 1), (tile_x + 1, tile_y + 1), wall);
-    paint::stroke(field, (tile_x - 1, tile_y), (tile_x - 1, tile_y), wall);
-    paint::stroke(field, (tile_x + 1, tile_y), (tile_x + 1, tile_y), wall);
+    paint::stroke(field, (tile_x - 1, tile_y + 1), (tile_x + 1, tile_y + 1), structure);
+    paint::stroke(field, (tile_x - 1, tile_y), (tile_x - 1, tile_y), structure);
+    paint::stroke(field, (tile_x + 1, tile_y), (tile_x + 1, tile_y), structure);
 }
 
 fn count_in_body(world: &World, tile_x: i32, tile_y: i32, id: u8) -> i32 {
@@ -45,7 +45,7 @@ fn count_in_body(world: &World, tile_x: i32, tile_y: i32, id: u8) -> i32 {
 fn conduction_never_overshoots_past_equality() {
     let rules = common::rules();
     let gold = rules.elements.id_of("gold").expect("gold");
-    let structure = rules.elements.id_of("beltStructure").expect("beltStructure");
+    let belt_body = rules.elements.id_of("beltStructure").expect("beltStructure");
     let mut world = scene::arena(200, 200, 1, &rules);
 
     let (hot_x, cold_x, y) = (10, 11, 10);
@@ -53,7 +53,7 @@ fn conduction_never_overshoots_past_equality() {
     // straight down slides diagonally instead, so a single-cell-wide floor is not
     // enough to actually pin it in place.
     for x in (hot_x - 1)..=(cold_x + 1) {
-        world.field_mut().set(x, y + 1, structure);
+        world.field_mut().set(x, y + 1, belt_body);
     }
     world.field_mut().set(hot_x, y, gold);
     world.field_mut().set(cold_x, y, gold);
@@ -73,14 +73,14 @@ fn conduction_never_overshoots_past_equality() {
 }
 
 /// Heat does not conduct through empty space: two occupied cells separated by one
-/// empty cell stay thermally independent. Floored on `beltStructure`, not wall — wall
+/// empty cell stay thermally independent. Floored on `beltStructure`, not `structure` — that
 /// conducts, and a contiguous strip of it under both cells would quietly become a
 /// second path between them, defeating the point of this test.
 #[test]
 fn heat_does_not_cross_empty_space() {
     let rules = common::rules();
     let gold = rules.elements.id_of("gold").expect("gold");
-    let structure = rules.elements.id_of("beltStructure").expect("beltStructure");
+    let belt_body = rules.elements.id_of("beltStructure").expect("beltStructure");
     let mut world = scene::arena(200, 200, 1, &rules);
 
     // Well clear of x = 0: `scene::arena` runs its own wall down that column, and a
@@ -88,7 +88,7 @@ fn heat_does_not_cross_empty_space() {
     // the gap this test is about.
     let (y, left, right) = (10, 10, 12);
     for x in (left - 1)..=(right + 1) {
-        world.field_mut().set(x, y + 1, structure);
+        world.field_mut().set(x, y + 1, belt_body);
     }
     world.field_mut().set(left, y, gold);
     world.field_mut().set(right, y, gold);
@@ -117,11 +117,11 @@ fn heat_does_not_cross_empty_space() {
 #[test]
 fn a_fed_heater_holds_its_footprint_hot_and_burns_fuel() {
     let rules = common::rules();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let fuel = rules.elements.id_of("fuel").expect("fuel");
     let definition = rules.entities.get(common::heater_kind()).expect("heater");
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall, common::heater(4, 6));
+    hopper(&mut world, 4, 6, structure, common::heater(4, 6));
 
     assert!(
         common::heater(4, 6).is_blocked(definition, world.field(), &rules.elements),
@@ -149,7 +149,7 @@ fn a_fed_heater_holds_its_footprint_hot_and_burns_fuel() {
     assert_eq!(
         world.field().temperature(interior.0, interior.1),
         definition.heat_output,
-        "an interior cell, untouched by the surrounding wall, should read exactly hot"
+        "an interior cell, untouched by the surrounding structure, should read exactly hot"
     );
 }
 
@@ -157,7 +157,7 @@ fn a_fed_heater_holds_its_footprint_hot_and_burns_fuel() {
 /// and once it is not, whatever touching matter got heated cools back toward ambient
 /// through the same generic conduction pass alone.
 ///
-/// The probe is a cell of `wall` sitting inside the body, not the body itself and not
+/// The probe is a cell of `structure` sitting inside the body, not the body itself and not
 /// a powder. Both alternatives measure the wrong thing: once the fuel is burned the
 /// body is *empty*, and an empty cell is not eligible for conduction (heat only exists
 /// where matter does), so it keeps whatever it was last set to forever; and a powder
@@ -166,25 +166,25 @@ fn a_fed_heater_holds_its_footprint_hot_and_burns_fuel() {
 #[test]
 fn matter_touching_an_unfed_heater_cools_through_ordinary_conduction() {
     let rules = common::rules();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let fuel = rules.elements.id_of("fuel").expect("fuel");
     let definition = rules.entities.get(common::heater_kind()).expect("heater");
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall, common::heater(4, 6));
+    hopper(&mut world, 4, 6, structure, common::heater(4, 6));
 
     // A slab of wall behind the pocket's left side, well beyond the single tile
     // `hopper` paints — a heat sink with enough mass not to saturate over the hundreds
     // of ticks this test runs, which one tile's worth would.
     for y in (CELLS)..(11 * CELLS) {
         for x in (0..(4 * CELLS)).rev() {
-            world.field_mut().set(x, y, wall);
+            world.field_mut().set(x, y, structure);
         }
     }
 
     // The probe: a solid at the body's top-left, touching the pocket wall, so once
     // heated it has somewhere to keep losing heat to.
     let probe = (4 * CELLS, 6 * CELLS);
-    world.field_mut().set(probe.0, probe.1, wall);
+    world.field_mut().set(probe.0, probe.1, structure);
 
     // Fuel along the body's bottom row, resting on the pocket floor so it stays put.
     for offset in 0..CELLS {
@@ -212,7 +212,7 @@ fn matter_touching_an_unfed_heater_cools_through_ordinary_conduction() {
 
 /// Sand held above its melting point becomes `moltenSand` — the real shipped
 /// transition, not a fixture (this repo's own testing convention: run against the file
-/// the game ships). Floored on `beltStructure`, not wall — wall conducts, and would
+/// the game ships). Floored on `beltStructure`, not `structure` — that conducts, and would
 /// pull the temperature back below the melting point on the very tick this test means
 /// to check it on, before the transition ever gets evaluated.
 #[test]
@@ -220,14 +220,14 @@ fn sand_melts_into_molten_sand_above_its_melting_point() {
     let rules = common::rules();
     let sand = rules.elements.id_of("sand").expect("sand");
     let molten = rules.elements.id_of("moltenSand").expect("moltenSand");
-    let structure = rules.elements.id_of("beltStructure").expect("beltStructure");
+    let belt_body = rules.elements.id_of("beltStructure").expect("beltStructure");
     let melting_point = rules.elements.get(sand).expect("sand").melting_point;
     let mut world = scene::arena(200, 200, 1, &rules);
 
     let (x, y) = (10, 10);
     // Three wide: a powder that cannot fall straight down slides diagonally instead.
     for floor_x in (x - 1)..=(x + 1) {
-        world.field_mut().set(floor_x, y + 1, structure);
+        world.field_mut().set(floor_x, y + 1, belt_body);
     }
     world.field_mut().set(x, y, sand);
     world.field_mut().set_temperature(x, y, melting_point as i16);
@@ -243,12 +243,12 @@ fn sand_melts_into_molten_sand_above_its_melting_point() {
 fn sand_below_its_melting_point_stays_sand() {
     let rules = common::rules();
     let sand = rules.elements.id_of("sand").expect("sand");
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let mut world = scene::arena(200, 200, 1, &rules);
 
     let (x, y) = (10, 10);
     for floor_x in (x - 1)..=(x + 1) {
-        world.field_mut().set(floor_x, y + 1, wall);
+        world.field_mut().set(floor_x, y + 1, structure);
     }
     world.field_mut().set(x, y, sand);
     world.field_mut().set_temperature(x, y, AMBIENT_TEMPERATURE);

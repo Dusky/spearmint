@@ -43,10 +43,10 @@ function washer(): Blueprint {
     cellWidth,
     cellHeight,
     cells: buildCells(cellWidth, cellHeight, (rect) => {
-      rect(24, 24, 192, 32, 'wall');
-      rect(24, 24, 32, 148, 'wall');
-      rect(184, 24, 192, 148, 'wall');
-      rect(32, 140, 184, 148, 'wall');
+      rect(24, 24, 192, 32, 'structure');
+      rect(24, 24, 32, 148, 'structure');
+      rect(184, 24, 192, 148, 'structure');
+      rect(32, 140, 184, 148, 'structure');
       rect(40, 60, 176, 138, 'sand');
       rect(40, 36, 176, 58, 'water');
     }),
@@ -65,9 +65,9 @@ function settler(): Blueprint {
     cellWidth,
     cellHeight,
     cells: buildCells(cellWidth, cellHeight, (rect) => {
-      rect(16, 16, 146, 24, 'wall');
-      rect(40, 24, 48, 208, 'wall');
-      rect(114, 24, 122, 208, 'wall');
+      rect(16, 16, 146, 24, 'structure');
+      rect(40, 24, 48, 208, 'structure');
+      rect(114, 24, 122, 208, 'structure');
       rect(48, 120, 114, 208, 'water');
       rect(48, 190, 114, 208, 'wetSand');
     }),
@@ -87,8 +87,8 @@ function slagDump(): Blueprint {
     cellWidth,
     cellHeight,
     cells: buildCells(cellWidth, cellHeight, (rect) => {
-      rect(16, 96, 344, 104, 'wall');
-      rect(16, 24, 344, 30, 'wall');
+      rect(16, 96, 344, 104, 'structure');
+      rect(16, 24, 344, 30, 'structure');
       rect(24, 40, 336, 96, 'wetSand');
     }),
   };
@@ -102,7 +102,7 @@ export function initialState(): GameState {
   return {
     ui: {
       selectedTool: 'draw',
-      selectedMaterial: 'wall',
+      selectedMaterial: 'structure',
       // Gold is the flagship case (spec 4.3): "run the wash output along a filter set
       // to gold and the nuggets drop into the vault while the rest carries on."
       filterTarget: 'gold',

@@ -29,11 +29,11 @@ export type Tool = (typeof TOOLS)[number];
 /**
  * What the draw tool can place, by element name from `data/elements.json`.
  *
- * The design handoff shows four swatches — wall, insulator, heater, cooler. Only three
- * elements exist, and inventing swatches for the other two would put controls on screen
- * that do nothing. This list grows when the element roster does (spec 11 q7).
+ * The design handoff shows four swatches — structure, insulator, heater, cooler. Only
+ * three of those elements exist, and inventing swatches for the other two would put
+ * controls on screen that do nothing. This list grows when the roster does (spec 11 q7).
  */
-export const MATERIALS = ['wall', 'sand', 'water'] as const;
+export const MATERIALS = ['structure', 'sand', 'water'] as const;
 export type Material = (typeof MATERIALS)[number];
 
 export type ConstructId = string;
@@ -108,7 +108,7 @@ export interface Blueprint {
 }
 
 /** Index 0 is empty; the rest are the sim's own palette entries. */
-export const PARTICLE_KINDS = ['empty', 'wall', 'sand', 'water', 'wetSand'] as const;
+export const PARTICLE_KINDS = ['empty', 'structure', 'sand', 'water', 'wetSand'] as const;
 export type ParticleKind = (typeof PARTICLE_KINDS)[number];
 
 /** A placed machine. Instances carry live measurements; blueprints carry the record. */

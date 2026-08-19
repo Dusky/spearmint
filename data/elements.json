@@ -5,15 +5,16 @@
   "heatNote": "`melting_point`/`boiling_point` are Kelvin; `thermal_conductivity` decides how fast a cell trades heat with whatever touches it (spec 5.3) — a heater is the source, everything else just conducts. `meltsInto`/`boilsInto` name what this becomes once its own temperature reaches the matching point; absent means nothing does, which is still true of most of the roster. Checked hottest-first, so something hot enough to boil never gets stuck being evaluated as merely melted.",
   "elements": [
     {
+      "note": "The player's building material: everything hand-drawn is made of this. Painted industrial yellow rather than the grey it started as, and with almost no colour variance — variance reads as grain, which is right for sand and wrong for something manufactured. A flat panel next to speckled powder is most of what makes it look built. Named `structure` (it was `wall`), because it is floors, chutes and machine housings far more often than it is a wall.",
       "id": 1,
-      "name": "wall",
+      "name": "structure",
       "state": "solid",
       "density": 2400,
       "melting_point": 1900,
       "boiling_point": 3200,
       "thermal_conductivity": 0.15,
-      "color": "#5C5850",
-      "color_variance": 10,
+      "color": "#C9971F",
+      "color_variance": 3,
       "flammability": 0.0,
       "hardness": 0.95
     },

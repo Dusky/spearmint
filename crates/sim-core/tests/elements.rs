@@ -11,7 +11,7 @@ fn the_shipped_data_file_loads() {
     assert_eq!(
         table.len(),
         10,
-        "wall, sand, water, the wet sand they react into, the gold it presses into, \
+        "structure, sand, water, the wet sand they react into, the gold it presses into, \
          the residue left over, the burntResidue and fuel it refines into, the \
          structural element a belt's own footprint is filled with, and the moltenSand \
          sand melts into"
@@ -38,8 +38,8 @@ fn the_shipped_data_file_loads() {
     assert_eq!(water.melting_point, 273);
     assert_eq!(water.boiling_point, 373);
 
-    let wall = table.get(table.id_of("wall").expect("wall")).expect("wall");
-    assert_eq!(wall.state, State::Solid);
+    let structure = table.get(table.id_of("structure").expect("structure")).expect("structure");
+    assert_eq!(structure.state, State::Solid);
 }
 
 /// Sand must out-weigh water or it will not sink through it, and the washer machine

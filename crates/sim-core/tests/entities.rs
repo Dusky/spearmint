@@ -131,7 +131,7 @@ fn an_emitter_reports_being_blocked() {
     let rules = common::rules();
     let definition = rules.entities.get(common::emitter_kind()).expect("emitter");
     let sand = rules.elements.id_of("sand").expect("sand");
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let mut world = scene::arena(90, 90, 1, &rules);
 
     let entity = common::emitter(2, 1, sand);
@@ -145,7 +145,7 @@ fn an_emitter_reports_being_blocked() {
     for offset in 0..TILE_CELLS as i32 {
         world
             .field_mut()
-            .set(entity.left() + offset, entity.mouth(), wall);
+            .set(entity.left() + offset, entity.mouth(), structure);
     }
     assert!(entity.is_blocked(definition, world.field(), &rules.elements));
 
@@ -163,7 +163,7 @@ fn an_emitter_only_emits_and_blocks_within_its_mouth() {
     let rules = common::rules();
     let definition = rules.entities.get(common::emitter_kind()).expect("emitter");
     let sand = rules.elements.id_of("sand").expect("sand");
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     assert!(
         definition.mouth_width < TILE_CELLS,
         "this test needs the emitter's mouth to be narrower than the tile, or it \
@@ -179,7 +179,7 @@ fn an_emitter_only_emits_and_blocks_within_its_mouth() {
     let mouth_right = mouth_left + definition.mouth_width as i32;
     for x in entity.left()..entity.left() + TILE_CELLS as i32 {
         if x < mouth_left || x >= mouth_right {
-            world.field_mut().set(x, entity.mouth(), wall);
+            world.field_mut().set(x, entity.mouth(), structure);
         }
     }
     assert!(
@@ -202,23 +202,23 @@ fn an_emitter_only_emits_and_blocks_within_its_mouth() {
     }
 }
 
-/// A wall emitter is nonsense: a solid would appear one cell at a time and sit there,
+/// A `structure` emitter is nonsense: a solid would appear one cell at a time and sit there,
 /// which is drawing, not emission. Refused in the simulation rather than only in the UI,
 /// so nothing else can reintroduce it.
 #[test]
 fn solids_cannot_be_emitted() {
     let rules = common::rules();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let sand = rules.elements.id_of("sand").expect("sand");
     let mut world = scene::arena(90, 90, 1, &rules);
 
-    world.place(common::emitter(2, 1, wall));
+    world.place(common::emitter(2, 1, structure));
     world.step_many(300);
-    let walls_before = world.count_of(wall);
+    let structures_before = world.count_of(structure);
 
     // The arena's own walls are all that should exist; the emitter added none.
     world.step_many(300);
-    assert_eq!(world.count_of(wall), walls_before, "a solid was emitted");
+    assert_eq!(world.count_of(structure), structures_before, "a solid was emitted");
 
     // And a sand emitter beside it still works, so this is not just a dead world.
     world.place(common::emitter(5, 1, sand));

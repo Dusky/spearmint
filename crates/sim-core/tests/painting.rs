@@ -52,70 +52,70 @@ fn assert_tiles_whole<F: CellField + ?Sized>(
 #[test]
 fn a_diagonal_stroke_leaves_no_partial_tile() {
     let rules = common::rules();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     // An empty world, not the arena: the arena's boundary frame is one cell thick and
     // deliberately off-grid, which would be indistinguishable from a partial tile here.
     let mut world = World::new(1, rules.clone());
 
     // A shallow diagonal and a steep one: Bresenham steps differently along each axis,
     // and the old code was wrong on both.
-    paint::stroke(world.field_mut(), (2, 2), (14, 8), wall);
-    paint::stroke(world.field_mut(), (20, 2), (24, 18), wall);
+    paint::stroke(world.field_mut(), (2, 2), (14, 8), structure);
+    paint::stroke(world.field_mut(), (20, 2), (24, 18), structure);
 
-    assert_tiles_whole(world.field_mut(), (0, 0, 30, 24), wall, "diagonal stroke");
+    assert_tiles_whole(world.field_mut(), (0, 0, 30, 24), structure, "diagonal stroke");
 }
 
 #[test]
 fn a_stroke_covers_every_tile_between_its_ends() {
     let rules = common::rules();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     // An empty world, not the arena: the arena's boundary frame is one cell thick and
     // deliberately off-grid, which would be indistinguishable from a partial tile here.
     let mut world = World::new(1, rules.clone());
 
-    paint::stroke(world.field_mut(), (3, 5), (9, 5), wall);
+    paint::stroke(world.field_mut(), (3, 5), (9, 5), structure);
 
     let full = CELLS * CELLS;
     for tile_x in 3..=9 {
         assert_eq!(
-            count_in_tile(world.field_mut(), tile_x, 5, wall),
+            count_in_tile(world.field_mut(), tile_x, 5, structure),
             full,
             "tile ({tile_x}, 5) should be filled end to end, endpoints included"
         );
     }
-    assert_eq!(count_in_tile(world.field_mut(), 2, 5, wall), 0);
-    assert_eq!(count_in_tile(world.field_mut(), 10, 5, wall), 0);
+    assert_eq!(count_in_tile(world.field_mut(), 2, 5, structure), 0);
+    assert_eq!(count_in_tile(world.field_mut(), 10, 5, structure), 0);
 }
 
 #[test]
 fn a_single_tile_stroke_fills_exactly_one_tile() {
     let rules = common::rules();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     // An empty world, not the arena: the arena's boundary frame is one cell thick and
     // deliberately off-grid, which would be indistinguishable from a partial tile here.
     let mut world = World::new(1, rules.clone());
 
-    paint::stroke(world.field_mut(), (6, 6), (6, 6), wall);
+    paint::stroke(world.field_mut(), (6, 6), (6, 6), structure);
 
-    assert_eq!(count_in_tile(world.field_mut(), 6, 6, wall), CELLS * CELLS);
-    assert_eq!(count_in_tile(world.field_mut(), 7, 6, wall), 0);
-    assert_eq!(count_in_tile(world.field_mut(), 6, 7, wall), 0);
+    assert_eq!(count_in_tile(world.field_mut(), 6, 6, structure), CELLS * CELLS);
+    assert_eq!(count_in_tile(world.field_mut(), 7, 6, structure), 0);
+    assert_eq!(count_in_tile(world.field_mut(), 6, 7, structure), 0);
 }
 
 #[test]
 fn erasing_clears_whole_tiles() {
     let rules = common::rules();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     // An empty world, not the arena: the arena's boundary frame is one cell thick and
     // deliberately off-grid, which would be indistinguishable from a partial tile here.
     let mut world = World::new(1, rules.clone());
 
-    paint::stroke(world.field_mut(), (2, 2), (14, 8), wall);
+    paint::stroke(world.field_mut(), (2, 2), (14, 8), structure);
     // Across the diagonal, not along it, so the erase and the wall disagree about
     // direction — which is where a half-cleared tile would show up.
     paint::stroke(world.field_mut(), (2, 8), (14, 2), EMPTY);
 
-    assert_tiles_whole(world.field_mut(), (0, 0, 16, 10), wall, "after erasing");
+    assert_tiles_whole(world.field_mut(), (0, 0, 16, 10), structure, "after erasing");
 }
 
 /// Drawing writes cells rather than moving them, and only movement marks a chunk dirty.
@@ -128,13 +128,13 @@ fn erasing_clears_whole_tiles() {
 #[test]
 fn drawing_wakes_a_sleeping_chunk() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let sand = rules.elements.id_of("sand").expect("sand");
     let mut world = scene::arena(200, 200, 7, &rules);
 
     // A pedestal, so the chunk the sand lands in is allocated and settled before the
     // draw. Tiles are 9 cells and chunks 16 tiles, so both of these sit in chunk (0, 0).
-    paint::stroke(world.field_mut(), (3, 6), (7, 6), wall);
+    paint::stroke(world.field_mut(), (3, 6), (7, 6), structure);
     world.set_sleeping(true);
     world.step_many(30);
 

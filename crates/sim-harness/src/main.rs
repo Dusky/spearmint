@@ -166,7 +166,7 @@ fn dump(field: &dyn CellField, table: &ElementTable) {
             let id = field.get(x, y).unwrap_or(sim_core::EMPTY);
             line.push(match table.get(id).map(|element| element.name.as_str()) {
                 None => '.',
-                Some("wall") => '#',
+                Some("structure") => '#',
                 Some("sand") => 'o',
                 Some("water") => '~',
                 // An element with no glyph still shows up, rather than reading as void.

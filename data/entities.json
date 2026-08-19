@@ -9,7 +9,7 @@
 
   "spriteNote": "Sprites are 9x9 char grids, one tile (spec 2.3). '#' shell, '=' shadowed shell, ''' trim, 'o' the opening, which takes the colour of whatever the entity is working on. Space is transparent and lets the world show through. The first rule whose `when` matches is used, so order them most specific first. `elementState` matches the state of the element the entity handles, which means a new element of an existing state gets a shape without anyone drawing one. `pixels` can be one 9-row grid, or an array of them for animation — sim-wasm cycles frames by tick, no client change needed.",
 
-  "beltNote": "Belt and filter are both behaviour `belt` (spec 4.1-4.3): the same machine, distinguished only by whether an instance names an element to let through, exactly like one `emitter` tool is tuned per instance by which element it emits. `structure` names the indestructible element `World.place` fills the tile's own footprint with, so gravity holds cargo up on it the same way it holds anything up on solid ground.",
+  "beltNote": "Belt and filter are both behaviour `belt` (spec 4.1-4.3): the same machine, distinguished only by whether an instance names an element to let through, exactly like one `emitter` tool is tuned per instance by which element it emits. `chassis` names the indestructible element `World.place` fills the tile's own footprint with, so gravity holds cargo up on it the same way it holds anything up on solid ground.",
 
   "paceNote": "`rate` is how much a machine does per action; `interval` is how many ticks it waits between actions (1 = every tick, the default). Both are here rather than in code because pacing is tuning, and tuning wants to be a data edit. Playtesting found everything roughly six times too fast: the host also halved the tick rate, and these intervals take the rest out. A belt at interval 3 moves about a tile a second, which is the reference point everything else was set against.",
 
@@ -260,7 +260,7 @@
       "widthTiles": 1,
       "heightTiles": 1,
       "interval": 3,
-      "structure": "beltStructure",
+      "chassis": "beltStructure",
       "sprites": [
         {
           "note": "Jammed: cargo is on it but cannot advance.",
@@ -315,7 +315,7 @@
       "widthTiles": 1,
       "heightTiles": 1,
       "interval": 3,
-      "structure": "beltStructure",
+      "chassis": "beltStructure",
       "sprites": [
         {
           "note": "Jammed, same as a plain belt — the opening only appears once it is actually passing its element through.",

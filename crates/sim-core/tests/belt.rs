@@ -148,7 +148,7 @@ fn a_belt_run_conveys_without_cascading_across_tiles() {
 fn a_blocked_belt_backs_up_instead_of_losing_cargo() {
     let rules = common::rules();
     let sand = rules.elements.id_of("sand").expect("sand");
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let mut world = scene::arena(200, 200, 1, &rules);
 
     let entity = common::belt(2, 1, 1);
@@ -161,8 +161,8 @@ fn a_blocked_belt_backs_up_instead_of_losing_cargo() {
     // a single-cell sliver would still leave a diagonal escape at cargo's outer edge
     // (powder slides diagonally, spec 2.2), so a real pocket needs both rows walled.
     for &x in &[x0 - 1, x1 + 1] {
-        world.field_mut().set(x, carry_y, wall);
-        world.field_mut().set(x, y0, wall);
+        world.field_mut().set(x, carry_y, structure);
+        world.field_mut().set(x, y0, structure);
     }
 
     // Load the whole carrying row.
@@ -175,7 +175,7 @@ fn a_blocked_belt_backs_up_instead_of_losing_cargo() {
     assert_eq!(world.count_of(sand), before, "a jam must not lose cargo");
     assert!(
         entity.is_blocked(definition, world.field(), &rules.elements),
-        "cargo resting against the wall should read as blocked"
+        "cargo resting against the structure should read as blocked"
     );
 }
 
@@ -187,7 +187,7 @@ fn a_blocked_belt_backs_up_instead_of_losing_cargo() {
 fn nothing_falls_through_a_belts_own_body() {
     let rules = common::rules();
     let gold = rules.elements.id_of("gold").expect("gold");
-    let structure = rules
+    let belt_body = rules
         .elements
         .id_of("beltStructure")
         .expect("beltStructure");
@@ -201,7 +201,7 @@ fn nothing_falls_through_a_belts_own_body() {
         for x in x0..=x1 {
             assert_eq!(
                 world.get(x, y),
-                structure,
+                belt_body,
                 "a belt's footprint should be solid at placement"
             );
         }
@@ -217,7 +217,7 @@ fn nothing_falls_through_a_belts_own_body() {
         for x in x0..=x1 {
             assert_eq!(
                 world.get(x, y),
-                structure,
+                belt_body,
                 "the belt's body must stay solid"
             );
         }
@@ -231,7 +231,7 @@ fn a_filter_drops_its_element_and_conveys_the_rest() {
     let rules = common::rules();
     let sand = rules.elements.id_of("sand").expect("sand");
     let gold = rules.elements.id_of("gold").expect("gold");
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let mut world = scene::arena(200, 200, 1, &rules);
 
     let entity = common::filter(2, 1, 1, gold);
@@ -247,7 +247,7 @@ fn a_filter_drops_its_element_and_conveys_the_rest() {
     // where — otherwise it is still an ordinary powder and keeps sliding through the
     // physics phase that runs later in the same tick.
     for x in (gold_x - 1)..=(gold_x + 1) {
-        world.field_mut().set(x, entity.mouth() + 1, wall);
+        world.field_mut().set(x, entity.mouth() + 1, structure);
     }
 
     world.step();

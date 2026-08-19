@@ -62,7 +62,7 @@ fn sleeping_does_not_change_a_multi_chunk_world() {
 fn chunks_actually_sleep_once_the_world_settles() {
     let rules = common::rules_without_reactions();
     let table = &rules.elements;
-    let wall = table.id_of("wall").expect("wall");
+    let structure = table.id_of("structure").expect("structure");
     let sand = table.id_of("sand").expect("sand");
 
     let mut world = sim_core::World::new(9, rules.clone());
@@ -74,12 +74,12 @@ fn chunks_actually_sleep_once_the_world_settles() {
     let width = CHUNK_CELLS as i32 * 3;
     let height = CHUNK_CELLS as i32 * 2;
     for x in 0..width {
-        world.field_mut().set(x, 0, wall);
-        world.field_mut().set(x, height - 1, wall);
+        world.field_mut().set(x, 0, structure);
+        world.field_mut().set(x, height - 1, structure);
     }
     for y in 0..height {
-        world.field_mut().set(0, y, wall);
-        world.field_mut().set(width - 1, y, wall);
+        world.field_mut().set(0, y, structure);
+        world.field_mut().set(width - 1, y, structure);
     }
     // Sand in the left-hand chunk only, so the right-hand ones have nothing to do.
     for x in 4..(CHUNK_CELLS as i32 - 4) {
@@ -114,7 +114,7 @@ fn chunks_actually_sleep_once_the_world_settles() {
 fn a_settled_powder_world_reaches_a_fixed_point() {
     let rules = common::rules_without_reactions();
     let table = &rules.elements;
-    let wall = table.id_of("wall").expect("wall");
+    let structure = table.id_of("structure").expect("structure");
     let sand = table.id_of("sand").expect("sand");
 
     let mut world = sim_core::World::new(3, rules.clone());
@@ -122,12 +122,12 @@ fn a_settled_powder_world_reaches_a_fixed_point() {
     // A closed box. An open floor would let the heap spread off its ends and fall
     // forever down an infinite canvas.
     for x in 0..80 {
-        world.field_mut().set(x, 0, wall);
-        world.field_mut().set(x, 60, wall);
+        world.field_mut().set(x, 0, structure);
+        world.field_mut().set(x, 60, structure);
     }
     for y in 0..=60 {
-        world.field_mut().set(0, y, wall);
-        world.field_mut().set(79, y, wall);
+        world.field_mut().set(0, y, structure);
+        world.field_mut().set(79, y, structure);
     }
     for x in 20..40 {
         for y in 10..30 {
@@ -194,7 +194,7 @@ fn a_neighbour_wakes_a_sleeping_chunk() {
     for x in 0..(seam + 20) {
         world
             .field_mut()
-            .set(x, seam - 1, table.id_of("wall").unwrap());
+            .set(x, seam - 1, table.id_of("structure").unwrap());
     }
     world.field_mut().set(seam - 1, seam - 4, sand);
 

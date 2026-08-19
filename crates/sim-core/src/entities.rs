@@ -308,11 +308,15 @@ pub struct EntityType {
     /// behaviour.
     pub mouth_offset: u32,
     pub mouth_width: u32,
-    /// The indestructible element `World::place` fills a `Behaviour::Belt` entity's own
-    /// footprint with, so gravity holds its cargo up using physics that already exists
-    /// rather than an entity-aware exception in `step.rs`. `EMPTY` for anything that is
-    /// not a belt.
-    pub structure: ElementId,
+    /// What a `Behaviour::Belt` entity's own body is made of — the indestructible
+    /// element `World::place` fills its footprint with, so gravity holds cargo up using
+    /// physics that already exists rather than an entity-aware exception in `step.rs`.
+    /// `EMPTY` for anything that is not a belt.
+    ///
+    /// Named for the machine's frame rather than "structure", which is now also the
+    /// name of the player's building material — two different things a field called
+    /// `structure` could plausibly mean.
+    pub chassis: ElementId,
     /// The whole-Kelvin temperature a `Heater` holds its own footprint at while it has
     /// fuel (spec 5.3). Meaningless for anything else.
     pub heat_output: i16,
@@ -450,12 +454,12 @@ fn parse_entity(entry: &Json<'_>, elements: &ElementTable) -> Result<EntityType,
         // Required for a belt, since without it World::place would have nothing to fill
         // its footprint with and gravity would have nothing to hold cargo up on.
         // Absent — and meaningless — for anything else.
-        structure: match entry.get("structure").and_then(Json::as_str) {
-            Some(name) => elements.id_of(name).ok_or_else(|| bad("structure"))?,
-            None if behaviour == Behaviour::Belt => return Err(bad("structure")),
+        chassis: match entry.get("chassis").and_then(Json::as_str) {
+            Some(name) => elements.id_of(name).ok_or_else(|| bad("chassis"))?,
+            None if behaviour == Behaviour::Belt => return Err(bad("chassis")),
             None => EMPTY,
         },
-        // Required for a heater, the same way `structure` is required for a belt.
+        // Required for a heater, the same way `chassis` is required for a belt.
         // Meaningless — and absent — for anything else.
         heat_output: match entry.get("heatOutput").and_then(Json::as_i32) {
             Some(value) if (i32::from(i16::MIN)..=i32::from(i16::MAX)).contains(&value) => {

@@ -43,7 +43,7 @@ fn a_vault_is_whatever_size_the_player_marked_out() {
 #[test]
 fn only_gold_inside_a_vault_counts() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let gold = rules.elements.id_of("gold").expect("gold");
     let mut world = scene::arena(400, 400, 1, &rules);
 
@@ -54,7 +54,7 @@ fn only_gold_inside_a_vault_counts() {
     // is in a vault, so neither is money.
     fill(&mut world, 12, 20, gold);
     world.place(common::press(20, 6));
-    paint::stroke(world.field_mut(), (20, 7), (20, 7), wall);
+    paint::stroke(world.field_mut(), (20, 7), (20, 7), structure);
     fill(&mut world, 20, 6, gold);
 
     assert_eq!(world.stored(), (CELLS * CELLS) as u64, "only the vault");
@@ -102,16 +102,16 @@ fn spending_never_reaches_gold_outside_a_vault() {
 #[test]
 fn nuggets_fall_from_a_press_into_the_vault_below() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let wet = rules.elements.id_of("wetSand").expect("wetSand");
     let mut world = scene::arena(400, 400, 3, &rules);
 
     // A chute down to a press, and a walled pit under it declared a vault.
-    paint::stroke(world.field_mut(), (3, 6), (3, 9), wall);
-    paint::stroke(world.field_mut(), (5, 6), (5, 9), wall);
-    paint::stroke(world.field_mut(), (3, 10), (3, 12), wall);
-    paint::stroke(world.field_mut(), (5, 10), (5, 12), wall);
-    paint::stroke(world.field_mut(), (3, 13), (5, 13), wall);
+    paint::stroke(world.field_mut(), (3, 6), (3, 9), structure);
+    paint::stroke(world.field_mut(), (5, 6), (5, 9), structure);
+    paint::stroke(world.field_mut(), (3, 10), (3, 12), structure);
+    paint::stroke(world.field_mut(), (5, 10), (5, 12), structure);
+    paint::stroke(world.field_mut(), (3, 13), (5, 13), structure);
     world.place(common::press(4, 9));
     world.place(common::vault(4, 10, 1, 3));
 
@@ -136,15 +136,15 @@ fn nuggets_fall_from_a_press_into_the_vault_below() {
 #[test]
 fn gold_sinks_below_a_lighter_powder_it_is_poured_onto() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let wet = rules.elements.id_of("wetSand").expect("wetSand");
     let gold = rules.elements.id_of("gold").expect("gold");
     let mut world = scene::arena(400, 400, 1, &rules);
 
     // A four-tile-deep, walled and floored pit.
-    paint::stroke(world.field_mut(), (3, 6), (3, 9), wall);
-    paint::stroke(world.field_mut(), (5, 6), (5, 9), wall);
-    paint::stroke(world.field_mut(), (3, 10), (5, 10), wall);
+    paint::stroke(world.field_mut(), (3, 6), (3, 9), structure);
+    paint::stroke(world.field_mut(), (5, 6), (5, 9), structure);
+    paint::stroke(world.field_mut(), (3, 10), (5, 10), structure);
 
     // Three tiles of wet sand at the bottom, gold poured on top of it last.
     for tile_y in 7..10 {

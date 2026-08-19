@@ -200,7 +200,7 @@ fn draw_entities(state: &mut State, origin_x: i32, origin_y: i32, width: u32, he
         // its own structure on every tile, always. Burial still applies to everything
         // else, whose footprint is genuinely empty until something falls onto it.
         let not_burial = if definition.behaviour == Behaviour::Belt {
-            Some(definition.structure)
+            Some(definition.chassis)
         } else {
             None
         };

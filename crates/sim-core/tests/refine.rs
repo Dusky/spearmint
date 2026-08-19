@@ -16,12 +16,12 @@ const CELLS: i32 = TILE_CELLS as i32;
 
 /// A machine sealed into a pocket of wall — left, right, and floored — so a fed charge
 /// stays put to be inspected mid-tick rather than falling anywhere.
-fn hopper(world: &mut World, tile_x: i32, tile_y: i32, wall: u8, machine: Entity) {
+fn hopper(world: &mut World, tile_x: i32, tile_y: i32, structure: u8, machine: Entity) {
     world.place(machine);
     let field = world.field_mut();
-    paint::stroke(field, (tile_x - 1, tile_y + 1), (tile_x + 1, tile_y + 1), wall);
-    paint::stroke(field, (tile_x - 1, tile_y), (tile_x - 1, tile_y), wall);
-    paint::stroke(field, (tile_x + 1, tile_y), (tile_x + 1, tile_y), wall);
+    paint::stroke(field, (tile_x - 1, tile_y + 1), (tile_x + 1, tile_y + 1), structure);
+    paint::stroke(field, (tile_x - 1, tile_y), (tile_x - 1, tile_y), structure);
+    paint::stroke(field, (tile_x + 1, tile_y), (tile_x + 1, tile_y), structure);
 }
 
 /// Puts `count` cells along the bottom row inside a machine, which is where it takes
@@ -48,7 +48,7 @@ fn count_in_body(world: &World, tile_x: i32, tile_y: i32, id: u8) -> i32 {
 #[test]
 fn a_burner_turns_residue_into_burnt_residue() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let residue = rules.elements.id_of("residue").expect("residue");
     let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
     let rate = rules
@@ -57,7 +57,7 @@ fn a_burner_turns_residue_into_burnt_residue() {
         .expect("burner")
         .rate as i32;
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall, common::burner(4, 6));
+    hopper(&mut world, 4, 6, structure, common::burner(4, 6));
 
     feed(&mut world, 4, 6, CELLS, residue);
     world.step();
@@ -75,7 +75,7 @@ fn a_burner_turns_residue_into_burnt_residue() {
 #[test]
 fn a_machine_only_acts_on_its_interval() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let residue = rules.elements.id_of("residue").expect("residue");
     let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
     let definition = rules.entities.get(common::burner_kind()).expect("burner");
@@ -86,7 +86,7 @@ fn a_machine_only_acts_on_its_interval() {
     );
 
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall, common::burner(4, 6));
+    hopper(&mut world, 4, 6, structure, common::burner(4, 6));
     feed(&mut world, 4, 6, CELLS, residue);
 
     // Tick 0 is on the beat.
@@ -112,7 +112,7 @@ fn a_machine_only_acts_on_its_interval() {
 #[test]
 fn a_compactor_turns_burnt_residue_into_fuel() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
     let fuel = rules.elements.id_of("fuel").expect("fuel");
     let rate = rules
@@ -121,7 +121,7 @@ fn a_compactor_turns_burnt_residue_into_fuel() {
         .expect("compactor")
         .rate as i32;
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall, common::compactor(4, 6));
+    hopper(&mut world, 4, 6, structure, common::compactor(4, 6));
 
     feed(&mut world, 4, 6, CELLS, burnt);
     world.step();
@@ -136,14 +136,14 @@ fn a_compactor_turns_burnt_residue_into_fuel() {
 #[test]
 fn a_burner_leaves_everything_else_alone() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let sand = rules.elements.id_of("sand").expect("sand");
     let gold = rules.elements.id_of("gold").expect("gold");
     let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
 
-    for other in [wall, sand, gold, burnt] {
+    for other in [structure, sand, gold, burnt] {
         let mut world = scene::arena(200, 200, 1, &rules);
-        hopper(&mut world, 4, 6, wall, common::burner(4, 6));
+        hopper(&mut world, 4, 6, structure, common::burner(4, 6));
         feed(&mut world, 4, 6, CELLS, other);
         world.step_many(20);
         assert_eq!(
@@ -157,12 +157,12 @@ fn a_burner_leaves_everything_else_alone() {
 #[test]
 fn an_idle_burner_reads_as_blocked() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let residue = rules.elements.id_of("residue").expect("residue");
     let definition = rules.entities.get(common::burner_kind()).expect("burner");
     let mut world = scene::arena(200, 200, 1, &rules);
     let burner = common::burner(4, 6);
-    hopper(&mut world, 4, 6, wall, burner);
+    hopper(&mut world, 4, 6, structure, burner);
 
     assert!(
         burner.is_blocked(definition, world.field(), &rules.elements),
@@ -180,14 +180,14 @@ fn an_idle_burner_reads_as_blocked() {
 fn the_chain_conserves_every_cell_from_residue_to_fuel() {
     let rules = common::rules_without_reactions();
     let table = &rules.elements;
-    let wall = table.id_of("wall").expect("wall");
+    let structure = table.id_of("structure").expect("structure");
     let residue = table.id_of("residue").expect("residue");
     let burnt = table.id_of("burntResidue").expect("burntResidue");
     let fuel = table.id_of("fuel").expect("fuel");
 
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall, common::burner(4, 6));
-    hopper(&mut world, 4, 9, wall, common::compactor(4, 9));
+    hopper(&mut world, 4, 6, structure, common::burner(4, 6));
+    hopper(&mut world, 4, 9, structure, common::compactor(4, 9));
 
     feed(&mut world, 4, 6, CELLS, residue);
     world.step_many(20);

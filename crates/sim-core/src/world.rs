@@ -60,7 +60,7 @@ fn fill_structure<F: CellField + ?Sized>(
     let (x0, y0, x1, y1) = entity.body();
     for y in y0..=y1 {
         for x in x0..=x1 {
-            field.set(x, y, definition.structure);
+            field.set(x, y, definition.chassis);
         }
     }
 }

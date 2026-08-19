@@ -17,9 +17,9 @@ use crate::world::{FlatWorld, World};
 /// Places the sandbox: a closed box with some structure in it and a charge of sand and
 /// water, hashed from the seed rather than drawn from a stream.
 fn build(width: u32, height: u32, seed: u64, table: &ElementTable, field: &mut dyn CellField) {
-    let wall = table
-        .id_of("wall")
-        .expect("scene requires a `wall` element");
+    let structure = table
+        .id_of("structure")
+        .expect("scene requires a `structure` element");
     let sand = table
         .id_of("sand")
         .expect("scene requires a `sand` element");
@@ -40,18 +40,18 @@ fn build(width: u32, height: u32, seed: u64, table: &ElementTable, field: &mut d
 
     // A one-cell frame. Nothing enters or leaves — which on an infinite canvas is the
     // only reason the chunked world stays bounded too.
-    fill(field, 0, 0, right, 0, wall);
-    fill(field, 0, bottom, right, bottom, wall);
-    fill(field, 0, 0, 0, bottom, wall);
-    fill(field, right, 0, right, bottom, wall);
+    fill(field, 0, 0, right, 0, structure);
+    fill(field, 0, bottom, right, bottom, structure);
+    fill(field, 0, 0, 0, bottom, structure);
+    fill(field, right, 0, right, bottom, structure);
 
     // Two ledges and a divider, so material has to find its way around something rather
     // than settling into one flat layer.
     let third = right / 3;
     let two_thirds = 2 * right / 3;
-    fill(field, 2, bottom / 2, third, bottom / 2, wall);
-    fill(field, two_thirds, bottom / 3, right - 2, bottom / 3, wall);
-    fill(field, third + 4, bottom / 2, third + 4, bottom - 1, wall);
+    fill(field, 2, bottom / 2, third, bottom / 2, structure);
+    fill(field, two_thirds, bottom / 3, right - 2, bottom / 3, structure);
+    fill(field, third + 4, bottom / 2, third + 4, bottom - 1, structure);
 
     // A charge of material across the top third, mixed by position hash.
     let fill_bottom = bottom / 3;
@@ -95,22 +95,22 @@ pub fn sandbox_flat(width: u32, height: u32, seed: u64, rules: &Rules) -> FlatWo
 /// with no floor beneath it falls forever, allocating chunks as it goes. Enclosing the
 /// playable area sidesteps that until terrain answers it properly.
 pub fn arena(width: u32, height: u32, seed: u64, rules: &Rules) -> World {
-    let wall = rules
+    let structure = rules
         .elements
-        .id_of("wall")
-        .expect("arena requires a `wall` element");
+        .id_of("structure")
+        .expect("arena requires a `structure` element");
     let mut world = World::new(seed, rules.clone());
     let field = world.field_mut();
 
     let right = width as i32 - 1;
     let bottom = height as i32 - 1;
     for x in 0..=right {
-        field.set(x, 0, wall);
-        field.set(x, bottom, wall);
+        field.set(x, 0, structure);
+        field.set(x, bottom, structure);
     }
     for y in 0..=bottom {
-        field.set(0, y, wall);
-        field.set(right, y, wall);
+        field.set(0, y, structure);
+        field.set(right, y, structure);
     }
 
     world

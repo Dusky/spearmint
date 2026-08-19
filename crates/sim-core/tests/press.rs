@@ -16,12 +16,12 @@ const CELLS: i32 = TILE_CELLS as i32;
 /// A press set into a pocket of wall, which is how one is meant to be used: a
 /// machine is not matter (spec 4.1), so material falls straight through an
 /// open-bottomed press and slides out of an unwalled one.
-fn hopper(world: &mut World, tile_x: i32, tile_y: i32, wall: u8) {
+fn hopper(world: &mut World, tile_x: i32, tile_y: i32, structure: u8) {
     world.place(common::press(tile_x, tile_y));
     let field = world.field_mut();
-    paint::stroke(field, (tile_x - 1, tile_y + 1), (tile_x + 1, tile_y + 1), wall);
-    paint::stroke(field, (tile_x - 1, tile_y), (tile_x - 1, tile_y), wall);
-    paint::stroke(field, (tile_x + 1, tile_y), (tile_x + 1, tile_y), wall);
+    paint::stroke(field, (tile_x - 1, tile_y + 1), (tile_x + 1, tile_y + 1), structure);
+    paint::stroke(field, (tile_x - 1, tile_y), (tile_x - 1, tile_y), structure);
+    paint::stroke(field, (tile_x + 1, tile_y), (tile_x + 1, tile_y), structure);
 }
 
 /// A press with side walls only — no floor. Residue is real matter now (spec 5.3), so
@@ -29,11 +29,11 @@ fn hopper(world: &mut World, tile_x: i32, tile_y: i32, wall: u8) {
 /// gold. These tests run the press for thousands of ticks, so unlike `hopper` — which
 /// deliberately seals a fed charge in place to inspect it mid-press — they need an
 /// outlet or the body fills with its own byproduct and jams.
-fn chute(world: &mut World, tile_x: i32, tile_y: i32, wall: u8) {
+fn chute(world: &mut World, tile_x: i32, tile_y: i32, structure: u8) {
     world.place(common::press(tile_x, tile_y));
     let field = world.field_mut();
-    paint::stroke(field, (tile_x - 1, tile_y), (tile_x - 1, tile_y), wall);
-    paint::stroke(field, (tile_x + 1, tile_y), (tile_x + 1, tile_y), wall);
+    paint::stroke(field, (tile_x - 1, tile_y), (tile_x - 1, tile_y), structure);
+    paint::stroke(field, (tile_x + 1, tile_y), (tile_x + 1, tile_y), structure);
 }
 
 /// Puts `count` cells along the bottom row inside a machine, which is where it takes
@@ -77,7 +77,7 @@ fn count_in_body(world: &World, tile_x: i32, tile_y: i32, id: u8) -> i32 {
 #[test]
 fn product_is_pressed_into_nuggets() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let wet = rules.elements.id_of("wetSand").expect("wetSand");
     let gold = rules.elements.id_of("gold").expect("gold");
     let per = rules
@@ -86,7 +86,7 @@ fn product_is_pressed_into_nuggets() {
         .expect("press")
         .gold_per as i32;
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall);
+    hopper(&mut world, 4, 6, structure);
 
     feed(&mut world, 4, 6, per, wet);
     world.step_many(20);
@@ -100,7 +100,7 @@ fn product_is_pressed_into_nuggets() {
 #[test]
 fn a_part_load_mints_nothing_yet() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let wet = rules.elements.id_of("wetSand").expect("wetSand");
     let per = rules
         .entities
@@ -108,7 +108,7 @@ fn a_part_load_mints_nothing_yet() {
         .expect("press")
         .gold_per as i32;
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall);
+    hopper(&mut world, 4, 6, structure);
 
     feed(&mut world, 4, 6, per - 1, wet);
     world.step_many(20);
@@ -125,10 +125,10 @@ fn a_part_load_mints_nothing_yet() {
 #[test]
 fn raw_material_is_left_alone() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let sand = rules.elements.id_of("sand").expect("sand");
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall);
+    hopper(&mut world, 4, 6, structure);
 
     let before = world.count_of(sand);
     feed(&mut world, 4, 6, CELLS, sand);
@@ -147,16 +147,16 @@ fn raw_material_is_left_alone() {
 #[test]
 fn a_press_leaves_structure_alone() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall);
+    hopper(&mut world, 4, 6, structure);
 
-    feed(&mut world, 4, 6, CELLS, wall);
-    let before = world.count_of(wall);
+    feed(&mut world, 4, 6, CELLS, structure);
+    let before = world.count_of(structure);
     world.step_many(20);
 
     // A press that ate walls would be a demolition tool, and erase already is one.
-    assert_eq!(world.count_of(wall), before);
+    assert_eq!(world.count_of(structure), before);
     assert_eq!(world.collected(), 0);
 }
 
@@ -164,10 +164,10 @@ fn a_press_leaves_structure_alone() {
 #[test]
 fn a_press_never_eats_currency() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let gold = rules.elements.id_of("gold").expect("gold");
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall);
+    hopper(&mut world, 4, 6, structure);
 
     feed(&mut world, 4, 6, CELLS, gold);
     world.step_many(200);
@@ -183,7 +183,7 @@ fn a_press_never_eats_currency() {
 #[test]
 fn a_press_leaves_residue_behind() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let wet = rules.elements.id_of("wetSand").expect("wetSand");
     let residue = rules.elements.id_of("residue").expect("residue");
     let per = rules
@@ -192,7 +192,7 @@ fn a_press_leaves_residue_behind() {
         .expect("press")
         .gold_per as i32;
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall);
+    hopper(&mut world, 4, 6, structure);
 
     feed(&mut world, 4, 6, per, wet);
     world.step_many(20);
@@ -207,10 +207,10 @@ fn a_press_leaves_residue_behind() {
 #[test]
 fn a_press_never_re_presses_its_own_residue() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let residue = rules.elements.id_of("residue").expect("residue");
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, wall);
+    hopper(&mut world, 4, 6, structure);
 
     feed(&mut world, 4, 6, CELLS, residue);
     world.step_many(200);
@@ -223,7 +223,7 @@ fn a_press_never_re_presses_its_own_residue() {
 #[test]
 fn a_press_full_of_gold_reads_as_blocked() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let wet = rules.elements.id_of("wetSand").expect("wetSand");
     let gold = rules.elements.id_of("gold").expect("gold");
     let definition = rules
@@ -232,7 +232,7 @@ fn a_press_full_of_gold_reads_as_blocked() {
         .expect("press");
     let mut world = scene::arena(200, 200, 1, &rules);
     let press = common::press(4, 6);
-    hopper(&mut world, 4, 6, wall);
+    hopper(&mut world, 4, 6, structure);
 
     assert!(
         press.is_blocked(definition, world.field(), &rules.elements),
@@ -266,13 +266,13 @@ fn pressing_conserves_every_cell() {
     let wet = table.id_of("wetSand").expect("wetSand");
     let gold = table.id_of("gold").expect("gold");
     let residue = table.id_of("residue").expect("residue");
-    let wall = table.id_of("wall").expect("wall");
+    let structure = table.id_of("structure").expect("structure");
     let mut world = scene::arena(200, 200, 5, &rules);
-    chute(&mut world, 4, 12, wall);
+    chute(&mut world, 4, 12, structure);
     // Walls the rest of the way up, so the product has nowhere to heap except into
     // the machine.
-    paint::stroke(world.field_mut(), (3, 8), (3, 11), wall);
-    paint::stroke(world.field_mut(), (5, 8), (5, 11), wall);
+    paint::stroke(world.field_mut(), (3, 8), (3, 11), structure);
+    paint::stroke(world.field_mut(), (5, 8), (5, 11), structure);
 
     for tile_y in 8..12 {
         paint::stroke(world.field_mut(), (4, tile_y), (4, tile_y), wet);
@@ -314,14 +314,14 @@ fn pressing_conserves_every_cell() {
 #[test]
 fn a_press_wakes_the_pile_resting_on_it() {
     let rules = common::rules_without_reactions();
-    let wall = rules.elements.id_of("wall").expect("wall");
+    let structure = rules.elements.id_of("structure").expect("structure");
     let wet = rules.elements.id_of("wetSand").expect("wetSand");
     let mut world = scene::arena(200, 200, 5, &rules);
 
     // A solid floor, so the pile settles exactly as it would with no press involved.
-    paint::stroke(world.field_mut(), (3, 12), (5, 12), wall);
-    paint::stroke(world.field_mut(), (3, 8), (3, 11), wall);
-    paint::stroke(world.field_mut(), (5, 8), (5, 11), wall);
+    paint::stroke(world.field_mut(), (3, 12), (5, 12), structure);
+    paint::stroke(world.field_mut(), (3, 8), (3, 11), structure);
+    paint::stroke(world.field_mut(), (5, 8), (5, 11), structure);
     for tile_y in 8..12 {
         paint::stroke(world.field_mut(), (4, tile_y), (4, tile_y), wet);
     }

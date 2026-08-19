@@ -16,7 +16,7 @@ use sim_core::{scene, ElementTable, EMPTY};
 ///
 /// Takes the census rather than a world, so it serves both the flat and chunked ones.
 fn assert_present(elements: &ElementTable, census: &[(u8, usize)], seed: u64) {
-    for name in ["wall", "sand", "water"] {
+    for name in ["structure", "sand", "water"] {
         let id = elements.id_of(name).expect("element should be defined");
         let count = census
             .iter()
@@ -88,12 +88,12 @@ fn the_flat_world_conserves_its_void_as_well() {
 fn solids_never_move() {
     let rules = common::rules_without_reactions();
     let table = &rules.elements;
-    let wall = table.id_of("wall").expect("wall element");
+    let structure = table.id_of("structure").expect("structure element");
     let mut world = scene::sandbox(80, 60, 0x1234, &rules);
 
     let placed: Vec<(i32, i32)> = (0..60)
         .flat_map(|y| (0..80).map(move |x| (x, y)))
-        .filter(|&(x, y)| world.get(x, y) == wall)
+        .filter(|&(x, y)| world.get(x, y) == structure)
         .collect();
     assert!(!placed.is_empty());
 
@@ -101,7 +101,7 @@ fn solids_never_move() {
 
     let after: Vec<(i32, i32)> = (0..60)
         .flat_map(|y| (0..80).map(move |x| (x, y)))
-        .filter(|&(x, y)| world.get(x, y) == wall)
+        .filter(|&(x, y)| world.get(x, y) == structure)
         .collect();
     assert_eq!(placed, after, "a solid moved");
 }
