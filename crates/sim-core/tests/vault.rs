@@ -128,3 +128,44 @@ fn nuggets_fall_from_a_press_into_the_vault_below() {
         "every nugget should have fallen into the vault"
     );
 }
+
+/// The mechanism the vault design leans on: a denser powder sinks through a lighter
+/// one, the same rule that already lets sand sink through water, extended from fluids
+/// to powders (spec 5.1). Gold poured on top of a wetSand-filled pit should end up
+/// underneath it, not sitting on top where it fell.
+#[test]
+fn gold_sinks_below_a_lighter_powder_it_is_poured_onto() {
+    let rules = common::rules_without_reactions();
+    let wall = rules.elements.id_of("wall").expect("wall");
+    let wet = rules.elements.id_of("wetSand").expect("wetSand");
+    let gold = rules.elements.id_of("gold").expect("gold");
+    let mut world = scene::arena(400, 400, 1, &rules);
+
+    // A four-tile-deep, walled and floored pit.
+    paint::stroke(world.field_mut(), (3, 6), (3, 9), wall);
+    paint::stroke(world.field_mut(), (5, 6), (5, 9), wall);
+    paint::stroke(world.field_mut(), (3, 10), (5, 10), wall);
+
+    // Three tiles of wet sand at the bottom, gold poured on top of it last.
+    for tile_y in 7..10 {
+        fill(&mut world, 4, tile_y, wet);
+    }
+    fill(&mut world, 4, 6, gold);
+
+    world.step_many(3_000);
+
+    // The bottom tile should now be gold, not wet sand — it sank through everything
+    // lighter that used to be underneath it.
+    let mut gold_at_bottom = 0;
+    for row in 0..CELLS {
+        for col in 0..CELLS {
+            if world.get(4 * CELLS + col, 9 * CELLS + row) == gold {
+                gold_at_bottom += 1;
+            }
+        }
+    }
+    assert!(
+        gold_at_bottom > (CELLS * CELLS) / 2,
+        "gold should have settled to the bottom of the pit, found {gold_at_bottom} cells there"
+    );
+}

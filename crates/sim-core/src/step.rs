@@ -278,10 +278,12 @@ fn try_move<F: CellField + ?Sized>(
 
 /// Whether `mover` can push through `target`.
 ///
-/// Only fluids yield, and only to something denser — which is what makes sand sink
-/// through water without a single rule naming either of them.
+/// Fluids yield to anything denser, which is what makes sand sink through water without
+/// a single rule naming either of them. Powders yield the same way to a denser powder —
+/// gold settling to the bottom of a mixed pile is this rule, not a rule about gold.
 fn displaces(mover: &Element, target: &Element) -> bool {
-    matches!(target.state, State::Liquid | State::Gas) && mover.density > target.density
+    matches!(target.state, State::Liquid | State::Gas | State::Powder)
+        && mover.density > target.density
 }
 
 /// Reacts a cell with its right and lower neighbours, returning what it ended up as.

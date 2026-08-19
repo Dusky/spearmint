@@ -54,7 +54,8 @@
       "color_variance": 10,
       "flammability": 0.0,
       "hardness": 0.55,
-      "value": 1
+      "value": 1,
+      "residue": "residue"
     },
     {
       "note": "Currency, and matter like everything else. A press turns product into nuggets; a nugget only counts as money once a vault is holding it (spec 5.1). Denser than anything else here, because it is gold — it sinks through water to the bottom of a vault.",
@@ -70,6 +71,20 @@
       "flammability": 0.0,
       "hardness": 0.25,
       "currency": true
+    },
+    {
+      "note": "The byproduct of pressing. Nothing gives it value yet — spec 5.3 marks the roster and tech tree that would as open — so today it just accumulates. Denser than sand and wet sand, so it settles below them in a mixed pile rather than mixing back in; far short of gold, so it never buries a nugget.",
+      "id": 6,
+      "name": "residue",
+      "state": "powder",
+      "density": 2200,
+      "melting_point": 1500,
+      "boiling_point": 2800,
+      "thermal_conductivity": 0.2,
+      "color": "#6E6255",
+      "color_variance": 12,
+      "flammability": 0.0,
+      "hardness": 0.4
     }
   ],
   "reactions": [

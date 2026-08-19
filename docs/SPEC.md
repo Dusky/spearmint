@@ -382,6 +382,13 @@ Nothing checks the walls. A vault marked over open ground is a perfectly legal v
 happens to leak, exactly as a press with an open bottom is a legal press that happens to
 leak. Physics decides whether the gold stays, not a validity rule.
 
+**Density sorts a mixed pile on its own.** `displaces()` — the rule that already lets
+sand sink through water — now applies between any two powders, not just powder-through-
+fluid: a denser powder sinks through a lighter one, no element named in the rule itself.
+Gold at 19300 sinks below residue (2200) and below sand and wet sand (1600–1900), which
+is what stops a silted vault from staying an undifferentiated pile — panning is just this
+rule running over time. `crates/sim-core/tests/vault.rs` pins it directly.
+
 **Pressing and storing are separate jobs, and gravity connects them.** A **press** turns
 product into nuggets; it holds them only until they can fall somewhere, so a press on a
 solid floor fills with its own output and reports itself blocked. The build that works is
@@ -442,8 +449,19 @@ Worked example (illustrative, not final): sand + water → wet sand → processe
 The retroactive payoff scales with chain depth. A byproduct from step 3 re-entering at
 step 7 forces the player to rebuild a factory they considered finished.
 
-**[OPEN]** The actual element roster and tech tree. Needed before content work, not
-before framework work.
+**The mechanism is built; the roster is not.** A press converts, it does not destroy:
+every cell it takes either completes a nugget or becomes **residue**, a real element
+(`data/elements.json`) rather than `EMPTY`. Nothing gives residue value yet — that is
+exactly the "later tier" this section describes, and it is deliberately not decided here.
+What changed is that the worked example above is no longer illustrative; it is what the
+press does.
+
+This turned out to make pressing fully particle-conserving: eight physical cells in,
+eight out — one nugget and seven residue, every time. The only place matter still leaves
+the world outright is spending (§5.1), which is the one case §1.1 already licenses.
+
+**[OPEN]** The actual element roster and tech tree — what residue is *for*. Needed before
+content work, not before framework work.
 
 ### 5.4 Byproduct accumulation **[OPEN]**
 

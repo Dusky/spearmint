@@ -9,7 +9,7 @@ mod common;
 
 use sim_core::chunk::TILE_CELLS;
 use sim_core::field::CellField;
-use sim_core::{paint, scene, World};
+use sim_core::{paint, scene, World, EMPTY};
 
 const CELLS: i32 = TILE_CELLS as i32;
 
@@ -20,6 +20,18 @@ fn hopper(world: &mut World, tile_x: i32, tile_y: i32, wall: u8) {
     world.place(common::press(tile_x, tile_y));
     let field = world.field_mut();
     paint::stroke(field, (tile_x - 1, tile_y + 1), (tile_x + 1, tile_y + 1), wall);
+    paint::stroke(field, (tile_x - 1, tile_y), (tile_x - 1, tile_y), wall);
+    paint::stroke(field, (tile_x + 1, tile_y), (tile_x + 1, tile_y), wall);
+}
+
+/// A press with side walls only — no floor. Residue is real matter now (spec 5.3), so
+/// a press has to have somewhere to put it, the same way it needs a vault under it for
+/// gold. These tests run the press for thousands of ticks, so unlike `hopper` — which
+/// deliberately seals a fed charge in place to inspect it mid-press — they need an
+/// outlet or the body fills with its own byproduct and jams.
+fn chute(world: &mut World, tile_x: i32, tile_y: i32, wall: u8) {
+    world.place(common::press(tile_x, tile_y));
+    let field = world.field_mut();
     paint::stroke(field, (tile_x - 1, tile_y), (tile_x - 1, tile_y), wall);
     paint::stroke(field, (tile_x + 1, tile_y), (tile_x + 1, tile_y), wall);
 }
@@ -151,6 +163,46 @@ fn a_press_never_eats_currency() {
     assert_eq!(world.stored(), 0);
 }
 
+/// The other output. What does not complete a nugget is not destroyed — it is
+/// converted (spec 5.3), and residue is what wet sand converts into.
+#[test]
+fn a_press_leaves_residue_behind() {
+    let rules = common::rules_without_reactions();
+    let wall = rules.elements.id_of("wall").expect("wall");
+    let wet = rules.elements.id_of("wetSand").expect("wetSand");
+    let residue = rules.elements.id_of("residue").expect("residue");
+    let per = rules
+        .entities
+        .get(common::press_kind())
+        .expect("press")
+        .gold_per as i32;
+    let mut world = scene::arena(200, 200, 1, &rules);
+    hopper(&mut world, 4, 6, wall);
+
+    feed(&mut world, 4, 6, per, wet);
+    world.step_many(20);
+
+    // Every grain that did not complete the nugget became residue, not nothing.
+    assert_eq!(count_in_body(&world, 4, 6, residue), per - 1);
+}
+
+/// A press must not grind its own byproduct back through itself — residue has no
+/// value, so `is_pressable` already refuses it, but that is worth pinning directly
+/// rather than trusting it as a side effect of another rule.
+#[test]
+fn a_press_never_re_presses_its_own_residue() {
+    let rules = common::rules_without_reactions();
+    let wall = rules.elements.id_of("wall").expect("wall");
+    let residue = rules.elements.id_of("residue").expect("residue");
+    let mut world = scene::arena(200, 200, 1, &rules);
+    hopper(&mut world, 4, 6, wall);
+
+    feed(&mut world, 4, 6, CELLS, residue);
+    world.step_many(200);
+
+    assert_eq!(count_in_body(&world, 4, 6, residue), CELLS, "it ate its own byproduct");
+}
+
 /// Full of money and unable to work is a state worth showing, and the sprite already
 /// draws it.
 #[test]
@@ -187,17 +239,23 @@ fn a_press_full_of_gold_reads_as_blocked() {
     assert!(!press.is_blocked(definition, world.field(), &rules.elements));
 }
 
-/// The accounting property, and the reason a sink is allowed at all: every cell that
-/// leaves the world is either destroyed as valueless input or pressed into a nugget.
+/// The accounting property, and the reason a sink is allowed at all — but now a
+/// stronger one than "leaves are on the books". A press converts rather than destroys
+/// (spec 5.3): every physical cell it takes becomes either a nugget or residue, never
+/// nothing, so the total cell count is conserved across pressing. Only spending removes
+/// matter from the world outright, which is a separate action this test does not touch.
 #[test]
-fn everything_that_leaves_is_accounted_for() {
+fn pressing_conserves_every_cell() {
     let rules = common::rules_without_reactions();
     let table = &rules.elements;
     let wet = table.id_of("wetSand").expect("wetSand");
+    let gold = table.id_of("gold").expect("gold");
+    let residue = table.id_of("residue").expect("residue");
     let wall = table.id_of("wall").expect("wall");
     let mut world = scene::arena(200, 200, 5, &rules);
-    hopper(&mut world, 4, 12, wall);
-    // A chute, so the product has nowhere to heap except into the machine.
+    chute(&mut world, 4, 12, wall);
+    // Walls the rest of the way up, so the product has nowhere to heap except into
+    // the machine.
     paint::stroke(world.field_mut(), (3, 8), (3, 11), wall);
     paint::stroke(world.field_mut(), (5, 8), (5, 11), wall);
 
@@ -213,15 +271,15 @@ fn everything_that_leaves_is_accounted_for() {
     let minted = world.collected() as usize;
     assert!(minted > 0, "nothing reached the press");
     assert_eq!(world.count_of(wet), 0, "the chute did not empty");
+    assert_eq!(before, after, "pressing destroyed matter instead of converting it");
     assert_eq!(
-        before - after,
-        product - minted,
-        "cells left the world without being eaten or minted"
+        world.count_of(gold) + world.count_of(residue),
+        product,
+        "every pressed grain should be a nugget or residue"
     );
 
     // The nuggets are all still there — in the press, which is not storage. Getting
     // them somewhere that counts is the vault's job, and gravity's.
-    let gold = table.id_of("gold").expect("gold");
     assert_eq!(world.count_of(gold), minted, "a nugget went missing");
     assert_eq!(world.stored(), 0, "a press is not a vault");
 }
@@ -237,6 +295,7 @@ fn a_press_wakes_the_pile_resting_on_it() {
     let wet = rules.elements.id_of("wetSand").expect("wetSand");
     let mut world = scene::arena(200, 200, 5, &rules);
 
+    // A solid floor, so the pile settles exactly as it would with no press involved.
     paint::stroke(world.field_mut(), (3, 12), (5, 12), wall);
     paint::stroke(world.field_mut(), (3, 8), (3, 11), wall);
     paint::stroke(world.field_mut(), (5, 8), (5, 11), wall);
@@ -254,6 +313,9 @@ fn a_press_wakes_the_pile_resting_on_it() {
         "the pile should be at rest before the press arrives"
     );
 
+    // Only now dig the press's outlet — residue is real matter (spec 5.3) and needs
+    // somewhere to go, the same way gold needs a vault under it.
+    paint::stroke(world.field_mut(), (4, 12), (4, 12), EMPTY);
     world.place(common::press(4, 11));
     world.step_many(3_000);
 

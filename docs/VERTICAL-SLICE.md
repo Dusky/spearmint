@@ -75,6 +75,12 @@ capacity. Two things the build settled that the scope did not anticipate:
   good setting between them: fast enough to keep up meant eating the sand and water
   before they could react, slow enough to leave them alone meant raw material pouring
   past into the vault.
+- **A press converts, it does not destroy — and a mixed pile sorts itself.** Confirming
+  Sandustry as the design reference (not just a comparable) paid off twice: what a press
+  does not turn into a nugget becomes a real byproduct instead of vanishing, and a denser
+  powder now sinks through a lighter one, the same physics that already lets sand sink
+  through water. Between them a vault stops silting into an undifferentiated pile — gold
+  settles to the bottom under whatever the press left behind.
 
 What remains is the part no amount of building substitutes for: sitting down with it and
 finding out whether tuning a washer is satisfying or fiddly.

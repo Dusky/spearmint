@@ -70,6 +70,14 @@ pub struct Element {
     /// Whether this *is* money. A press turns points into currency and never takes it
     /// back, and currency inside a vault is the player's balance (spec 5.1).
     pub currency: bool,
+    /// What a press leaves behind when it takes a cell of this but does not complete a
+    /// nugget. `EMPTY` means it is simply destroyed, which is the default for anything
+    /// that has not declared a byproduct.
+    ///
+    /// This is what makes pressing conversion rather than destruction (spec 5.3): eight
+    /// grains in, eight cells out — one nugget and seven residue — and only spending
+    /// ever removes matter from the world outright.
+    pub residue: ElementId,
 }
 
 /// Elements indexed by id. A `Vec` rather than a map: spec 3.1 forbids hash-map
@@ -103,6 +111,24 @@ impl ElementTable {
         if table.slots.iter().all(Option::is_none) {
             return Err(DataError::Empty);
         }
+
+        // A second pass to resolve `residue` by name, the same shape reactions.rs uses
+        // for reactants and products: every id has to exist before any name can be
+        // looked up, so this cannot be done inline with the loop above.
+        for entry in elements {
+            let Some(name) = entry.get("residue").and_then(Json::as_str) else {
+                continue;
+            };
+            let id = field_id(entry)?;
+            let residue_id = table
+                .id_of(name)
+                .ok_or(DataError::BadField { field: "residue" })?;
+            table.slots[usize::from(id)]
+                .as_mut()
+                .expect("just inserted above")
+                .residue = residue_id;
+        }
+
         Ok(table)
     }
 
@@ -128,6 +154,14 @@ impl ElementTable {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+}
+
+/// The id an entry declares, for the second pass that resolves names against ids.
+fn field_id(entry: &Json<'_>) -> Result<ElementId, DataError> {
+    entry
+        .get("id")
+        .and_then(Json::as_u8)
+        .ok_or(DataError::MissingField { field: "id" })
 }
 
 fn parse_element(entry: &Json<'_>) -> Result<Element, DataError> {
@@ -187,6 +221,10 @@ fn parse_element(entry: &Json<'_>) -> Result<Element, DataError> {
             .map(|flag| flag.as_bool().ok_or(bad("currency")))
             .transpose()?
             .unwrap_or(false),
+        // Resolved against the other elements' names in a second pass, once every id
+        // exists — see `ElementTable::from_json`. Left as EMPTY here regardless of what
+        // the entry says, so this function never depends on parse order (spec 3.2).
+        residue: EMPTY,
     })
 }
 

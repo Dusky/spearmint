@@ -429,12 +429,10 @@ fn press<F: CellField + ?Sized>(
             if !is_pressable(cell, elements) {
                 continue;
             }
+            // `is_pressable` already confirmed this resolves, so the id is real.
+            let element = cell.and_then(|id| elements.get(id)).expect("pressable cell");
 
-            let value = cell
-                .and_then(|id| elements.get(id))
-                .map_or(0, |element| element.value);
-
-            entity.bank += value;
+            entity.bank += element.value;
             taken += 1;
 
             if entity.bank >= definition.gold_per {
@@ -442,7 +440,10 @@ fn press<F: CellField + ?Sized>(
                 field.set(x, y, currency.id);
                 minted += 1;
             } else {
-                field.set(x, y, EMPTY);
+                // Converted, not destroyed (spec 5.3): what does not complete a nugget
+                // becomes residue rather than vanishing. Only spending ever removes
+                // matter from the world outright.
+                field.set(x, y, element.residue);
             }
             // Neither writing nor clearing a cell is a move, so nothing else reports it
             // — and a pile that stops being told it is settling stops feeding the

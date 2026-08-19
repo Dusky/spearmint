@@ -10,8 +10,9 @@ fn the_shipped_data_file_loads() {
     let table = common::table();
     assert_eq!(
         table.len(),
-        5,
-        "wall, sand, water, the wet sand they react into, and the gold it presses into"
+        6,
+        "wall, sand, water, the wet sand they react into, the gold it presses into, \
+         and the residue left over"
     );
 
     // Currency is matter like everything else, and exactly one element is money.
@@ -47,6 +48,26 @@ fn sand_is_denser_than_water() {
     let sand = table.get(table.id_of("sand").unwrap()).unwrap();
     let water = table.get(table.id_of("water").unwrap()).unwrap();
     assert!(sand.density > water.density);
+}
+
+/// A vault sorts itself by density (spec 5.1): a nugget has to out-weigh what a press
+/// leaves behind, or gold never separates from the residue sitting on top of it.
+#[test]
+fn gold_out_masses_the_residue_a_press_leaves_behind() {
+    let table = common::table();
+    let density = |name: &str| table.get(table.id_of(name).unwrap()).unwrap().density;
+    assert!(density("gold") > density("residue"));
+    assert!(density("residue") > density("wetSand"));
+}
+
+/// Pressing has to name a real element, or a machine could be configured to convert
+/// matter into something the data file never defined.
+#[test]
+fn wet_sand_presses_into_a_declared_residue() {
+    let table = common::table();
+    let wet_sand = table.get(table.id_of("wetSand").unwrap()).unwrap();
+    let residue = table.get(wet_sand.residue).expect("wetSand's residue should resolve");
+    assert_eq!(residue.name, "residue");
 }
 
 /// Ids are declared in the file, not derived from its order, so the table must be
