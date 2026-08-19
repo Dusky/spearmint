@@ -485,6 +485,21 @@ code with different data rows, exactly as burn and compact are the same shape wi
 different verbs. Both new elements ship inert, same as residue did: nothing burns fuel
 yet.
 
+**A machine also declares where it reaches.** `Refine` gained a `reach` field rather
+than a second behaviour, the same way a filter turned out to be a belt with one more
+field: a burner and a piston compactor do the identical thing to whatever they find and
+differ only in where they look. `body` is the machine's own footprint — material that
+has fallen in, with gravity as the conveyor. `below` is the tile directly beneath it.
+
+The compactor is `below`, and two tiles tall: a gantry over a ram that comes down on
+whatever is heaped underneath. That makes it the first machine you feed by piling
+material *under* it rather than dropping material *into* it, which is a different thing
+to build around — and the first real animation, since the stroke is what the reach
+looks like. Sprite rules gained a `when.row` matcher so a machine taller than one tile
+can have a head and a body instead of one tile stamped twice; the ram's frames drive
+the stroke, and the gantry it hangs from deliberately holds still, or the whole machine
+would read as sliding.
+
 **What fuel is for: a generic heater, not a boiler.** A machine that burns fuel next to
 water to make steam was the first idea and the wrong scope — `data/elements.json`
 already carries `melting_point`, `boiling_point` and `thermal_conductivity` on every

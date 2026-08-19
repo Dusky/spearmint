@@ -37,7 +37,7 @@ pub mod world;
 
 pub use chunk::ChunkMap;
 pub use elements::{DataError, Element, ElementId, ElementTable, State, EMPTY};
-pub use entities::{Behaviour, Entity, EntityKind, EntityTable, EntityType};
+pub use entities::{Behaviour, Entity, EntityKind, EntityTable, EntityType, Reach};
 pub use field::{Bounds, CellField};
 pub use fixed::Fixed;
 pub use grid::Grid;

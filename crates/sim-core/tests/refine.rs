@@ -109,25 +109,35 @@ fn a_machine_only_acts_on_its_interval() {
     assert!(rate < CELLS, "a single beat should not be able to finish the whole row");
 }
 
+/// The compactor is a piston: it crushes what is piled *under* it, not what falls into
+/// it. Two tiles tall, so the tile it works on is the one below both of them.
 #[test]
-fn a_compactor_turns_burnt_residue_into_fuel() {
+fn a_compactor_crushes_what_is_piled_under_it() {
     let rules = common::rules_without_reactions();
     let structure = rules.elements.id_of("structure").expect("structure");
     let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
     let fuel = rules.elements.id_of("fuel").expect("fuel");
-    let rate = rules
-        .entities
-        .get(common::compactor_kind())
-        .expect("compactor")
-        .rate as i32;
-    let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, structure, common::compactor(4, 6));
+    let definition = rules.entities.get(common::compactor_kind()).expect("compactor");
+    let rate = definition.rate as i32;
+    assert_eq!(definition.reach, sim_core::Reach::Below, "this test is about the reach");
 
-    feed(&mut world, 4, 6, CELLS, burnt);
+    // The machine occupies tiles 6 and 7; the anvil it presses against is tile 9, so
+    // material heaped on it sits in tile 8 — directly under the machine.
+    let mut world = scene::arena(200, 200, 1, &rules);
+    let anvil = 6 + definition.height_tiles as i32 + 1;
+    world.place(common::compactor(4, 6));
+    paint::stroke(world.field_mut(), (3, anvil), (5, anvil), structure);
+    paint::stroke(world.field_mut(), (3, anvil - 1), (3, anvil - 1), structure);
+    paint::stroke(world.field_mut(), (5, anvil - 1), (5, anvil - 1), structure);
+
+    let under = anvil - 1;
+    feed(&mut world, 4, under, CELLS, burnt);
     world.step();
 
-    assert_eq!(count_in_body(&world, 4, 6, fuel), rate);
-    assert_eq!(count_in_body(&world, 4, 6, burnt), CELLS - rate);
+    assert_eq!(count_in_body(&world, 4, under, fuel), rate, "it crushes what is under it");
+    assert_eq!(count_in_body(&world, 4, under, burnt), CELLS - rate);
+    // And it leaves its own body alone, which is where a burner would have looked.
+    assert_eq!(count_in_body(&world, 4, 6, fuel), 0, "the ram works below, not inside");
 }
 
 /// A burner is not a demolition tool, and not a compactor: it works on residue and
@@ -187,7 +197,6 @@ fn the_chain_conserves_every_cell_from_residue_to_fuel() {
 
     let mut world = scene::arena(200, 200, 1, &rules);
     hopper(&mut world, 4, 6, structure, common::burner(4, 6));
-    hopper(&mut world, 4, 9, structure, common::compactor(4, 9));
 
     feed(&mut world, 4, 6, CELLS, residue);
     world.step_many(20);
@@ -195,19 +204,28 @@ fn the_chain_conserves_every_cell_from_residue_to_fuel() {
     let burnt_count = count_in_body(&world, 4, 6, burnt);
     assert_eq!(burnt_count, CELLS, "every grain became burnt residue");
 
-    // Move what the burner made into the compactor directly — this test is about the
-    // chain's conservation, not about routing burnt residue between two machines by
-    // hand, which is a drawing exercise `vault.rs` already covers for one machine.
+    // Stage two, in its own pocket. The compactor is a piston that works on the tile
+    // beneath it, so what the burner made is moved under a compactor rather than into
+    // one — this test is about the chain conserving cells, not about routing material
+    // between two machines by hand.
+    let definition = rules.entities.get(common::compactor_kind()).expect("compactor");
+    let anvil = 12 + definition.height_tiles as i32 + 1;
+    world.place(common::compactor(4, 12));
+    paint::stroke(world.field_mut(), (3, anvil), (5, anvil), structure);
+    paint::stroke(world.field_mut(), (3, anvil - 1), (3, anvil - 1), structure);
+    paint::stroke(world.field_mut(), (5, anvil - 1), (5, anvil - 1), structure);
+
+    let under = anvil - 1;
     for offset in 0..CELLS {
         let id = world.get(4 * CELLS + offset, 6 * CELLS + (CELLS - 1));
-        world.field_mut().set(4 * CELLS + offset, 9 * CELLS + (CELLS - 1), id);
         world.field_mut().set(4 * CELLS + offset, 6 * CELLS + (CELLS - 1), 0);
+        world.field_mut().set(4 * CELLS + offset, (under + 1) * CELLS - 1, id);
     }
     world.step_many(20);
 
-    assert_eq!(count_in_body(&world, 4, 9, burnt), 0, "the compactor should have kept up");
+    assert_eq!(count_in_body(&world, 4, under, burnt), 0, "the compactor should have kept up");
     assert_eq!(
-        count_in_body(&world, 4, 9, fuel),
+        count_in_body(&world, 4, under, fuel),
         burnt_count,
         "every cell of burnt residue should have become exactly one cell of fuel"
     );

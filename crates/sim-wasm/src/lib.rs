@@ -191,13 +191,6 @@ fn draw_entities(state: &mut State, origin_x: i32, origin_y: i32, width: u32, he
         let element_state = element.map(|element| element.state);
         let element_colour = element.map_or([0x98, 0x96, 0x8F], |element| element.color);
 
-        let Some(pixels) = state
-            .sprites
-            .pick(entity.kind, &element_name, element_state, status, frame)
-            .map(<[u8]>::to_vec)
-        else {
-            continue;
-        };
 
         // A belt's own footprint is real solid matter (`World::place`), not open space
         // waiting to be buried — "matter wins" would otherwise hide its sprite under
@@ -209,9 +202,24 @@ fn draw_entities(state: &mut State, origin_x: i32, origin_y: i32, width: u32, he
             None
         };
 
-        // A footprint wider than one tile repeats the sprite across it. Bespoke art for
-        // large machines can come when something actually needs it.
+        // Art is picked per *row* of the footprint, so a machine taller than one tile
+        // can have a head and a body rather than being one tile stamped twice. Columns
+        // still repeat: nothing yet is wider than it is tall.
         for tile_y in 0..entity.height_tiles as i32 {
+            let Some(pixels) = state
+                .sprites
+                .pick(
+                    entity.kind,
+                    &element_name,
+                    element_state,
+                    status,
+                    frame,
+                    tile_y as u32,
+                )
+                .map(<[u8]>::to_vec)
+            else {
+                continue;
+            };
             for tile_x in 0..entity.width_tiles as i32 {
                 blit(
                     state,

@@ -70,6 +70,10 @@ struct Rule {
     element: Option<String>,
     element_state: Option<State>,
     status: Option<Status>,
+    /// Which row of a multi-tile footprint this is art for, counting from the top.
+    /// `None` matches every row, which is what a one-tile machine wants and what every
+    /// sprite meant before anything was taller than a tile.
+    row: Option<u32>,
     /// One or more pixel maps, each row-major, `SPRITE_SIZE` rows of `SPRITE_SIZE`
     /// bytes. More than one is animation: which frame is drawn is the caller's
     /// business (`SpriteTable::pick` takes a frame index), not this rule's — a rule
@@ -78,12 +82,19 @@ struct Rule {
 }
 
 impl Rule {
-    fn matches(&self, element: &str, element_state: Option<State>, status: Status) -> bool {
+    fn matches(
+        &self,
+        element: &str,
+        element_state: Option<State>,
+        status: Status,
+        row: u32,
+    ) -> bool {
         self.element.as_deref().is_none_or(|want| want == element)
             && self
                 .element_state
                 .is_none_or(|want| element_state == Some(want))
             && self.status.is_none_or(|want| want == status)
+            && self.row.is_none_or(|want| want == row)
     }
 }
 
@@ -126,6 +137,7 @@ impl SpriteTable {
     /// The pixel map to draw, or `None` if nothing matches. `frame` is a monotonic
     /// counter, not an index — wrapped here so the caller never needs to know how many
     /// frames a rule has.
+    #[allow(clippy::too_many_arguments)]
     pub fn pick(
         &self,
         kind: EntityKind,
@@ -133,11 +145,12 @@ impl SpriteTable {
         element_state: Option<State>,
         status: Status,
         frame: usize,
+        row: u32,
     ) -> Option<&[u8]> {
         self.sets
             .get(usize::from(kind))?
             .iter()
-            .find(|rule| rule.matches(element, element_state, status))
+            .find(|rule| rule.matches(element, element_state, status, row))
             .map(|rule| rule.frames[frame % rule.frames.len()].as_slice())
     }
 }
@@ -207,10 +220,17 @@ fn parse_rule(sprite: &Json<'_>) -> Result<Rule, DataError> {
         None => None,
     };
 
+    let row = match when.and_then(|when| when.get("row")).map(Json::as_i32) {
+        Some(Some(value)) if value >= 0 => Some(value as u32),
+        Some(_) => return Err(bad("row")),
+        None => None,
+    };
+
     Ok(Rule {
         element: text("element").map(str::to_owned),
         element_state,
         status,
+        row,
         frames,
     })
 }
@@ -244,16 +264,47 @@ mod tests {
         let table = SpriteTable::from_json(ENTITIES_JSON).expect("sprites");
         let belt_kind = entities.id_of("belt").expect("belt kind");
 
-        let frame0 = table.pick(belt_kind, "", None, Status::Running, 0);
-        let frame1 = table.pick(belt_kind, "", None, Status::Running, 1);
+        let frame0 = table.pick(belt_kind, "", None, Status::Running, 0, 0);
+        let frame1 = table.pick(belt_kind, "", None, Status::Running, 1, 0);
         assert!(frame0.is_some() && frame1.is_some(), "the running sprite should resolve");
         assert_ne!(frame0, frame1, "the two animation frames should differ");
         // The frame index wraps rather than panicking on an out-of-range counter.
-        assert_eq!(table.pick(belt_kind, "", None, Status::Running, 2), frame0);
+        assert_eq!(table.pick(belt_kind, "", None, Status::Running, 2, 0), frame0);
 
         assert!(
-            table.pick(belt_kind, "", None, Status::Blocked, 0).is_some(),
+            table.pick(belt_kind, "", None, Status::Blocked, 0, 0).is_some(),
             "the single-frame blocked sprite should still resolve"
+        );
+    }
+
+    /// A machine taller than one tile draws different art per row — otherwise it is one
+    /// tile stamped twice, which is no good for a piston that needs a gantry and a ram.
+    #[test]
+    fn the_shipped_compactor_draws_a_different_sprite_per_row() {
+        let elements = ElementTable::from_json(ELEMENTS_JSON).expect("elements");
+        let entities = EntityTable::from_json(ENTITIES_JSON, &elements).expect("entities");
+        let table = SpriteTable::from_json(ENTITIES_JSON).expect("sprites");
+
+        let kind = entities.id_of("compactor").expect("compactor kind");
+        let definition = entities.get(kind).expect("compactor");
+        assert!(definition.height_tiles > 1, "this test needs a multi-tile machine");
+
+        let gantry = table.pick(kind, "", None, Status::Running, 0, 0);
+        let ram = table.pick(kind, "", None, Status::Running, 0, 1);
+        assert!(gantry.is_some() && ram.is_some(), "both rows should resolve");
+        assert_ne!(gantry, ram, "the two rows should not be the same tile twice");
+
+        // The ram strokes; the gantry it hangs from does not, or the whole machine
+        // would read as sliding.
+        assert_ne!(
+            ram,
+            table.pick(kind, "", None, Status::Running, 1, 1),
+            "the ram should animate"
+        );
+        assert_eq!(
+            gantry,
+            table.pick(kind, "", None, Status::Running, 1, 0),
+            "the gantry should hold still"
         );
     }
 }
