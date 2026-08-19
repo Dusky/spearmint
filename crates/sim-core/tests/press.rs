@@ -45,6 +45,21 @@ fn feed(world: &mut World, tile_x: i32, tile_y: i32, count: i32, id: u8) {
     }
 }
 
+/// How many ticks it takes a press to get through what it used to in `ticks`.
+///
+/// The "run it until the machine has worked through everything" tests care about the
+/// end state, not the clock, so they scale with the press's pacing rather than
+/// hard-coding a tick count that silently stops being enough when pacing is tuned.
+fn pressing_ticks(ticks: u64) -> u64 {
+    let rules = common::rules();
+    let interval = rules
+        .entities
+        .get(common::press_kind())
+        .expect("press")
+        .interval as u64;
+    ticks * interval
+}
+
 fn count_in_body(world: &World, tile_x: i32, tile_y: i32, id: u8) -> i32 {
     let mut found = 0;
     for y in tile_y * CELLS..(tile_y + 1) * CELLS {
@@ -265,17 +280,25 @@ fn pressing_conserves_every_cell() {
     let product = world.count_of(wet);
     let before: usize = table.iter().map(|element| world.count_of(element.id)).sum();
 
-    world.step_many(3_000);
+    world.step_many(pressing_ticks(3_000));
 
     let after: usize = table.iter().map(|element| world.count_of(element.id)).sum();
     let minted = world.collected() as usize;
     assert!(minted > 0, "nothing reached the press");
-    assert_eq!(world.count_of(wet), 0, "the chute did not empty");
     assert_eq!(before, after, "pressing destroyed matter instead of converting it");
+
+    // Every grain is either still wet sand or was converted into exactly one nugget or
+    // one cell of residue — the accounting spec 1.1 demands.
+    //
+    // Note what is *not* asserted: that the chute emptied. A paced press is a real
+    // throughput limit rather than a race, so product arriving faster than it can be
+    // pressed carries on past and lands below — deliberate, and documented on `press`
+    // itself. Requiring every grain to be pressed would be requiring the machine to be
+    // infinitely fast, which is the opposite of what pacing is for.
     assert_eq!(
-        world.count_of(gold) + world.count_of(residue),
+        world.count_of(gold) + world.count_of(residue) + world.count_of(wet),
         product,
-        "every pressed grain should be a nugget or residue"
+        "a grain went somewhere that is neither nugget, residue, nor still-unpressed"
     );
 
     // The nuggets are all still there — in the press, which is not storage. Getting
@@ -317,11 +340,21 @@ fn a_press_wakes_the_pile_resting_on_it() {
     // somewhere to go, the same way gold needs a vault under it.
     paint::stroke(world.field_mut(), (4, 12), (4, 12), EMPTY);
     world.place(common::press(4, 11));
-    world.step_many(3_000);
+    world.step_many(pressing_ticks(3_000));
 
+    // The column has to have come *down*, which is the thing waking is for. Counting
+    // pressed grains would not show it: a paced press lets some product fall straight
+    // through (see `pressing_conserves_every_cell`), so "not all of it was pressed" is
+    // normal and would mask the real failure. A pile that never collapsed leaves wet
+    // sand stranded up where it started, and that is what this looks for.
+    let stranded = (8 * CELLS..12 * CELLS)
+        .flat_map(|y| (3 * CELLS..6 * CELLS).map(move |x| (x, y)))
+        .filter(|&(x, y)| world.get(x, y) == wet)
+        .count();
     assert_eq!(
-        world.count_of(wet),
-        0,
-        "the press hollowed out the pile and then starved under it"
+        stranded, 0,
+        "{stranded} cells never came down: the press hollowed out the pile resting \
+         inside it and then starved under a column that never collapsed"
     );
+    assert!(world.collected() > 0, "the press never got anything at all");
 }

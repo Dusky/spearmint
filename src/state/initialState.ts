@@ -146,7 +146,12 @@ export function initialState(): GameState {
     readout: null,
     notices: [],
     tick: 1284905,
-    tickRate: 60,
+    /* Halved from 60 after playtesting: the whole world read as too fast to watch, let
+     * alone build in. The fixed timestep is the host's (spec 3.1), so this is a pure
+     * presentation decision the simulation core knows nothing about — it cannot affect
+     * determinism. Per-machine pacing is separate, and lives in `data/entities.json`
+     * as each entity's `interval`. */
+    tickRate: 30,
     seed: 0x4f2a11,
   };
 }

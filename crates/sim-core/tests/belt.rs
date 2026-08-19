@@ -14,11 +14,17 @@ use sim_core::scene;
 
 const CELLS: i32 = TILE_CELLS as i32;
 
-/// A belt shifts a single riding particle exactly one cell per tick, and never more.
+/// A belt shifts a single riding particle exactly one cell per beat, and never more —
+/// including on the ticks between beats, which must move nothing at all.
 #[test]
-fn a_belt_shifts_cargo_one_cell_a_tick() {
+fn a_belt_shifts_cargo_one_cell_a_beat() {
     let rules = common::rules();
     let sand = rules.elements.id_of("sand").expect("sand");
+    let interval = rules
+        .entities
+        .get(common::belt_kind())
+        .expect("belt")
+        .interval as u64;
     let mut world = scene::arena(200, 200, 1, &rules);
 
     let entity = common::belt(2, 1, 1);
@@ -28,6 +34,7 @@ fn a_belt_shifts_cargo_one_cell_a_tick() {
     let start_x = entity.left();
     world.field_mut().set(start_x, carry_y, sand);
 
+    // Tick 0 is on the beat.
     world.step();
     assert_eq!(
         world.get(start_x, carry_y),
@@ -45,12 +52,21 @@ fn a_belt_shifts_cargo_one_cell_a_tick() {
         "and no further than that"
     );
 
+    // The ticks up to the next beat must not move it at all.
+    world.step_many(interval - 1);
+    assert_eq!(
+        world.get(start_x + 1, carry_y),
+        sand,
+        "cargo kept moving between beats"
+    );
+
+    // And the next beat advances it exactly one more.
     world.step();
     assert_eq!(world.get(start_x + 1, carry_y), sim_core::EMPTY);
     assert_eq!(
         world.get(start_x + 2, carry_y),
         sand,
-        "a second tick advances it one more cell"
+        "the next beat advances it one more cell"
     );
 }
 

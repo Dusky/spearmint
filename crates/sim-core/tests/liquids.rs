@@ -15,6 +15,21 @@ fn tank(width: u32, height: u32, spawn_tile_x: i32) -> sim_core::World {
     world
 }
 
+/// How many ticks it takes an emitter to deliver what it used to deliver in `ticks`.
+///
+/// These tests are about how water *behaves* once it is in the tank, not about how
+/// fast it arrives, so they scale with the emitter's pacing rather than hard-coding a
+/// tick count that silently stops filling the tank the next time pacing is tuned.
+fn pouring_ticks(ticks: u64) -> u64 {
+    let rules = common::rules_without_reactions();
+    let interval = rules
+        .entities
+        .get(common::emitter_kind())
+        .expect("emitter")
+        .interval as u64;
+    ticks * interval
+}
+
 /// The regression this file exists for.
 ///
 /// Submerged liquid used to keep flowing sideways, and every lateral move left a void
@@ -26,7 +41,7 @@ fn a_body_of_liquid_packs_solid() {
     let rules = common::rules_without_reactions();
     let water = rules.elements.id_of("water").expect("water");
     let mut world = tank(60, 60, 3);
-    world.step_many(10_000);
+    world.step_many(pouring_ticks(10_000));
 
     let mut filled = 0;
     let mut holes = 0;
@@ -55,7 +70,7 @@ fn liquid_still_finds_its_level() {
     let rules = common::rules_without_reactions();
     let water = rules.elements.id_of("water").expect("water");
     let mut world = tank(80, 40, 0);
-    world.step_many(6_000);
+    world.step_many(pouring_ticks(6_000));
 
     let depth = |x: i32| (1..39).filter(|&y| world.get(x, y) == water).count();
 

@@ -11,6 +11,8 @@
 
   "beltNote": "Belt and filter are both behaviour `belt` (spec 4.1-4.3): the same machine, distinguished only by whether an instance names an element to let through, exactly like one `emitter` tool is tuned per instance by which element it emits. `structure` names the indestructible element `World.place` fills the tile's own footprint with, so gravity holds cargo up on it the same way it holds anything up on solid ground.",
 
+  "paceNote": "`rate` is how much a machine does per action; `interval` is how many ticks it waits between actions (1 = every tick, the default). Both are here rather than in code because pacing is tuning, and tuning wants to be a data edit. Playtesting found everything roughly six times too fast: the host also halved the tick rate, and these intervals take the rest out. A belt at interval 3 moves about a tile a second, which is the reference point everything else was set against.",
+
   "heaterNote": "Burns `input` (fuel) to hold its own footprint at `heatOutput` Kelvin while fed (spec 5.3) — no banking, the same shape a burner or compactor has none. The generic conduction pass in crates/sim-core/src/heat.rs carries that into whatever touches it, and cools the footprint back down on its own once fuel runs out; nothing here needs a cooldown.",
 
   "entities": [
@@ -22,6 +24,7 @@
       "widthTiles": 1,
       "heightTiles": 1,
       "rate": 2,
+      "interval": 6,
       "mouthOffset": 3,
       "mouthWidth": 3,
       "sprites": [
@@ -119,6 +122,7 @@
       "widthTiles": 1,
       "heightTiles": 1,
       "rate": 9,
+      "interval": 3,
       "goldPer": 8,
       "sprites": [
         {
@@ -171,6 +175,7 @@
       "widthTiles": 1,
       "heightTiles": 1,
       "rate": 6,
+      "interval": 4,
       "sprites": [
         {
           "note": "Nothing to burn. Idle rather than broken — usually a routing mistake worth seeing, same as an unfed press.",
@@ -213,6 +218,7 @@
       "widthTiles": 1,
       "heightTiles": 1,
       "rate": 6,
+      "interval": 4,
       "sprites": [
         {
           "note": "Nothing to compact.",
@@ -253,6 +259,7 @@
       "tool": "belt",
       "widthTiles": 1,
       "heightTiles": 1,
+      "interval": 3,
       "structure": "beltStructure",
       "sprites": [
         {
@@ -307,6 +314,7 @@
       "tool": "filter",
       "widthTiles": 1,
       "heightTiles": 1,
+      "interval": 3,
       "structure": "beltStructure",
       "sprites": [
         {
@@ -363,6 +371,7 @@
       "widthTiles": 1,
       "heightTiles": 1,
       "rate": 4,
+      "interval": 6,
       "heatOutput": 2200,
       "sprites": [
         {

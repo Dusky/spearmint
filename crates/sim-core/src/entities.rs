@@ -285,9 +285,18 @@ pub struct EntityType {
     pub tool: String,
     pub width_tiles: u32,
     pub height_tiles: u32,
-    /// Cells emitted per tick, for emitters; cells pressed per tick, for presses; cells
-    /// of fuel consumed per tick, for a heater.
+    /// Cells emitted per action, for emitters; cells pressed per action, for presses;
+    /// cells of fuel consumed per action, for a heater.
     pub rate: u32,
+    /// Ticks between actions. `1` is every tick, which is what everything did before
+    /// pacing existed and remains the default.
+    ///
+    /// One field rather than a bespoke throttle per behaviour: a belt shoving cargo, an
+    /// emitter emitting and a press pressing are all "the machine acts", and they all
+    /// wanted slowing down at once. `tick % interval` is a pure function of the tick, so
+    /// this cannot reach determinism (spec 3.1) — every machine of a kind acts on the
+    /// same beat, which is also the predictable thing for a factory.
+    pub interval: u32,
     /// Points a press must take in to make one cell of currency.
     pub gold_per: u32,
     /// The one element a `Refine` machine acts on, or a `Heater`'s fuel. `EMPTY` for
@@ -406,6 +415,13 @@ fn parse_entity(entry: &Json<'_>, elements: &ElementTable) -> Result<EntityType,
             .ok_or_else(|| bad("heightTiles"))? as u32,
         // Optional: only emitters use it.
         rate: entry.get("rate").and_then(Json::as_i32).unwrap_or(1).max(0) as u32,
+        // Optional: absent means every tick, which is what everything did before
+        // pacing existed. Floored at 1 — a zero interval would divide by zero.
+        interval: entry
+            .get("interval")
+            .and_then(Json::as_i32)
+            .unwrap_or(1)
+            .max(1) as u32,
         // Optional: only presses use it, and a zero would mint infinitely.
         gold_per: entry
             .get("goldPer")
@@ -487,13 +503,16 @@ pub fn tick<F: CellField + ?Sized>(
     // Belts run as their own pass, in a deliberate order, rather than inline in the
     // loop below with everything else — see `convey`'s doc for why order matters here
     // and nowhere else in this function.
-    convey(field, entities, types);
+    convey(field, entities, types, tick);
 
     let mut minted = 0;
     for (index, entity) in entities.iter_mut().enumerate() {
         let Some(definition) = types.get(entity.kind) else {
             continue;
         };
+        if !acts_this_tick(definition, tick) {
+            continue;
+        }
         match definition.behaviour {
             Behaviour::Emit => emit(field, entity, definition, elements, seed, tick, index),
             Behaviour::Press => minted += press(field, entity, definition, elements),
@@ -507,6 +526,14 @@ pub fn tick<F: CellField + ?Sized>(
     minted
 }
 
+/// Whether a machine of this kind acts on this tick, or is between actions.
+///
+/// Pure arithmetic on the tick, never on accumulated state, so it cannot drift and
+/// cannot depend on how a world was reached — a replay lands on the same beat.
+fn acts_this_tick(definition: &EntityType, tick: u64) -> bool {
+    definition.interval <= 1 || tick.is_multiple_of(definition.interval as u64)
+}
+
 /// Runs every belt and filter for this tick, downstream tile first.
 ///
 /// Every other behaviour here works on its own footprint alone, so processing order
@@ -515,15 +542,19 @@ pub fn tick<F: CellField + ?Sized>(
 /// running it *after* would shove the same cargo a second time. Ordering every belt by
 /// how far downstream it is — furthest first — means a tile always resolves before the
 /// neighbour that might hand cargo to it, so nothing this tick moves more than once.
-fn convey<F: CellField + ?Sized>(field: &mut F, entities: &[Entity], types: &EntityTable) {
+fn convey<F: CellField + ?Sized>(
+    field: &mut F,
+    entities: &[Entity],
+    types: &EntityTable,
+    tick: u64,
+) {
     let mut belts: Vec<usize> = entities
         .iter()
         .enumerate()
         .filter(|(_, entity)| {
-            types
-                .get(entity.kind)
-                .map(|definition| definition.behaviour)
-                == Some(Behaviour::Belt)
+            types.get(entity.kind).is_some_and(|definition| {
+                definition.behaviour == Behaviour::Belt && acts_this_tick(definition, tick)
+            })
         })
         .map(|(index, _)| index)
         .collect();

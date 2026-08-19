@@ -66,6 +66,49 @@ fn a_burner_turns_residue_into_burnt_residue() {
     assert_eq!(count_in_body(&world, 4, 6, residue), CELLS - rate);
 }
 
+/// A machine acts on its own beat, not every tick.
+///
+/// Playtesting found the whole factory roughly six times too fast; `interval` is half
+/// the answer (the host halving its tick rate is the other half). What matters here is
+/// that the ticks *between* actions genuinely do nothing — a machine that quietly kept
+/// working between beats would look paced while running at the old speed.
+#[test]
+fn a_machine_only_acts_on_its_interval() {
+    let rules = common::rules_without_reactions();
+    let wall = rules.elements.id_of("wall").expect("wall");
+    let residue = rules.elements.id_of("residue").expect("residue");
+    let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
+    let definition = rules.entities.get(common::burner_kind()).expect("burner");
+    let (rate, interval) = (definition.rate as i32, definition.interval as u64);
+    assert!(
+        interval > 1,
+        "this test needs a paced machine, or it cannot tell pacing from its absence"
+    );
+
+    let mut world = scene::arena(200, 200, 1, &rules);
+    hopper(&mut world, 4, 6, wall, common::burner(4, 6));
+    feed(&mut world, 4, 6, CELLS, residue);
+
+    // Tick 0 is on the beat.
+    world.step();
+    assert_eq!(count_in_body(&world, 4, 6, burnt), rate);
+
+    // Every tick up to the next beat must change nothing at all.
+    world.step_many(interval - 1);
+    assert_eq!(
+        count_in_body(&world, 4, 6, burnt),
+        rate,
+        "the machine kept working between beats"
+    );
+
+    // And the next beat lands, finishing the row. Less than a full rate's worth is
+    // left by then — one row holds CELLS cells, and the first beat already took `rate`
+    // of them — so this checks the beat happened, not that it moved a full load.
+    world.step();
+    assert_eq!(count_in_body(&world, 4, 6, burnt), CELLS);
+    assert!(rate < CELLS, "a single beat should not be able to finish the whole row");
+}
+
 #[test]
 fn a_compactor_turns_burnt_residue_into_fuel() {
     let rules = common::rules_without_reactions();

@@ -190,9 +190,11 @@ fn matter_touching_an_unfed_heater_cools_through_ordinary_conduction() {
     for offset in 0..CELLS {
         world.field_mut().set(4 * CELLS + offset, (6 + 1) * CELLS - 1, fuel);
     }
+    // Enough ticks to burn the lot: how many actions that takes, times how many ticks
+    // apart the machine's actions are (`interval`), plus one so the last beat lands.
     let rate = definition.rate as i32;
-    let ticks_to_exhaust = ((CELLS + rate - 1) / rate) as u64;
-    world.step_many(ticks_to_exhaust);
+    let actions = ((CELLS + rate - 1) / rate) as u64;
+    world.step_many(actions * definition.interval as u64 + 1);
 
     let heated = world.field().temperature(probe.0, probe.1);
     assert!(heated > AMBIENT_TEMPERATURE, "the probe should have picked up real heat: {heated}");
