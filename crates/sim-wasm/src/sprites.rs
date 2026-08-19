@@ -67,8 +67,11 @@ struct Rule {
     element: Option<String>,
     element_state: Option<State>,
     status: Option<Status>,
-    /// Row-major, `SPRITE_SIZE` rows of `SPRITE_SIZE` bytes.
-    pixels: Vec<u8>,
+    /// One or more pixel maps, each row-major, `SPRITE_SIZE` rows of `SPRITE_SIZE`
+    /// bytes. More than one is animation: which frame is drawn is the caller's
+    /// business (`SpriteTable::pick` takes a frame index), not this rule's — a rule
+    /// only knows what it looks like, never when.
+    frames: Vec<Vec<u8>>,
 }
 
 impl Rule {
@@ -117,19 +120,22 @@ impl SpriteTable {
         Ok(table)
     }
 
-    /// The pixel map to draw, or `None` if nothing matches.
+    /// The pixel map to draw, or `None` if nothing matches. `frame` is a monotonic
+    /// counter, not an index — wrapped here so the caller never needs to know how many
+    /// frames a rule has.
     pub fn pick(
         &self,
         kind: EntityKind,
         element: &str,
         element_state: Option<State>,
         status: Status,
+        frame: usize,
     ) -> Option<&[u8]> {
         self.sets
             .get(usize::from(kind))?
             .iter()
             .find(|rule| rule.matches(element, element_state, status))
-            .map(|rule| rule.pixels.as_slice())
+            .map(|rule| rule.frames[frame % rule.frames.len()].as_slice())
     }
 }
 
@@ -141,13 +147,9 @@ pub fn ink_at(pixels: &[u8], x: usize, y: usize) -> Ink {
     ink_of(pixels[y * SPRITE_SIZE + x])
 }
 
-fn parse_rule(sprite: &Json<'_>) -> Result<Rule, DataError> {
+/// One frame's worth of rows, whichever shape the JSON used.
+fn parse_frame(rows: &[Json<'_>]) -> Result<Vec<u8>, DataError> {
     let bad = |field: &'static str| DataError::BadField { field };
-
-    let rows = sprite
-        .get("pixels")
-        .and_then(Json::as_array)
-        .ok_or(DataError::MissingField { field: "pixels" })?;
     if rows.len() != SPRITE_SIZE {
         return Err(bad("pixels"));
     }
@@ -161,6 +163,30 @@ fn parse_rule(sprite: &Json<'_>) -> Result<Rule, DataError> {
         }
         pixels.extend_from_slice(line.as_bytes());
     }
+    Ok(pixels)
+}
+
+fn parse_rule(sprite: &Json<'_>) -> Result<Rule, DataError> {
+    let bad = |field: &'static str| DataError::BadField { field };
+
+    let outer = sprite
+        .get("pixels")
+        .and_then(Json::as_array)
+        .ok_or(DataError::MissingField { field: "pixels" })?;
+
+    // A single frame is an array of SPRITE_SIZE row-strings. Animation is an array of
+    // those — told apart by whether the first element is itself an array.
+    let frames = if outer.first().is_some_and(|first| first.as_array().is_some()) {
+        outer
+            .iter()
+            .map(|frame| {
+                let rows = frame.as_array().ok_or_else(|| bad("pixels"))?;
+                parse_frame(rows)
+            })
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        vec![parse_frame(outer)?]
+    };
 
     // An absent `when` matches everything, which is how a fallback is written.
     let when = sprite.get("when");
@@ -181,7 +207,7 @@ fn parse_rule(sprite: &Json<'_>) -> Result<Rule, DataError> {
         element: text("element").map(str::to_owned),
         element_state,
         status,
-        pixels,
+        frames,
     })
 }
 
@@ -192,5 +218,38 @@ fn parse_state(name: &str) -> Option<State> {
         "liquid" => Some(State::Liquid),
         "gas" => Some(State::Gas),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sim_core::elements::ElementTable;
+    use sim_core::entities::EntityTable;
+
+    const ELEMENTS_JSON: &str = include_str!("../../../data/elements.json");
+    const ENTITIES_JSON: &str = include_str!("../../../data/entities.json");
+
+    /// The shipped animation data actually parses, and its two frames are distinct —
+    /// the multi-frame `pixels` shape (an array of arrays) is otherwise only exercised
+    /// by hand-written fixtures, never by the real file.
+    #[test]
+    fn the_shipped_belt_animation_has_two_distinct_frames() {
+        let elements = ElementTable::from_json(ELEMENTS_JSON).expect("elements");
+        let entities = EntityTable::from_json(ENTITIES_JSON, &elements).expect("entities");
+        let table = SpriteTable::from_json(ENTITIES_JSON).expect("sprites");
+        let belt_kind = entities.id_of("belt").expect("belt kind");
+
+        let frame0 = table.pick(belt_kind, "", None, Status::Running, 0);
+        let frame1 = table.pick(belt_kind, "", None, Status::Running, 1);
+        assert!(frame0.is_some() && frame1.is_some(), "the running sprite should resolve");
+        assert_ne!(frame0, frame1, "the two animation frames should differ");
+        // The frame index wraps rather than panicking on an out-of-range counter.
+        assert_eq!(table.pick(belt_kind, "", None, Status::Running, 2), frame0);
+
+        assert!(
+            table.pick(belt_kind, "", None, Status::Blocked, 0).is_some(),
+            "the single-frame blocked sprite should still resolve"
+        );
     }
 }

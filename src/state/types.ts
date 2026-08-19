@@ -15,6 +15,7 @@ export const TOOLS = [
   'draw',
   'erase',
   'belt',
+  'filter',
   'spawner',
   'press',
   'burner',

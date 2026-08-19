@@ -10,9 +10,10 @@ fn the_shipped_data_file_loads() {
     let table = common::table();
     assert_eq!(
         table.len(),
-        8,
+        9,
         "wall, sand, water, the wet sand they react into, the gold it presses into, \
-         the residue left over, and the burntResidue and fuel it refines into"
+         the residue left over, the burntResidue and fuel it refines into, and the \
+         structural element a belt's own footprint is filled with"
     );
 
     // Currency is matter like everything else, and exactly one element is money.

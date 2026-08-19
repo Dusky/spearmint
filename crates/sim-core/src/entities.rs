@@ -40,6 +40,14 @@ pub enum Behaviour {
     /// element's `refined_into` (spec 5.3). Unlike a press, nothing is banked: one cell
     /// in is one cell out, because there is no threshold to accumulate toward.
     Refine,
+    /// Conveys whatever rests on top of it, and — when `let_through` is set — drops
+    /// that one element straight through instead. A filter is not a second behaviour;
+    /// it is this with one more field (spec 4.3).
+    ///
+    /// The entity's own footprint is filled with a real, indestructible structural
+    /// element at placement (`World::place`), so gravity already holds cargo up — this
+    /// behaviour only ever touches the row directly above its own body.
+    Belt,
 }
 
 impl Behaviour {
@@ -49,6 +57,7 @@ impl Behaviour {
             "press" => Some(Behaviour::Press),
             "store" => Some(Behaviour::Store),
             "refine" => Some(Behaviour::Refine),
+            "belt" => Some(Behaviour::Belt),
             _ => None,
         }
     }
@@ -79,6 +88,9 @@ pub struct Entity {
     /// A machine that has swallowed seven grains of an eight-grain nugget is holding
     /// those seven grains' worth here until the eighth arrives.
     pub bank: u32,
+    /// Which way a belt conveys: `1` for increasing x, `-1` for decreasing. Meaningless
+    /// off a `Behaviour::Belt`, same as `bank` is meaningless off a press.
+    pub direction: i8,
 }
 
 impl Entity {
@@ -91,6 +103,7 @@ impl Entity {
             width_tiles: 0,
             height_tiles: 0,
             bank: 0,
+            direction: 1,
         }
     }
 
@@ -110,6 +123,43 @@ impl Entity {
             width_tiles,
             height_tiles,
             bank: 0,
+            direction: 1,
+        }
+    }
+
+    /// A belt, conveying in the direction given (`1` or `-1`).
+    pub const fn belt(kind: EntityKind, tile_x: i32, tile_y: i32, direction: i8) -> Entity {
+        Entity {
+            kind,
+            tile_x,
+            tile_y,
+            element: EMPTY,
+            width_tiles: 0,
+            height_tiles: 0,
+            bank: 0,
+            direction,
+        }
+    }
+
+    /// A filter, conveying in the direction given and letting `element` fall through
+    /// its underside instead. Chosen per instance, the same way an emitter's element
+    /// is — one "filter" tool, tuned to whatever the player wants at placement.
+    pub const fn filter(
+        kind: EntityKind,
+        tile_x: i32,
+        tile_y: i32,
+        direction: i8,
+        element: ElementId,
+    ) -> Entity {
+        Entity {
+            kind,
+            tile_x,
+            tile_y,
+            element,
+            width_tiles: 0,
+            height_tiles: 0,
+            bank: 0,
+            direction,
         }
     }
 
@@ -178,8 +228,9 @@ impl Entity {
         match definition.behaviour {
             Behaviour::Emit => {
                 let mouth = self.mouth();
-                let span = self.width_tiles as i32 * TILE_CELLS as i32;
-                (0..span).all(|offset| field.get(self.left() + offset, mouth) != Some(EMPTY))
+                let left = self.left() + definition.mouth_offset as i32;
+                let span = definition.mouth_width as i32;
+                (0..span).all(|offset| field.get(left + offset, mouth) != Some(EMPTY))
             }
             Behaviour::Press => {
                 let (x0, y0, x1, y1) = self.body();
@@ -193,6 +244,18 @@ impl Entity {
             }
             // A vault is a place, not a process. It cannot be blocked.
             Behaviour::Store => false,
+            // Blocked means jammed: cargo is resting on it that cannot advance, because
+            // the cell it would move into is occupied. An empty belt is not blocked —
+            // it has nothing to be blocked on.
+            Behaviour::Belt => {
+                let (x0, y0, x1, _) = self.body();
+                let carry_y = y0 - 1;
+                let direction = i32::from(self.direction);
+                (x0..=x1).any(|x| {
+                    field.get(x, carry_y).is_some_and(|id| id != EMPTY)
+                        && field.get(x + direction, carry_y) != Some(EMPTY)
+                })
+            }
         }
     }
 }
@@ -213,6 +276,17 @@ pub struct EntityType {
     pub gold_per: u32,
     /// The one element a `Refine` machine acts on. `EMPTY` for anything else.
     pub input: ElementId,
+    /// Where an emitter's opening actually is, in cells from the tile's left edge —
+    /// matching the funnel the sprite draws rather than the full tile width. Defaults
+    /// to the whole width, so anything that does not declare these keeps today's
+    /// behaviour.
+    pub mouth_offset: u32,
+    pub mouth_width: u32,
+    /// The indestructible element `World::place` fills a `Behaviour::Belt` entity's own
+    /// footprint with, so gravity holds its cargo up using physics that already exists
+    /// rather than an entity-aware exception in `step.rs`. `EMPTY` for anything that is
+    /// not a belt.
+    pub structure: ElementId,
 }
 
 /// Entity types indexed by id — a `Vec`, never a map, so iteration order cannot reach
@@ -286,6 +360,12 @@ fn parse_entity(entry: &Json<'_>, elements: &ElementTable) -> Result<EntityType,
     let behaviour_text = field("behaviour")?
         .as_str()
         .ok_or_else(|| bad("behaviour"))?;
+    let behaviour = Behaviour::parse(behaviour_text).ok_or_else(|| bad("behaviour"))?;
+
+    let width_tiles = field("widthTiles")?
+        .as_i32()
+        .filter(|value| *value > 0)
+        .ok_or_else(|| bad("widthTiles"))? as u32;
 
     Ok(EntityType {
         id,
@@ -294,15 +374,12 @@ fn parse_entity(entry: &Json<'_>, elements: &ElementTable) -> Result<EntityType,
             .filter(|name| !name.is_empty())
             .ok_or_else(|| bad("name"))?
             .to_owned(),
-        behaviour: Behaviour::parse(behaviour_text).ok_or_else(|| bad("behaviour"))?,
+        behaviour,
         tool: field("tool")?
             .as_str()
             .ok_or_else(|| bad("tool"))?
             .to_owned(),
-        width_tiles: field("widthTiles")?
-            .as_i32()
-            .filter(|value| *value > 0)
-            .ok_or_else(|| bad("widthTiles"))? as u32,
+        width_tiles,
         height_tiles: field("heightTiles")?
             .as_i32()
             .filter(|value| *value > 0)
@@ -320,6 +397,26 @@ fn parse_entity(entry: &Json<'_>, elements: &ElementTable) -> Result<EntityType,
         // after elements finish, so there is no forward-reference problem to solve.
         input: match entry.get("input").and_then(Json::as_str) {
             Some(name) => elements.id_of(name).ok_or_else(|| bad("input"))?,
+            None => EMPTY,
+        },
+        // Optional: absent means the whole tile is the opening, which is today's
+        // behaviour and is correct for anything that is not an emitter.
+        mouth_offset: entry
+            .get("mouthOffset")
+            .and_then(Json::as_i32)
+            .filter(|value| *value >= 0)
+            .unwrap_or(0) as u32,
+        mouth_width: match entry.get("mouthWidth").and_then(Json::as_i32) {
+            Some(value) if value > 0 => value as u32,
+            Some(_) => return Err(bad("mouthWidth")),
+            None => width_tiles * TILE_CELLS,
+        },
+        // Required for a belt, since without it World::place would have nothing to fill
+        // its footprint with and gravity would have nothing to hold cargo up on.
+        // Absent — and meaningless — for anything else.
+        structure: match entry.get("structure").and_then(Json::as_str) {
+            Some(name) => elements.id_of(name).ok_or_else(|| bad("structure"))?,
+            None if behaviour == Behaviour::Belt => return Err(bad("structure")),
             None => EMPTY,
         },
     })
@@ -357,6 +454,11 @@ pub fn tick<F: CellField + ?Sized>(
     seed: u64,
     tick: u64,
 ) -> u64 {
+    // Belts run as their own pass, in a deliberate order, rather than inline in the
+    // loop below with everything else — see `convey`'s doc for why order matters here
+    // and nowhere else in this function.
+    convey(field, entities, types);
+
     let mut minted = 0;
     for (index, entity) in entities.iter_mut().enumerate() {
         let Some(definition) = types.get(entity.kind) else {
@@ -367,11 +469,99 @@ pub fn tick<F: CellField + ?Sized>(
             Behaviour::Press => minted += press(field, entity, definition, elements),
             Behaviour::Refine => refine(field, entity, definition, elements),
             // A vault holds what falls into it and does nothing else. Gravity is the
-            // mechanism; the walls are the player's.
-            Behaviour::Store => {}
+            // mechanism; the walls are the player's. A belt was already handled above.
+            Behaviour::Store | Behaviour::Belt => {}
         }
     }
     minted
+}
+
+/// Runs every belt and filter for this tick, downstream tile first.
+///
+/// Every other behaviour here works on its own footprint alone, so processing order
+/// between entities never matters. A belt does not: it shoves cargo out across its own
+/// boundary into whatever tile is next, and if that tile also conveys this same tick,
+/// running it *after* would shove the same cargo a second time. Ordering every belt by
+/// how far downstream it is — furthest first — means a tile always resolves before the
+/// neighbour that might hand cargo to it, so nothing this tick moves more than once.
+fn convey<F: CellField + ?Sized>(field: &mut F, entities: &[Entity], types: &EntityTable) {
+    let mut belts: Vec<usize> = entities
+        .iter()
+        .enumerate()
+        .filter(|(_, entity)| {
+            types
+                .get(entity.kind)
+                .map(|definition| definition.behaviour)
+                == Some(Behaviour::Belt)
+        })
+        .map(|(index, _)| index)
+        .collect();
+
+    // Sorting by position times the negated direction puts the furthest-downstream
+    // tile first regardless of which way it faces: a rightward belt's highest x sorts
+    // first, a leftward belt's lowest x sorts first.
+    belts.sort_by_key(|&index| {
+        let entity = &entities[index];
+        entity.left() as i64 * -i64::from(entity.direction)
+    });
+
+    for index in belts {
+        convey_one(field, &entities[index]);
+    }
+}
+
+/// Shoves whatever rests on top of one belt or filter tile one cell downstream, or —
+/// for a filter, when the cargo matches `entity.element` — drops it straight down
+/// through the tile's own solid body instead.
+///
+/// A filter is not a distinct behaviour; it is a belt whose instance names which
+/// element it lets through, the same field an emitter's instance already uses to say
+/// what it emits (`EMPTY` means a plain belt that lets nothing through). Choosing this
+/// per instance rather than per machine type is what lets one "filter" tool be tuned to
+/// gold, sand, or anything else at placement, the same way one "emitter" tool is.
+///
+/// Acts only on the row directly above the entity's own footprint; the footprint itself
+/// is solid structure (`World::place`), so this never has to hold anything up itself.
+/// Walked from the downstream column backward within this one tile so a short line of
+/// cargo inside a single tile's row cannot cascade several cells in one tick, the same
+/// reason `press` and `refine` work bottom-up.
+fn convey_one<F: CellField + ?Sized>(field: &mut F, entity: &Entity) {
+    let (x0, y0, x1, _) = entity.body();
+    let carry_y = y0 - 1;
+    let direction = i32::from(entity.direction);
+
+    let columns: Vec<i32> = if direction >= 0 {
+        (x0..=x1).rev().collect()
+    } else {
+        (x0..=x1).collect()
+    };
+
+    for x in columns {
+        let Some(id) = field.get(x, carry_y) else {
+            continue;
+        };
+        if id == EMPTY {
+            continue;
+        }
+
+        if entity.element != EMPTY && id == entity.element {
+            let drop_y = entity.mouth();
+            if field.get(x, drop_y) == Some(EMPTY) {
+                field.set(x, carry_y, EMPTY);
+                field.set(x, drop_y, id);
+                field.mark_active(x, carry_y);
+                field.mark_active(x, drop_y);
+            }
+            continue;
+        }
+
+        let target_x = x + direction;
+        if field.get(target_x, carry_y) == Some(EMPTY) {
+            field.swap(x, carry_y, target_x, carry_y);
+            field.mark_active(x, carry_y);
+            field.mark_active(target_x, carry_y);
+        }
+    }
 }
 
 /// Whether a `Refine` machine of this `input` would take this cell.
@@ -410,9 +600,9 @@ fn emit<F: CellField + ?Sized>(
     if entity.element == EMPTY || element.state == State::Solid {
         return;
     }
-    let left = entity.left();
+    let left = entity.left() + definition.mouth_offset as i32;
     let mouth = entity.mouth();
-    let span = entity.width_tiles * TILE_CELLS;
+    let span = definition.mouth_width;
 
     for grain in 0..definition.rate {
         // Salted by machine and by grain, so two emitters do not fire in lockstep and

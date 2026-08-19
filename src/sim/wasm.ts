@@ -30,6 +30,7 @@ interface SimExports {
     width: number,
     height: number,
     element: number,
+    direction: number,
   ): number;
   sim_entity_at(x: number, y: number): number;
   sim_remove_entity(index: number): number;
@@ -123,7 +124,8 @@ export class Sim {
 
   /** Places a machine on a tile. False if something is already there. */
   /** Places an entity over a region of tiles. A width or height of 0 means "as the
-   *  type says", which is what a click on a machine sends. */
+   *  type says", which is what a click on a machine sends. `direction` only means
+   *  anything to a belt or filter. */
   placeEntity(
     kind: number,
     tileX: number,
@@ -131,8 +133,11 @@ export class Sim {
     element: number,
     width = 0,
     height = 0,
+    direction = 1,
   ): boolean {
-    return this.#exports.sim_place_entity(kind, tileX, tileY, width, height, element) === 1;
+    return (
+      this.#exports.sim_place_entity(kind, tileX, tileY, width, height, element, direction) === 1
+    );
   }
 
   /** The machine covering a world cell, or null. */

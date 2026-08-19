@@ -303,6 +303,16 @@ something falls out of the world indefinitely" interacts badly with both chunk e
 Belts are a **separate entity layer** from the particle grid — they are not themselves
 simulated matter. But they carry **real particles**, moved by their own physics.
 
+**As built:** a belt's own tile footprint is filled, at placement, with a real,
+indestructible structural element — solid ground the existing gravity/density rules
+already know how to hold things up on. The belt's own logic only ever touches the row
+of cells directly *above* its footprint: each tick it shoves whatever is resting there
+one cell toward its declared direction (`Entity.direction`, `1` or `-1`), then physics
+settles it back onto the belt's now-solid surface, the same way it settles anything
+onto a floor. No entity-awareness was added to the generic physics sweep. Horizontal
+only for now — open question 1 (§11), how material moves upward, is unresolved and a
+vertical or inclined belt would need to answer it.
+
 ### 4.2 Belt semantics **[DECIDED]**
 
 A belt moves actual piles of particles along its surface. Nothing is converted to a
@@ -319,13 +329,19 @@ required.
   or loader entities.
 - **Burial:** particles can bury a belt, blocking it.
 - **Destruction:** belts are **indestructible**. Lava does not melt them; nothing
-  destroys them.
+  destroys them. Built as a real element (state solid, so it never moves regardless of
+  what is denser) rather than a rule anything has to special-case.
 
 **Filters are belts with a hole.** A filter is a conveyor that lets one selected element
 fall through its underside and carries everything else on. That is the whole mechanic —
 no sorting logic, no inventory, no routing graph — and it is what turns a mixed stream
 into directed material: run the output of a washer along a filter set to gold and the
 nuggets drop into the vault below while the rest carries on.
+
+**As built:** a filter is not a second behaviour — it is a belt entity whose instance
+names which element to let through, the same instance field an emitter uses to say
+which element it emits. One "filter" tool is tuned per placement, the same way one
+"emitter" tool is; there is no separate machine type per material.
 
 Worth noting what this implies for §5.1: today a vault has to sit directly under the
 press, because gravity is the only transport. Filters make a vault somewhere else

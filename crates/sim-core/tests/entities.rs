@@ -15,8 +15,9 @@ fn entity_types_load_from_data() {
     let rules = common::rules();
     assert_eq!(
         rules.entities.len(),
-        5,
-        "the emitter, the press, the vault, the burner, and the compactor"
+        7,
+        "the emitter, the press, the vault, the burner, the compactor, the belt, and \
+         the filter"
     );
 
     let vault = rules
@@ -152,6 +153,53 @@ fn an_emitter_reports_being_blocked() {
     let before = world.count_of(sand);
     world.step_many(200);
     assert_eq!(world.count_of(sand), before);
+}
+
+/// An emitter emits from where its sprite actually draws an opening, not the full tile
+/// (spec 8.3): sim-core cannot read the art, so `mouthOffset`/`mouthWidth` are the data
+/// that keeps physics and pixels agreeing, authored by hand rather than derived.
+#[test]
+fn an_emitter_only_emits_and_blocks_within_its_mouth() {
+    let rules = common::rules();
+    let definition = rules.entities.get(common::emitter_kind()).expect("emitter");
+    let sand = rules.elements.id_of("sand").expect("sand");
+    let wall = rules.elements.id_of("wall").expect("wall");
+    assert!(
+        definition.mouth_width < TILE_CELLS,
+        "this test needs the emitter's mouth to be narrower than the tile, or it \
+         cannot tell mouth-aware behaviour apart from the old full-width behaviour"
+    );
+
+    let mut world = scene::arena(90, 90, 1, &rules);
+    let entity = common::emitter(2, 1, sand);
+    world.place(entity);
+
+    // Wall off everything outside the mouth, leaving the mouth itself clear.
+    let mouth_left = entity.left() + definition.mouth_offset as i32;
+    let mouth_right = mouth_left + definition.mouth_width as i32;
+    for x in entity.left()..entity.left() + TILE_CELLS as i32 {
+        if x < mouth_left || x >= mouth_right {
+            world.field_mut().set(x, entity.mouth(), wall);
+        }
+    }
+    assert!(
+        !entity.is_blocked(definition, world.field(), &rules.elements),
+        "the mouth itself is still clear"
+    );
+
+    let before = world.count_of(sand);
+    world.step_many(50);
+    assert!(world.count_of(sand) > before, "it should still be emitting through the mouth");
+
+    // Sand that lands must have landed within the mouth's columns, never beside it.
+    for x in entity.left()..entity.left() + TILE_CELLS as i32 {
+        if world.get(x, entity.mouth()) == sand {
+            assert!(
+                x >= mouth_left && x < mouth_right,
+                "sand appeared at x={x}, outside the mouth [{mouth_left}, {mouth_right})"
+            );
+        }
+    }
 }
 
 /// A wall emitter is nonsense: a solid would appear one cell at a time and sit there,

@@ -23,6 +23,7 @@ export interface SimBridge {
     element: number,
     width?: number,
     height?: number,
+    direction?: number,
   ): boolean;
   entityAt(x: number, y: number): number | null;
   removeEntity(index: number): boolean;
@@ -86,8 +87,10 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
           this.placeMachine(world);
           return;
         case 'vault':
-          // A vault is marked out by dragging, and a press is a drag that has not
-          // happened yet. `designateVault` runs on release.
+        case 'belt':
+        case 'filter':
+          // These are marked out by dragging, and a press is a drag that has not
+          // happened yet. `designateVault`/`paintBelt` runs on release.
           return;
         case 'erase':
           // Erase should erase. Removing an entity here rather than inventing another
@@ -154,6 +157,37 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
       const height = Math.abs(end.y - start.y) + 1;
 
       sim.placeEntity(machine.id, x, y, EMPTY_ELEMENT, width, height);
+    },
+
+    /**
+     * Lays a line of belt or filter tiles along a drag.
+     *
+     * Belts are horizontal only (spec 4's open question on vertical transport is
+     * unresolved), so only the drag's x extent matters — the row is wherever it
+     * started. Direction is the sign of the drag, resolved once here, matching how a
+     * vault's region resolves from start/end on release. A filter additionally reads
+     * `selectedMaterial`, the same swatch a spawner reads, for what it lets through.
+     */
+    paintBelt(from: Vec2, to: Vec2): void {
+      const { ui } = store.state;
+      const machine = entityForTool(ui.selectedTool);
+      if (!machine) return;
+
+      let element = EMPTY_ELEMENT;
+      if (ui.selectedTool === 'filter') {
+        element = MATERIAL_ELEMENTS[ui.selectedMaterial];
+        if (element === undefined) return;
+      }
+
+      const { start, end } = strokeTiles(from, to);
+      const y = start.y;
+      const x0 = Math.min(start.x, end.x);
+      const x1 = Math.max(start.x, end.x);
+      const direction = end.x < start.x ? -1 : 1;
+
+      for (let x = x0; x <= x1; x += 1) {
+        sim.placeEntity(machine.id, x, y, element, 1, 1, direction);
+      }
     },
 
     /**

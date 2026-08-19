@@ -15,7 +15,7 @@ use std::cell::RefCell;
 
 use sim_core::chunk::TILE_CELLS;
 use sim_core::field::CellField;
-use sim_core::{paint, scene, Behaviour, ElementTable, Entity, Rules, World, EMPTY};
+use sim_core::{paint, scene, Behaviour, ElementId, ElementTable, Entity, Rules, World, EMPTY};
 
 mod sprites;
 
@@ -157,7 +157,12 @@ fn clamp(value: i32) -> u8 {
 /// After the cell pass, and skipping any pixel where matter already sits, so piling sand
 /// over a machine buries it. Spec 4.3 wants burial to be visible; drawing in this order
 /// gets that for free rather than as a special case.
+/// How many ticks a sprite holds each animation frame. Slow enough to read as motion
+/// rather than a flicker at the simulation's tick rate.
+const TICKS_PER_FRAME: u64 = 10;
+
 fn draw_entities(state: &mut State, origin_x: i32, origin_y: i32, width: u32, height: u32) {
+    let frame = (state.world.tick() / TICKS_PER_FRAME) as usize;
     for index in 0..state.world.entities().len() {
         let entity = state.world.entities()[index];
         let Some(definition) = state.world.rules().entities.get(entity.kind).cloned() else {
@@ -184,10 +189,20 @@ fn draw_entities(state: &mut State, origin_x: i32, origin_y: i32, width: u32, he
 
         let Some(pixels) = state
             .sprites
-            .pick(entity.kind, &element_name, element_state, status)
+            .pick(entity.kind, &element_name, element_state, status, frame)
             .map(<[u8]>::to_vec)
         else {
             continue;
+        };
+
+        // A belt's own footprint is real solid matter (`World::place`), not open space
+        // waiting to be buried — "matter wins" would otherwise hide its sprite under
+        // its own structure on every tile, always. Burial still applies to everything
+        // else, whose footprint is genuinely empty until something falls onto it.
+        let not_burial = if definition.behaviour == Behaviour::Belt {
+            Some(definition.structure)
+        } else {
+            None
         };
 
         // A footprint wider than one tile repeats the sprite across it. Bespoke art for
@@ -198,6 +213,7 @@ fn draw_entities(state: &mut State, origin_x: i32, origin_y: i32, width: u32, he
                     state,
                     &pixels,
                     element_colour,
+                    not_burial,
                     entity.left() + tile_x * TILE_CELLS as i32,
                     entity.top() + tile_y * TILE_CELLS as i32,
                     origin_x,
@@ -256,11 +272,16 @@ fn outline(
 }
 
 /// Draws one pixel map into the frame, skipping pixels where matter already sits.
+///
+/// `not_burial` is an element id that does not count as burial — a belt's own
+/// structure, so its footprint always shows its sprite instead of reading as buried
+/// under the very ground `World::place` gave it.
 #[allow(clippy::too_many_arguments)]
 fn blit(
     state: &mut State,
     pixels: &[u8],
     element_colour: [u8; 3],
+    not_burial: Option<ElementId>,
     tile_left: i32,
     tile_top: i32,
     origin_x: i32,
@@ -279,7 +300,8 @@ fn blit(
             let world_x = tile_left + column as i32;
             let world_y = tile_top + row as i32;
             // Matter wins: a buried machine is hidden by what buried it.
-            if state.world.get(world_x, world_y) != 0 {
+            let occupant = state.world.get(world_x, world_y);
+            if occupant != 0 && Some(occupant) != not_burial {
                 continue;
             }
 
@@ -354,10 +376,11 @@ pub extern "C" fn sim_set_sleeping(enabled: u32) {
 
 /// Places an entity over a region of tiles. Returns 1 if it went down.
 ///
-/// Generic over kind: a belt or a teleporter needs no new export here, only a row in
+/// Generic over kind: a teleporter needs no new export here, only a row in
 /// `data/entities.json` and a behaviour arm in the core. `width`/`height` of zero mean
 /// "as the type says", which is what a click on a machine sends; a vault sends the
-/// region the player marked out.
+/// region the player marked out. `direction` is `1` or `-1` and only means anything to
+/// a belt or filter; everything else ignores it.
 #[no_mangle]
 pub extern "C" fn sim_place_entity(
     kind: u32,
@@ -366,11 +389,13 @@ pub extern "C" fn sim_place_entity(
     width: u32,
     height: u32,
     element: u32,
+    direction: i32,
 ) -> u32 {
     with_state(0, |state| {
         let mut entity = Entity::new(kind as u8, tile_x, tile_y, element as u8);
         entity.width_tiles = width;
         entity.height_tiles = height;
+        entity.direction = if direction < 0 { -1 } else { 1 };
         if let Some(definition) = state.world.rules().entities.get(kind as u8) {
             entity.size_from(definition);
         }

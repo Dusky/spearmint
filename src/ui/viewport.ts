@@ -17,6 +17,8 @@ export interface ViewportActions {
   paint(from: Vec2, to: Vec2, straight: boolean): void;
   /** A drag with the vault tool: the region it covered becomes storage. */
   designateVault(from: Vec2, to: Vec2): void;
+  /** A drag with the belt or filter tool: the line it covered becomes conveyor. */
+  paintBelt(from: Vec2, to: Vec2): void;
   /** What the pointer is doing to the world, for the ghost. */
   setStroke(anchor: Vec2 | null, painting: boolean): void;
 }
@@ -28,7 +30,7 @@ export interface ViewportActions {
  * placeholder without touching this file.
  */
 /** Tools that place something on the tile grid, and so want to see it. */
-const BUILD_TOOLS = new Set<Tool>(['draw', 'erase', 'spawner']);
+const BUILD_TOOLS = new Set<Tool>(['draw', 'erase', 'spawner', 'vault', 'belt', 'filter']);
 
 export function createViewport(surface: SimSurface, actions: ViewportActions): Component {
   const grid = el('div', { class: 'tile-grid' });
@@ -53,6 +55,8 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
   let strokePrevious: Vec2 | null = null;
   /** Whether this drag is marking out a region rather than painting one. */
   let marking = false;
+  /** Whether this drag is laying out a line of belt or filter tiles. */
+  let laying = false;
   let straight = false;
 
   /** Screen pixels -> world cells, about the viewport centre. */
@@ -75,9 +79,9 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
    *  Called on transitions only: the cursor is already in state and the anchor does not
    *  move within a stroke, so there is nothing to update per frame. */
   const reportStroke = (): void => {
-    // A vault is dragged out as a region and lands on release, so it previews the same
-    // way a constrained stroke does.
-    const previewing = dragging === 'paint' && (straight || marking);
+    // A vault, or a belt/filter line, is dragged out and lands on release, so it
+    // previews the same way a constrained stroke does.
+    const previewing = dragging === 'paint' && (straight || marking || laying);
     actions.setStroke(previewing ? strokeStart : null, dragging === 'paint');
   };
 
@@ -128,10 +132,12 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
       strokeStart = world;
       strokePrevious = world;
       marking = selectedTool === 'vault';
+      laying = selectedTool === 'belt' || selectedTool === 'filter';
       reportStroke();
-      // A stroke that previews — constrained, or marking out a vault — commits on
-      // release, so pressing must not act. Everything else acts on the press.
-      if (!straight && !marking) actions.press(world);
+      // A stroke that previews — constrained, marking out a vault, or laying a belt
+      // line — commits on release, so pressing must not act. Everything else acts on
+      // the press.
+      if (!straight && !marking && !laying) actions.press(world);
     }
     root.setPointerCapture(event.pointerId);
   });
@@ -148,7 +154,7 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
         -(event.clientX - lastPointer.x) / camera.zoom,
         -(event.clientY - lastPointer.y) / camera.zoom,
       );
-    } else if (dragging === 'paint' && strokePrevious && !straight && !marking) {
+    } else if (dragging === 'paint' && strokePrevious && !straight && !marking && !laying) {
       // Free strokes paint as they go, along the path the pointer took. A constrained
       // one only previews here — it commits once, on release.
       actions.paint(strokePrevious, world, false);
@@ -158,12 +164,14 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
   });
 
   const endDrag = (event: PointerEvent): void => {
-    // Both of these have been a preview until now. This is the commit.
+    // All three of these have been a preview until now. This is the commit.
     if (dragging === 'paint' && strokeStart && lastWorld) {
       if (marking) actions.designateVault(strokeStart, lastWorld);
+      else if (laying) actions.paintBelt(strokeStart, lastWorld);
       else if (straight) actions.paint(strokeStart, lastWorld, true);
     }
     marking = false;
+    laying = false;
     dragging = null;
     strokeStart = null;
     strokePrevious = null;

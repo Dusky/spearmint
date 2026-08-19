@@ -91,7 +91,48 @@ pub fn compactor_kind() -> EntityKind {
 /// A compactor on a tile. Its input is fixed by the data (burntResidue), not chosen here.
 #[allow(dead_code)]
 pub fn compactor(tile_x: i32, tile_y: i32) -> Entity {
-    sized(Entity::new(compactor_kind(), tile_x, tile_y, sim_core::EMPTY))
+    sized(Entity::new(
+        compactor_kind(),
+        tile_x,
+        tile_y,
+        sim_core::EMPTY,
+    ))
+}
+
+/// The belt's kind id.
+#[allow(dead_code)]
+pub fn belt_kind() -> EntityKind {
+    rules()
+        .entities
+        .id_of("belt")
+        .expect("a `belt` entity should be defined")
+}
+
+/// A belt on a tile, conveying in `direction` (`1` or `-1`).
+#[allow(dead_code)]
+pub fn belt(tile_x: i32, tile_y: i32, direction: i8) -> Entity {
+    sized(Entity::belt(belt_kind(), tile_x, tile_y, direction))
+}
+
+/// The filter's kind id.
+#[allow(dead_code)]
+pub fn filter_kind() -> EntityKind {
+    rules()
+        .entities
+        .id_of("filter")
+        .expect("a `filter` entity should be defined")
+}
+
+/// A filter on a tile, conveying in `direction` and letting `element` drop through.
+#[allow(dead_code)]
+pub fn filter(tile_x: i32, tile_y: i32, direction: i8, element: u8) -> Entity {
+    sized(Entity::filter(
+        filter_kind(),
+        tile_x,
+        tile_y,
+        direction,
+        element,
+    ))
 }
 
 fn sized(mut entity: Entity) -> Entity {

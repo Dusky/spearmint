@@ -15,6 +15,7 @@ const TOOL_LABELS: Record<Tool, string> = {
   draw: 'Draw',
   erase: 'Erase',
   belt: 'Belt',
+  filter: 'Filter',
   spawner: 'Spawner',
   press: 'Press',
   burner: 'Burner',

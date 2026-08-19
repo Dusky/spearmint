@@ -236,6 +236,22 @@ body {
   background: var(--text-faint-dimmer);
 }
 
+/* A belt's bar with a gap in the middle — the one thing it drops through. */
+.glyph--filter {
+  width: 16px;
+  height: 9px;
+  border-radius: 1px;
+  background: linear-gradient(
+    to right,
+    var(--text-faint-dimmer) 0,
+    var(--text-faint-dimmer) 6px,
+    transparent 6px,
+    transparent 10px,
+    var(--text-faint-dimmer) 10px,
+    var(--text-faint-dimmer) 16px
+  );
+}
+
 .glyph--spawner {
   width: 16px;
   height: 16px;

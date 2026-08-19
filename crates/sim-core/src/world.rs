@@ -44,6 +44,26 @@ fn content_hash<F: CellField + ?Sized>(field: &F) -> u64 {
     hasher.finish()
 }
 
+/// Fills a `Behaviour::Belt` entity's own footprint with its declared structural
+/// element, at the moment it is placed. Gravity and `entities::convey` then treat a
+/// belt's body as ordinary solid ground, because it is one — this is the one place that
+/// ground gets written.
+fn fill_structure<F: CellField + ?Sized>(
+    field: &mut F,
+    entity: &Entity,
+    definition: &entities::EntityType,
+) {
+    if definition.behaviour != Behaviour::Belt {
+        return;
+    }
+    let (x0, y0, x1, y1) = entity.body();
+    for y in y0..=y1 {
+        for x in x0..=x1 {
+            field.set(x, y, definition.structure);
+        }
+    }
+}
+
 fn content_hash_into<F: CellField + ?Sized>(hasher: &mut Hasher, field: &F) {
     if let Some(bounds) = field.bounds() {
         for y in bounds.min_y..=bounds.max_y {
@@ -92,6 +112,7 @@ impl World {
     pub fn place(&mut self, mut entity: Entity) {
         if let Some(definition) = self.rules.entities.get(entity.kind) {
             entity.size_from(definition);
+            fill_structure(&mut self.field, &entity, definition);
         }
         self.entities.push(entity);
     }
@@ -324,7 +345,11 @@ impl FlatWorld {
         }
     }
 
-    pub fn place(&mut self, entity: Entity) {
+    pub fn place(&mut self, mut entity: Entity) {
+        if let Some(definition) = self.rules.entities.get(entity.kind) {
+            entity.size_from(definition);
+            fill_structure(&mut self.field, &entity, definition);
+        }
         self.entities.push(entity);
     }
 

@@ -5,7 +5,11 @@
 
   "goldNote": "`goldPer` is how many points of product a press must take in to make one cell of currency. It is a machine property rather than a global, so a better press mints more from the same input. A press takes only what it can press; everything else falls through, which is why it never competes with the reaction feeding it. Nuggets appear in place and fall out of the machine — storage is a vault (spec 5.1).",
 
-  "spriteNote": "Sprites are 9x9 char grids, one tile (spec 2.3). '#' shell, '=' shadowed shell, ''' trim, 'o' the opening, which takes the colour of whatever the entity is working on. Space is transparent and lets the world show through. The first rule whose `when` matches is used, so order them most specific first. `elementState` matches the state of the element the entity handles, which means a new element of an existing state gets a shape without anyone drawing one.",
+  "mouthNote": "`mouthOffset`/`mouthWidth` are where an emitter's opening actually is, in cells from the tile's left edge. Sim-core cannot read the sprite pixels below (spec 8.3 keeps it rendering-free), so these are authored by hand to match whatever the running sprite's funnel narrows to. Absent means the whole tile width, which is correct for anything that is not an emitter.",
+
+  "spriteNote": "Sprites are 9x9 char grids, one tile (spec 2.3). '#' shell, '=' shadowed shell, ''' trim, 'o' the opening, which takes the colour of whatever the entity is working on. Space is transparent and lets the world show through. The first rule whose `when` matches is used, so order them most specific first. `elementState` matches the state of the element the entity handles, which means a new element of an existing state gets a shape without anyone drawing one. `pixels` can be one 9-row grid, or an array of them for animation — sim-wasm cycles frames by tick, no client change needed.",
+
+  "beltNote": "Belt and filter are both behaviour `belt` (spec 4.1-4.3): the same machine, distinguished only by whether an instance names an element to let through, exactly like one `emitter` tool is tuned per instance by which element it emits. `structure` names the indestructible element `World.place` fills the tile's own footprint with, so gravity holds cargo up on it the same way it holds anything up on solid ground.",
 
   "entities": [
     {
@@ -16,6 +20,8 @@
       "widthTiles": 1,
       "heightTiles": 1,
       "rate": 2,
+      "mouthOffset": 3,
+      "mouthWidth": 3,
       "sprites": [
         {
           "when": { "elementState": "powder", "status": "running" },
@@ -233,6 +239,114 @@
             "='''''''=",
             "#########",
             "   ooo   "
+          ]
+        }
+      ]
+    },
+    {
+      "note": "Conveys whatever rests on top of it (spec 4.1-4.2). Its own footprint is filled with `structure` the moment it is placed, so gravity holds cargo up on it like any other floor. Two frames on the tread row are the whole animation: enough to read as motion.",
+      "id": 6,
+      "name": "belt",
+      "behaviour": "belt",
+      "tool": "belt",
+      "widthTiles": 1,
+      "heightTiles": 1,
+      "structure": "beltStructure",
+      "sprites": [
+        {
+          "note": "Jammed: cargo is on it but cannot advance.",
+          "when": { "status": "blocked" },
+          "pixels": [
+            "#########",
+            "=========",
+            "#########",
+            " ''''''' ",
+            " ''''''' ",
+            " ''''''' ",
+            " ''''''' ",
+            " ''''''' ",
+            "========="
+          ]
+        },
+        {
+          "when": {},
+          "pixels": [
+            [
+              "#########",
+              "#=#=#=#=#",
+              "#########",
+              " ''''''' ",
+              " ''''''' ",
+              " ''''''' ",
+              " ''''''' ",
+              " ''''''' ",
+              "========="
+            ],
+            [
+              "#########",
+              "=#=#=#=#=",
+              "#########",
+              " ''''''' ",
+              " ''''''' ",
+              " ''''''' ",
+              " ''''''' ",
+              " ''''''' ",
+              "========="
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "note": "A belt that lets one element fall through its underside instead of conveying it (spec 4.3) — the same behaviour as `belt`, tuned per instance by `element`, the way one `emitter` tool is tuned by which element it emits. The opening takes that element's colour, same as an emitter's mouth.",
+      "id": 7,
+      "name": "filter",
+      "behaviour": "belt",
+      "tool": "filter",
+      "widthTiles": 1,
+      "heightTiles": 1,
+      "structure": "beltStructure",
+      "sprites": [
+        {
+          "note": "Jammed, same as a plain belt — the opening only appears once it is actually passing its element through.",
+          "when": { "status": "blocked" },
+          "pixels": [
+            "#########",
+            "=========",
+            "###===###",
+            " # === # ",
+            " # === # ",
+            " # === # ",
+            " # === # ",
+            " # === # ",
+            "  =====  "
+          ]
+        },
+        {
+          "when": {},
+          "pixels": [
+            [
+              "#########",
+              "#=#=#=#=#",
+              "###ooo###",
+              " # ooo # ",
+              " # ooo # ",
+              " # ooo # ",
+              " # ooo # ",
+              " # ooo # ",
+              "  =ooo=  "
+            ],
+            [
+              "#########",
+              "=#=#=#=#=",
+              "###ooo###",
+              " # ooo # ",
+              " # ooo # ",
+              " # ooo # ",
+              " # ooo # ",
+              " # ooo # ",
+              "  =ooo=  "
+            ]
           ]
         }
       ]

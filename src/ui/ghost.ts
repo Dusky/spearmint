@@ -54,8 +54,15 @@ function ghostRect(state: GameState): TileRect | null {
 
   if (strokeAnchor) {
     const start = { x: toTile(strokeAnchor.x), y: toTile(strokeAnchor.y) };
-    // A vault is marked out as an area; a constrained stroke is a line.
-    const end = selectedTool === 'vault' ? at : constrainToAxis(start, at);
+    // A vault is marked out as an area; a belt or filter line is horizontal only,
+    // whichever way the drag actually wandered (spec 4's open question on vertical
+    // transport is unresolved); a constrained stroke picks whichever axis moved most.
+    const end =
+      selectedTool === 'vault'
+        ? at
+        : selectedTool === 'belt' || selectedTool === 'filter'
+          ? { x: at.x, y: start.y }
+          : constrainToAxis(start, at);
     return {
       x: Math.min(start.x, end.x),
       y: Math.min(start.y, end.y),
