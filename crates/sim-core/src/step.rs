@@ -97,8 +97,7 @@ pub fn step<F: CellField + ?Sized>(
                     State::Solid => {}
                     State::Powder => step_powder(field, table, element, x, y, seed, tick),
                     State::Liquid => step_liquid(field, table, element, x, y, seed, tick),
-                    // No gas element exists yet. Rules arrive with one, not before.
-                    State::Gas => {}
+                    State::Gas => step_gas(field, table, element, x, y, seed, tick),
                 }
             }
         }
@@ -116,14 +115,14 @@ fn step_powder<F: CellField + ?Sized>(
     seed: u64,
     tick: u64,
 ) {
-    if try_move(field, table, element, x, y, x, y + 1) {
+    if try_move(field, table, element, x, y, x, y + 1, displaces) {
         return;
     }
     let (first, second) = diagonal_order(seed, tick, x, y);
-    if try_move(field, table, element, x, y, x + first, y + 1) {
+    if try_move(field, table, element, x, y, x + first, y + 1, displaces) {
         return;
     }
-    try_move(field, table, element, x, y, x + second, y + 1);
+    try_move(field, table, element, x, y, x + second, y + 1, displaces);
 }
 
 /// Falls, slides diagonally, and spreads sideways to find its level.
@@ -136,14 +135,14 @@ fn step_liquid<F: CellField + ?Sized>(
     seed: u64,
     tick: u64,
 ) {
-    if try_move(field, table, element, x, y, x, y + 1) {
+    if try_move(field, table, element, x, y, x, y + 1, displaces) {
         return;
     }
     let (first, second) = diagonal_order(seed, tick, x, y);
-    if try_move(field, table, element, x, y, x + first, y + 1) {
+    if try_move(field, table, element, x, y, x + first, y + 1, displaces) {
         return;
     }
-    if try_move(field, table, element, x, y, x + second, y + 1) {
+    if try_move(field, table, element, x, y, x + second, y + 1, displaces) {
         return;
     }
 
@@ -173,20 +172,73 @@ fn step_liquid<F: CellField + ?Sized>(
         -1
     };
     for direction in [first, -first] {
-        if let Some(target) = furthest_clear(field, table, element, x, y, direction) {
-            if try_move(field, table, element, x, y, target, y) {
+        if let Some(target) = furthest_clear(field, table, element, x, y, direction, 1, displaces) {
+            if try_move(field, table, element, x, y, target, y, displaces) {
                 return;
             }
         }
     }
 }
 
-/// How far a liquid may travel sideways in one tick.
+/// Rises, slips diagonally upward, and spreads along whatever is holding it down.
+///
+/// A liquid turned upside down, deliberately: a gas is a fluid that falls the other way,
+/// and writing it as the mirror keeps the two honest about being one idea. The surface
+/// rule mirrors too — a gas with more gas directly above it is "submerged" from its own
+/// point of view and does not flow sideways, which is what lets a cloud pack against a
+/// ceiling instead of churning under it forever.
+fn step_gas<F: CellField + ?Sized>(
+    field: &mut F,
+    table: &ElementTable,
+    element: &Element,
+    x: i32,
+    y: i32,
+    seed: u64,
+    tick: u64,
+) {
+    if try_move(field, table, element, x, y, x, y - 1, rises_through) {
+        return;
+    }
+    let (first, second) = diagonal_order(seed, tick, x, y);
+    for dx in [first, second] {
+        if try_move(field, table, element, x, y, x + dx, y - 1, rises_through) {
+            return;
+        }
+    }
+
+    if field
+        .get(x, y + 1)
+        .and_then(|below| table.get(below))
+        .is_some_and(|below| matches!(below.state, State::Gas))
+    {
+        return;
+    }
+
+    let first = if rng::coin_flip(seed, tick, x, y, SALT_LATERAL) {
+        1
+    } else {
+        -1
+    };
+    for direction in [first, -first] {
+        if let Some(target) =
+            furthest_clear(field, table, element, x, y, direction, -1, rises_through)
+        {
+            if try_move(field, table, element, x, y, target, y, rises_through) {
+                return;
+            }
+        }
+    }
+}
+
+/// How far a fluid may travel sideways in one tick.
 const DISPERSION: i32 = 5;
 
-/// Scans outward and reports the furthest cell the liquid could occupy, stopping early
-/// at the first place it could fall from — water should drop into a gap rather than
-/// run past it.
+/// Scans outward and reports the furthest cell the fluid could occupy, stopping early at
+/// the first place it could leave the row from — water should drop into a gap rather
+/// than run past it, and a gas should escape up a chimney rather than run past that.
+///
+/// `along` is the way this fluid travels vertically: `1` for a liquid, `-1` for a gas.
+#[allow(clippy::too_many_arguments)]
 fn furthest_clear<F: CellField + ?Sized>(
     field: &mut F,
     table: &ElementTable,
@@ -194,29 +246,32 @@ fn furthest_clear<F: CellField + ?Sized>(
     x: i32,
     y: i32,
     direction: i32,
+    along: i32,
+    yields: Yields,
 ) -> Option<i32> {
     let mut furthest = None;
     for step in 1..=DISPERSION {
         let candidate = x + direction * step;
-        if !can_occupy(field, table, element, candidate, y) {
+        if !can_occupy(field, table, element, candidate, y, yields) {
             break;
         }
         furthest = Some(candidate);
-        // Somewhere to fall: stop here rather than running past the gap.
-        if can_occupy(field, table, element, candidate, y + 1) {
+        // Somewhere to go: stop here rather than running past the gap.
+        if can_occupy(field, table, element, candidate, y + along, yields) {
             break;
         }
     }
     furthest
 }
 
-/// Whether `element` could move into this cell — empty, or a fluid it can displace.
+/// Whether `element` could move into this cell — empty, or a fluid that yields to it.
 fn can_occupy<F: CellField + ?Sized>(
     field: &mut F,
     table: &ElementTable,
     element: &Element,
     x: i32,
     y: i32,
+    yields: Yields,
 ) -> bool {
     let Some(occupant) = field.get(x, y) else {
         return false;
@@ -226,7 +281,7 @@ fn can_occupy<F: CellField + ?Sized>(
     }
     table
         .get(occupant)
-        .is_some_and(|target| displaces(element, target))
+        .is_some_and(|target| yields(element, target))
 }
 
 fn diagonal_order(seed: u64, tick: u64, x: i32, y: i32) -> (i32, i32) {
@@ -237,8 +292,16 @@ fn diagonal_order(seed: u64, tick: u64, x: i32, y: i32) -> (i32, i32) {
     }
 }
 
+/// What counts as a cell yielding to something moving into it.
+///
+/// Passed in rather than baked into `try_move` because sinking and rising are mirror
+/// images of one rule — the denser of two fluids ends up lower — and which comparison
+/// says so depends on which way the mover is going.
+type Yields = fn(&Element, &Element) -> bool;
+
 /// Moves the contents of one cell into another if the target yields, and reports
 /// whether it happened.
+#[allow(clippy::too_many_arguments)]
 fn try_move<F: CellField + ?Sized>(
     field: &mut F,
     table: &ElementTable,
@@ -247,6 +310,7 @@ fn try_move<F: CellField + ?Sized>(
     from_y: i32,
     to_x: i32,
     to_y: i32,
+    yields: Yields,
 ) -> bool {
     // `None` is impassable boundary, not empty space — a fixed grid has edges.
     let Some(target) = field.get(to_x, to_y) else {
@@ -263,7 +327,7 @@ fn try_move<F: CellField + ?Sized>(
         let Some(target_element) = table.get(target) else {
             return false;
         };
-        if !displaces(mover, target_element) {
+        if !yields(mover, target_element) {
             return false;
         }
     }
@@ -284,6 +348,18 @@ fn try_move<F: CellField + ?Sized>(
 fn displaces(mover: &Element, target: &Element) -> bool {
     matches!(target.state, State::Liquid | State::Gas | State::Powder)
         && mover.density > target.density
+}
+
+/// Whether `mover` can rise through `target`.
+///
+/// The same rule as `displaces` seen from underneath: of two fluids, the denser ends up
+/// lower. Sinking asks whether the mover is heavier than what is beneath it; rising asks
+/// whether it is lighter than what is above. Steam under water needs the second, and
+/// `displaces` answers it backwards — which would leave a gas trapped wherever it was
+/// made.
+fn rises_through(mover: &Element, target: &Element) -> bool {
+    matches!(target.state, State::Liquid | State::Gas | State::Powder)
+        && mover.density < target.density
 }
 
 /// Reacts a cell with its right and lower neighbours, returning what it ended up as.

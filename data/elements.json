@@ -2,7 +2,7 @@
   "note": "Element definitions live in data, not code. Adding an element means editing this file (spec 3.2). Ids are declared here and are permanent: they are baked into saves and world hashes, so reordering this list must never change behaviour. Id 0 is reserved for empty space.",
 
   "valueNote": "`value` is what a cell is worth to a press, in points. A press takes only what has value, so zero also means the machine ignores it entirely and lets it fall through. `currency` marks the element those points are pressed into: currency has no value of its own, so no press ever takes it back, and currency inside a vault is the player's balance. `refinedInto` is separate from all of that: it names what a Refine machine (a burner, a compactor) turns this element into, one cell at a time, regardless of value.",
-  "heatNote": "`melting_point`/`boiling_point` are Kelvin; `thermal_conductivity` decides how fast a cell trades heat with whatever touches it (spec 5.3) — a heater is the source, everything else just conducts. `meltsInto`/`boilsInto` name what this becomes once its own temperature reaches the matching point; absent means nothing does, which is still true of most of the roster. Checked hottest-first, so something hot enough to boil never gets stuck being evaluated as merely melted.",
+  "heatNote": "`melting_point`/`boiling_point` are Kelvin; `thermal_conductivity` decides how fast a cell trades heat with whatever touches it (spec 5.3) — a heater is the source, everything else just conducts. `meltsInto`/`boilsInto` name what this becomes once its own temperature reaches the matching point; absent means nothing does, which is still true of most of the roster. `condensesInto`/`freezesInto` are the same transitions run backwards, and reuse the same two points rather than declaring thresholds of their own: a gas condenses below its boiling point, a liquid freezes below its melting point. Heating is checked hottest-first, so something hot enough to boil never gets stuck being evaluated as merely melted; cooling is checked nearest-first, so a very cold gas becomes liquid before it becomes solid instead of skipping a state. The comparisons are asymmetric on purpose — `>=` going up, `<` coming down — so a cell parked exactly on a threshold settles on one identity instead of flipping between two every tick.",
   "elements": [
     {
       "note": "The player's building material: everything hand-drawn is made of this. Painted industrial yellow rather than the grey it started as, and with almost no colour variance — variance reads as grain, which is right for sand and wrong for something manufactured. A flat panel next to speckled powder is most of what makes it look built. Named `structure` (it was `wall`), because it is floors, chutes and machine housings far more often than it is a wall.",
@@ -43,7 +43,8 @@
       "color": "#3E7FA8",
       "color_variance": 10,
       "flammability": 0.0,
-      "hardness": 0.0
+      "hardness": 0.0,
+      "boilsInto": "steam"
     },
     {
       "id": 4,
@@ -146,7 +147,38 @@
       "color": "#E8622C",
       "color_variance": 14,
       "flammability": 0.0,
-      "hardness": 0.0
+      "hardness": 0.0,
+      "freezesInto": "glass"
+    },
+    {
+      "note": "Boiled water, and the first gas the simulation has ever had — `State::Gas` was an empty arm waiting for exactly this. The lowest conductivity on the roster, and that is the interesting number: heat moves between two cells at the lower of their two conductivities, so steam sheds warmth to a cold ceiling slowly enough to linger as a visible cloud before it condenses and rains back down. Real steam conducts poorly too, so the legible answer and the physical one agree. Density 1 makes it the lightest thing there is, which is the whole of why it rises — nothing names steam in the movement rules.",
+      "id": 11,
+      "name": "steam",
+      "state": "gas",
+      "density": 1,
+      "melting_point": 273,
+      "boiling_point": 373,
+      "thermal_conductivity": 0.05,
+      "color": "#9FB4BC",
+      "color_variance": 18,
+      "flammability": 0.0,
+      "hardness": 0.0,
+      "condensesInto": "water"
+    },
+    {
+      "note": "What molten sand sets into once it drops back below its melting point, and the first thing heat has ever produced that the player keeps. A solid, so it holds a shape: pour molten sand along a channel, let it cool, and the shape it stopped in is the shape you get. `meltsInto` sends it back to molten, so glass and molten sand are a stable pair — sand melts into the loop once and never comes back out of it, which is what makes melting an upgrade rather than a round trip.",
+      "id": 12,
+      "name": "glass",
+      "state": "solid",
+      "density": 2500,
+      "melting_point": 1986,
+      "boiling_point": 2503,
+      "thermal_conductivity": 0.2,
+      "color": "#A7C4C9",
+      "color_variance": 5,
+      "flammability": 0.0,
+      "hardness": 0.7,
+      "meltsInto": "moltenSand"
     }
   ],
   "reactions": [

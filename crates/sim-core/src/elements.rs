@@ -91,7 +91,29 @@ pub struct Element {
     /// What this becomes once its temperature reaches `melting_point`. `EMPTY` means
     /// nothing melts it, the default for anything that has not declared a product.
     pub melts_into: ElementId,
+    /// What this gas becomes once it cools back *below* `boiling_point` — the mirror of
+    /// `boils_into`, sharing the one threshold rather than declaring a second that could
+    /// disagree with it. `EMPTY` means nothing condenses it.
+    pub condenses_into: ElementId,
+    /// What this liquid becomes once it cools back *below* `melting_point`, mirroring
+    /// `melts_into` the same way. `EMPTY` means it stays liquid however cold it gets.
+    pub freezes_into: ElementId,
 }
+
+/// The fields that name another element rather than holding a value, paired with where
+/// each one lands. One list rather than one copy of the same lookup per field — there
+/// are six of them now, and the sixth reads exactly like the first.
+///
+/// Every one of these is resolved in a second pass, once every id exists.
+type LinkedField = (&'static str, fn(&mut Element) -> &mut ElementId);
+const LINKED_FIELDS: [LinkedField; 6] = [
+    ("residue", |element| &mut element.residue),
+    ("refinedInto", |element| &mut element.refined_into),
+    ("boilsInto", |element| &mut element.boils_into),
+    ("meltsInto", |element| &mut element.melts_into),
+    ("condensesInto", |element| &mut element.condenses_into),
+    ("freezesInto", |element| &mut element.freezes_into),
+];
 
 /// Elements indexed by id. A `Vec` rather than a map: spec 3.1 forbids hash-map
 /// iteration in the sim, and direct indexing is what the tick loop wants anyway.
@@ -130,42 +152,15 @@ impl ElementTable {
         // looked up, so this cannot be done inline with the loop above.
         for entry in elements {
             let id = field_id(entry)?;
-
-            if let Some(name) = entry.get("residue").and_then(Json::as_str) {
-                let residue_id = table
-                    .id_of(name)
-                    .ok_or(DataError::BadField { field: "residue" })?;
-                table.slots[usize::from(id)]
+            for (field, target) in LINKED_FIELDS {
+                let Some(name) = entry.get(field).and_then(Json::as_str) else {
+                    continue;
+                };
+                let referenced = table.id_of(name).ok_or(DataError::BadField { field })?;
+                let element = table.slots[usize::from(id)]
                     .as_mut()
-                    .expect("just inserted above")
-                    .residue = residue_id;
-            }
-            if let Some(name) = entry.get("refinedInto").and_then(Json::as_str) {
-                let refined_id = table
-                    .id_of(name)
-                    .ok_or(DataError::BadField { field: "refinedInto" })?;
-                table.slots[usize::from(id)]
-                    .as_mut()
-                    .expect("just inserted above")
-                    .refined_into = refined_id;
-            }
-            if let Some(name) = entry.get("boilsInto").and_then(Json::as_str) {
-                let boils_id = table
-                    .id_of(name)
-                    .ok_or(DataError::BadField { field: "boilsInto" })?;
-                table.slots[usize::from(id)]
-                    .as_mut()
-                    .expect("just inserted above")
-                    .boils_into = boils_id;
-            }
-            if let Some(name) = entry.get("meltsInto").and_then(Json::as_str) {
-                let melts_id = table
-                    .id_of(name)
-                    .ok_or(DataError::BadField { field: "meltsInto" })?;
-                table.slots[usize::from(id)]
-                    .as_mut()
-                    .expect("just inserted above")
-                    .melts_into = melts_id;
+                    .expect("just inserted above");
+                *target(element) = referenced;
             }
         }
 
@@ -268,6 +263,8 @@ fn parse_element(entry: &Json<'_>) -> Result<Element, DataError> {
         refined_into: EMPTY,
         boils_into: EMPTY,
         melts_into: EMPTY,
+        condenses_into: EMPTY,
+        freezes_into: EMPTY,
     })
 }
 

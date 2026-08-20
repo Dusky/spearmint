@@ -110,8 +110,17 @@ fn exchange<F: CellField + ?Sized>(
     field.mark_active(bx, by);
 }
 
-/// Boiling first: a substance hot enough to boil already crossed its melting point on
-/// the way there, so the more-transformed transition is the one that should win.
+/// Changes a cell's identity when its temperature crosses one of its own thresholds.
+///
+/// Ordered hottest-first on the way up — something hot enough to boil already crossed
+/// its melting point getting there, so the more-transformed transition wins — and
+/// nearest-first on the way down, so a very cold gas becomes liquid before it becomes
+/// solid rather than skipping a state it should pass through.
+///
+/// The comparisons are deliberately asymmetric: `>=` going up and `<` going down. That
+/// one cell of hysteresis is what keeps a cell sitting exactly on its threshold from
+/// changing identity every tick forever. Water boils at 373 and steam condenses below
+/// 373, so 373 itself is steam and stays steam.
 fn transition<F: CellField + ?Sized>(field: &mut F, elements: &ElementTable, x: i32, y: i32) {
     let Some(id) = field.get(x, y) else { return };
     let Some(element) = elements.get(id) else { return };
@@ -121,6 +130,10 @@ fn transition<F: CellField + ?Sized>(field: &mut F, elements: &ElementTable, x: 
         element.boils_into
     } else if element.melts_into != EMPTY && temperature >= element.melting_point {
         element.melts_into
+    } else if element.condenses_into != EMPTY && temperature < element.boiling_point {
+        element.condenses_into
+    } else if element.freezes_into != EMPTY && temperature < element.melting_point {
+        element.freezes_into
     } else {
         return;
     };
