@@ -815,47 +815,124 @@ Target: browser-playable.
 
 ## 10. Build order
 
-The first session should produce **the sim core alone**. Headless. No rendering, no
-economy, no UI, no belts.
+### What 1.0 is
 
-**Milestone 1 — deterministic sim core**
+**A browser game someone can play, save, and come back to. Single player.**
 
-1. Fixed-point cell grid, typed-array backed
-2. Seeded PRNG
-3. Fixed timestep tick loop
-4. Three elements only: sand (powder), water (liquid), wall (static)
-5. Data-driven element loading from JSON
-6. **Determinism test:** run 10,000 ticks twice from the same seed and assert identical
-   output hashes. Then run it in a separate thread or process and assert the same hash
-   again.
+Everything in §6 (offline progress), §7.2's sync, and §8 (accounts, server-authoritative
+economy, replay verification, leaderboards) is **2.0**, deliberately. Not because it is
+wrong — it is still the design — but because none of it can tell you whether the game is
+good, and the one thing still untested after twelve rounds is whether this holds
+somebody's attention for half an hour. Building account infrastructure before that is
+answered would repeat, at greater expense, the mistake
+[`WHY-ITS-A-TOY.md`](WHY-ITS-A-TOY.md) documents.
 
-Do not proceed until that test passes reliably. If determinism is not locked down and
-proven before other systems land on top of it, the server-authority plan quietly dies and
-the cost of recovering it grows every week.
+### Where the build actually is
 
-**Milestone 2** — chunking, dirty-rect updates, viewport-gated sleeping, eviction, rendering
+| | | |
+|---|---|---|
+| **M1** deterministic sim core | **done** | proven across runs, threads and processes |
+| **M2a** chunked storage | **done** | gated against the flat oracle, tick for tick |
+| **M2b** dirty rects, viewport-gated sleeping | **done** | but delivering nothing — see M8 |
+| **M2c** eviction | **blocked** | on §2.4, a design decision; deferred to 2.0 with the rest of the replay story |
+| **M2d** WebGL2 renderer | **not started** | and no longer believed urgent — see M8 |
+| **M3** tile grid, constructs, drawing | **done** | |
+| **M4** belts | **done** | plus filters, and the kiln and lift that came later |
+| **M5** spawners, gold, first production chain | **done** | teleporters skipped: the lift (§4.6) answered upward transport instead, and better |
 
-**[PROPOSED]** Split Milestone 2, so chunking gets its own gate before anything is built
-on it — the same shape as Milestone 1, and for the same reason.
-
-- **2a — chunked storage.** Sparse chunks, deterministic ordering, boundary resolution.
-  Gate: a chunked world and an unchunked one must produce identical hashes tick for
-  tick. Keeping the flat grid as a test oracle is what makes that gate possible.
-- **2b — dirty rects and viewport-gated sleeping.** This is where determinism is
-  genuinely at risk, because what gets visited stops being a function of the world
-  alone. Gate: a world where regions sleep must match one where nothing sleeps.
-- **2c — eviction.** Blocked on the open question in §2.4, which is a design decision
-  and not an implementation detail.
-- **2d — the WebGL2 renderer**, which connects the sim to the client for the first time.
-
-Rationale: 2a cannot break determinism if iteration stays a global sweep and chunking is
-only storage, whereas 2b can. Landing them together makes a divergence expensive to
-bisect.
-**Milestone 3** — tile grid, constructs, drawing tools
-**Milestone 4** — belts (real particle transport), burial, loading by placement
-**Milestone 5** — spawners, gold, teleporters, first production chain
+Six further rounds shipped outside this list, because the vertical slice
+([`VERTICAL-SLICE.md`](VERTICAL-SLICE.md)) cut across it deliberately: the refine chain,
+sprite animation, machine retuning, pacing, the heat field, gas and phase changes, and
+then the three rounds that turned the chain's conversions from machines into physics.
+The list below is written from where that actually left things.
 
 ---
+
+### M6 — Is it a game? **[gate]**
+
+Nothing below should start before this. Sit down and play the chain that now exists —
+wash → press → kiln → silo → lift — for as long as it holds.
+
+**Gate:** someone unfamiliar builds a working factory inside about thirty minutes without
+being told how, and wants to keep going. A result of *"the layout is a chore"* is a
+**success** for this milestone and redirects everything under it.
+
+This is the same standard §1 of `WHY-ITS-A-TOY.md` was written to, and the last three
+rounds each deferred it. It is cheap and it gates the expensive work.
+
+### M7 — A world to build in
+
+§3.6, open question 3b. Nothing holds the world up: every scene today is
+`scene::arena`, a walled test box, and on the infinite canvas material with no floor
+falls forever allocating chunks as it goes.
+
+Blocks more than it looks: the save format's world seed (§7.2) implies generated terrain,
+eviction (2c) needs a bounded world to reason about, and "what does starting a game look
+like" has no answer without one.
+
+**Gate:** a generated world you can play in with no arena walls, and nothing falls
+forever.
+
+### M8 — Liquids settle, and the sim gets cheap
+
+§3.5, open question 3a — and the measured reason it matters. Native release, on the
+harness scene:
+
+| world | µs/tick | share of a 33ms tick at 30Hz |
+|---|---|---|
+| 160×120 | 1,008 | 3% |
+| 480×360 | 7,459 | 22% |
+| 960×540 | 20,361 | **61%** |
+
+Native. Wasm is slower. So **the simulation is what misses frame budget, not the
+renderer** — which reverses §9's assumption that WebGL2 is the next performance move.
+Sleeping was built to fix exactly this and delivers nothing, because water never comes to
+rest and an awake liquid keeps its chunk awake.
+
+Caveat worth keeping: that scene is a busy sandbox, closer to a worst case than to an
+idle factory. Measure a real factory before drawing the curve.
+
+**Gate:** `liquid_worlds_never_settle` flips to an equality assertion, sleeping measurably
+skips chunks, and a 960×540 world holds 30Hz in the browser. Only if it still does not
+does 2d (WebGL2) become the next move.
+
+### M9 — Save and resume
+
+§7. Without it there is no "come back to", which is most of what an incremental game is.
+
+**Gate:** quit mid-factory, reload, and the world is bit-identical — the same hash the
+determinism tests already know how to compare.
+
+### M10 — A game with a middle
+
+Open question 7, the element roster and tech tree. Today: thirteen elements, one
+reaction, one gold sink (a spawner slot), and `state.upgrades` is `[]`. Pillar 4 —
+*byproducts become the next era's ingredients* — has never been exercised, because there
+is only one era.
+
+**Gate:** a second era that consumes what the first era treats as waste, and a reason to
+keep playing after the first factory works.
+
+### M11 — First run
+
+Onboarding, the notice queue (handoff open question 3), and the inspector's placeholder
+thresholds and copy (§"Flagged back to design" in the README). Everything a player meets
+before they understand anything.
+
+**Gate:** M6's thirty-minute test passes with no one sitting next to them.
+
+### M12 — Ship
+
+Build, deploy, a page someone can open. Perf pass against real factories rather than the
+sandbox.
+
+---
+
+### Deferred to 2.0, explicitly
+
+§6 offline progress, §7.2 save sync, §8 in full (accounts, server authority, anti-cheat,
+replay verification, leaderboards), chunk eviction (2c), blueprints (§4.5), and
+teleporters (§4.4). Each is still the design; none is on the path to a playable thing.
 
 ## 11. Open questions
 
@@ -863,20 +940,29 @@ bisect.
    lift.** See §4.6. It stopped being theoretical the moment the refine chain became
    physics: compaction leaves fuel at the bottom of a silo and the heaters that burn it
    sit above, so without upward transport the factory could not run on what it made.
-2. Final tile size (§2.3)
+2. Final tile size (§2.3) — nine cells has survived twelve rounds unchallenged; treat as
+   settled unless something argues otherwise
 3. Chunk eviction policy and threshold (§2.4) — constrained: it must be deterministic
-   from simulation state and logged inputs, or replay verification breaks
+   from simulation state and logged inputs, or replay verification breaks. **Deferred to
+   2.0** with the rest of the replay story
 3a. How liquids find their level and come to rest (§3.5) — blocks chunk sleeping from
-   delivering anything
-3b. What stops material falling forever on an infinite canvas (§3.6)
-4. Teleporter starting range, cost curve, upgrade granularity (§4.4)
-5. Paste fidelity: do blueprints normalize, or does local physics apply? (§4.5) — blocks blueprints
-6. Blueprint slot limits; sharing between players (§4.5)
-7. Element roster and tech tree (§5.3)
+   delivering anything, which the §10 measurements make the live performance problem.
+   **M8**
+3b. What stops material falling forever on an infinite canvas (§3.6) — **M7**
+4. Teleporter starting range, cost curve, upgrade granularity (§4.4) — **deferred to
+   2.0**; the lift (§4.6) answered upward transport without one
+5. Paste fidelity: do blueprints normalize, or does local physics apply? (§4.5) — blocks
+   blueprints, **deferred to 2.0**
+6. Blueprint slot limits; sharing between players (§4.5) — **deferred to 2.0**
+7. Element roster and tech tree (§5.3) — **M10**, and the largest genuinely unanswered
+   design question left on the 1.0 path
 8. Confirm byproducts backing up into machines is intended (§5.4)
-9. What late-game buildings actually are (§5.5)
-10. Leaderboard format (§8.4)
-11. Backend platform and hosting
+9. What late-game buildings actually are (§5.5) — **deferred to 2.0**
+10. Leaderboard format (§8.4) — **deferred to 2.0**
+11. Backend platform and hosting — **deferred to 2.0**; 1.0 is a static page
+
+**12. Does the loop hold for half an hour?** Not in the original list, and now the one
+that gates everything else. **M6.**
 
 ---
 

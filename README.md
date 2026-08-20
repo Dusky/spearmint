@@ -316,9 +316,16 @@ was built first by request, then the core. Nothing in the client constrains the 
 the HUD reaches the world only through `SimSurface` and a readout struct — and nothing
 in the sim knows the client exists.
 
-Milestones 1, 2a and 2b have met their gates. What remains of Milestone 2: eviction once
-§2.4's open question is answered (2c), and the WebGL2 renderer that finally connects the
-two halves (2d).
+Milestones 1, 2a and 2b have met their gates, and 3, 4 and 5 are done bar the
+teleporters — which the lift replaced. **[`docs/SPEC.md`](docs/SPEC.md) §10 is the path
+from here to 1.0**, rewritten against what is actually built: a single-player browser
+game you can play, save and come back to, with the online layer (§6–§8) explicitly
+deferred to 2.0.
+
+The gate before any of it is M6 — *play it and find out whether it holds* — and the
+surprise from measuring is that the **simulation**, not the renderer, is what misses
+frame budget, which makes liquid settling (§3.5) the live performance problem rather than
+WebGL2.
 
 Since then the vertical slice shipped and kept going, out of milestone order: the refine
 chain (burner, compactor, fuel), belts and filters with sprite animation, machines that
