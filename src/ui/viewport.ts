@@ -35,12 +35,12 @@ const BUILD_TOOLS = new Set<Tool>([
   'erase',
   'spawner',
   'press',
-  'burner',
   'compactor',
   'heater',
   'vault',
   'belt',
   'filter',
+  'kiln',
 ]);
 
 export function createViewport(surface: SimSurface, actions: ViewportActions): Component {
@@ -143,7 +143,7 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
       strokeStart = world;
       strokePrevious = world;
       marking = selectedTool === 'vault';
-      laying = selectedTool === 'belt' || selectedTool === 'filter';
+      laying = selectedTool === 'belt' || selectedTool === 'filter' || selectedTool === 'kiln';
       reportStroke();
       // A stroke that previews — constrained, marking out a vault, or laying a belt
       // line — commits on release, so pressing must not act. Everything else acts on

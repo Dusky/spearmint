@@ -1,7 +1,7 @@
 {
   "note": "Element definitions live in data, not code. Adding an element means editing this file (spec 3.2). Ids are declared here and are permanent: they are baked into saves and world hashes, so reordering this list must never change behaviour. Id 0 is reserved for empty space.",
 
-  "valueNote": "`value` is what a cell is worth to a press, in points. A press takes only what has value, so zero also means the machine ignores it entirely and lets it fall through. `currency` marks the element those points are pressed into: currency has no value of its own, so no press ever takes it back, and currency inside a vault is the player's balance. `refinedInto` is separate from all of that: it names what a Refine machine (a burner, a compactor) turns this element into, one cell at a time, regardless of value.",
+  "valueNote": "`value` is what a cell is worth to a press, in points. A press takes only what has value, so zero also means the machine ignores it entirely and lets it fall through. `currency` marks the element those points are pressed into: currency has no value of its own, so no press ever takes it back, and currency inside a vault is the player's balance. `refinedInto` is separate from all of that: it names what a Refine machine (the compactor) turns this element into, one cell at a time, regardless of value. `burnsInto` is the other conversion, and deliberately not a machine at all: an element that declares it turns into that product wherever it is at or above its own `ignitionPoint`, with `flammability` as the chance per tick, so dwell time in the heat is what sets the rate.",
   "heatNote": "`melting_point`/`boiling_point` are Kelvin; `thermal_conductivity` decides how fast a cell trades heat with whatever touches it (spec 5.3) — a heater is the source, everything else just conducts. `meltsInto`/`boilsInto` name what this becomes once its own temperature reaches the matching point; absent means nothing does, which is still true of most of the roster. `condensesInto`/`freezesInto` are the same transitions run backwards, and reuse the same two points rather than declaring thresholds of their own: a gas condenses below its boiling point, a liquid freezes below its melting point. Heating is checked hottest-first, so something hot enough to boil never gets stuck being evaluated as merely melted; cooling is checked nearest-first, so a very cold gas becomes liquid before it becomes solid instead of skipping a state. The comparisons are asymmetric on purpose — `>=` going up, `<` coming down — so a cell parked exactly on a threshold settles on one identity instead of flipping between two every tick.",
   "elements": [
     {
@@ -77,7 +77,7 @@
       "currency": true
     },
     {
-      "note": "The byproduct of pressing. Denser than sand and wet sand, so it settles below them in a mixed pile rather than mixing back in; far short of gold, so it never buries a nugget. Burns into burntResidue (spec 5.3) — a burner is the intended consumer, not the press itself.",
+      "note": "The byproduct of pressing. Denser than sand and wet sand, so it settles below them in a mixed pile rather than mixing back in; far short of gold, so it never buries a nugget. Burns into burntResidue (spec 5.3), but nothing converts it on demand: it burns where it is hot enough, and `flammability` is the chance per tick that it does. How long a cell spends hot is therefore what decides throughput, which makes residence time a consequence of the layout rather than a machine's setting (spec 3.3). Ignites well clear of water's 373K, so a burn run and a wash cannot share a space, and well below its own 1500K melting point, so it always burns rather than melting.",
       "id": 6,
       "name": "residue",
       "state": "powder",
@@ -87,12 +87,13 @@
       "thermal_conductivity": 0.2,
       "color": "#6E6255",
       "color_variance": 12,
-      "flammability": 0.0,
+      "flammability": 0.03,
       "hardness": 0.4,
-      "refinedInto": "burntResidue"
+      "ignitionPoint": 800,
+      "burnsInto": "burntResidue"
     },
     {
-      "note": "The next stage: what a burner leaves behind. Denser again — burning drives off what was loose in it — and, once compacted, waiting to be fuel.",
+      "note": "The next stage: what residue leaves behind once it has burned. Denser again — burning drives off what was loose in it — and, once compacted, waiting to be fuel.",
       "id": 7,
       "name": "burntResidue",
       "state": "powder",
@@ -130,6 +131,21 @@
       "boiling_point": 999999,
       "thermal_conductivity": 0.0,
       "color": "#000000",
+      "color_variance": 0,
+      "flammability": 0.0,
+      "hardness": 1.0,
+      "internal": true
+    },
+    {
+      "note": "A belt chassis that conducts. Everything `beltStructure` is — solid, absurdly dense, never displaced, `internal` so no picker offers it — with the one field inverted: 2.0 against beltStructure's 0.0, well above any material that will ride on it. That inversion is the whole mechanic. Cargo rests on the row directly above a belt's body (`convey_one`), so a run built from this heats what it carries while carrying it, and belt length becomes dwell time. A plain belt is then the deliberately insulated choice rather than the only one. Conducts along itself fast enough that a heater anywhere against the run warms all of it; `heat.rs` takes the *worse* conductor of any touching pair, so ordinary structure at 0.15 still contains the leak.",
+      "id": 13,
+      "name": "kilnStructure",
+      "state": "solid",
+      "density": 999999,
+      "melting_point": 999999,
+      "boiling_point": 999999,
+      "thermal_conductivity": 2.0,
+      "color": "#7A3B2E",
       "color_variance": 0,
       "flammability": 0.0,
       "hardness": 1.0,

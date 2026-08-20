@@ -81,8 +81,10 @@ pub struct Element {
     /// What a machine built to refine this turns it into — residue burns into burnt
     /// residue, which compacts into fuel (spec 5.3). `EMPTY` means nothing refines it.
     ///
-    /// Generic on purpose: a burner and a compactor are the same behaviour reading this
-    /// field on whatever they are fed, not two hand-written machines.
+    /// Generic on purpose: a Refine machine is one behaviour reading this field on
+    /// whatever it is fed, not a hand-written machine per stage. The compactor is the
+    /// only one left — residue used to have a burner, and now burns instead (see
+    /// `burns_into`), which is why only one link in the chain still runs on this.
     pub refined_into: ElementId,
     /// What this becomes once its temperature (spec 5.3's heat system) reaches
     /// `boiling_point`. `EMPTY` means nothing boils it — true of everything shipped so
@@ -98,21 +100,36 @@ pub struct Element {
     /// What this liquid becomes once it cools back *below* `melting_point`, mirroring
     /// `melts_into` the same way. `EMPTY` means it stays liquid however cold it gets.
     pub freezes_into: ElementId,
+    /// What this becomes when it burns. `EMPTY` means it does not burn, which is true
+    /// of everything but residue.
+    ///
+    /// Unlike melting and freezing, burning is one-way and probabilistic: reaching
+    /// `ignition_point` only makes a cell *eligible*, and `flammability` is the chance
+    /// per tick that it actually converts. That is what makes dwell time matter — a
+    /// cell carried quickly through a hot stretch mostly survives it, and one carried
+    /// slowly mostly does not — so residence time comes out of the layout instead of
+    /// being a number on a machine (spec 3.3).
+    pub burns_into: ElementId,
+    /// Kelvin. The temperature at or above which `burns_into` can fire. `i32::MAX` — the
+    /// default when the field is absent — means never, so an element only burns by
+    /// saying so.
+    pub ignition_point: i32,
 }
 
 /// The fields that name another element rather than holding a value, paired with where
 /// each one lands. One list rather than one copy of the same lookup per field — there
-/// are six of them now, and the sixth reads exactly like the first.
+/// are seven of them now, and the seventh reads exactly like the first.
 ///
 /// Every one of these is resolved in a second pass, once every id exists.
 type LinkedField = (&'static str, fn(&mut Element) -> &mut ElementId);
-const LINKED_FIELDS: [LinkedField; 6] = [
+const LINKED_FIELDS: [LinkedField; 7] = [
     ("residue", |element| &mut element.residue),
     ("refinedInto", |element| &mut element.refined_into),
     ("boilsInto", |element| &mut element.boils_into),
     ("meltsInto", |element| &mut element.melts_into),
     ("condensesInto", |element| &mut element.condenses_into),
     ("freezesInto", |element| &mut element.freezes_into),
+    ("burnsInto", |element| &mut element.burns_into),
 ];
 
 /// Elements indexed by id. A `Vec` rather than a map: spec 3.1 forbids hash-map
@@ -161,6 +178,22 @@ impl ElementTable {
                     .as_mut()
                     .expect("just inserted above");
                 *target(element) = referenced;
+            }
+        }
+
+        // Burning needs all three of its fields to agree, and two of them default to
+        // "never". Declaring `burnsInto` without a threshold to cross, or with no
+        // chance of ever firing, describes something that silently does nothing — the
+        // exact class of quiet wrongness this file validates against everywhere else.
+        for element in table.slots.iter().flatten() {
+            if element.burns_into == EMPTY {
+                continue;
+            }
+            if element.ignition_point == i32::MAX {
+                return Err(DataError::BadField { field: "ignitionPoint" });
+            }
+            if element.flammability == Fixed::ZERO {
+                return Err(DataError::BadField { field: "flammability" });
             }
         }
 
@@ -265,6 +298,15 @@ fn parse_element(entry: &Json<'_>) -> Result<Element, DataError> {
         melts_into: EMPTY,
         condenses_into: EMPTY,
         freezes_into: EMPTY,
+        burns_into: EMPTY,
+        // Optional, and absent means unreachable rather than zero — a missing threshold
+        // must never read as "burns at 0K", which is what a `unwrap_or(0)` here would
+        // quietly mean.
+        ignition_point: entry
+            .get("ignitionPoint")
+            .map(|point| point.as_i32().ok_or(bad("ignitionPoint")))
+            .transpose()?
+            .unwrap_or(i32::MAX),
     })
 }
 

@@ -17,9 +17,9 @@ export const TOOLS = [
   'erase',
   'belt',
   'filter',
+  'kiln',
   'spawner',
   'press',
-  'burner',
   'compactor',
   'heater',
   'vault',
@@ -33,8 +33,8 @@ export type Tool = (typeof TOOLS)[number];
  *  "how does material move", "what processes it", "where does it go"). */
 export const TOOL_GROUPS: readonly { readonly label: string; readonly tools: readonly Tool[] }[] = [
   { label: 'BUILD', tools: ['select', 'draw', 'erase'] },
-  { label: 'TRANSPORT', tools: ['belt', 'filter', 'teleport'] },
-  { label: 'MACHINES', tools: ['spawner', 'press', 'burner', 'compactor', 'heater'] },
+  { label: 'TRANSPORT', tools: ['belt', 'filter', 'kiln', 'teleport'] },
+  { label: 'MACHINES', tools: ['spawner', 'press', 'compactor', 'heater'] },
   { label: 'PLACES', tools: ['vault', 'blueprint'] },
 ];
 

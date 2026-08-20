@@ -615,7 +615,7 @@ pub extern "C" fn sim_temperature(x: i32, y: i32) -> i32 {
 ///
 /// Restricted to occupied cells because that is the question being asked: heat only
 /// does anything where there is something for it to melt or ignite, and the hot air
-/// above a burner is not the reading you are after.
+/// above a heater is not the reading you are after.
 ///
 /// Walks the world like `sim_contact_area`, so read it at the readout rate rather than
 /// per frame.
@@ -785,7 +785,7 @@ mod tests {
     /// it, and the render pass draws it — but only when asked.
     ///
     /// Worth having as a test rather than as a screenshot, because getting a cell hot in
-    /// the running game means building the entire sand → press → burner → compactor →
+    /// the running game means building the entire sand → press → kiln → compactor →
     /// fuel → heater chain first. Here the arena's own wall is the probe.
     #[test]
     fn the_overlay_tints_a_hot_cell_and_only_when_it_is_switched_on() {

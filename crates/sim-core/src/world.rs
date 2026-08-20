@@ -261,7 +261,7 @@ impl World {
             self.seed,
             self.tick,
         );
-        heat::step(&mut self.field, &self.rules.elements);
+        heat::step(&mut self.field, &self.rules.elements, self.seed, self.tick);
         self.tick += 1;
     }
 
@@ -385,7 +385,7 @@ impl FlatWorld {
             self.seed,
             self.tick,
         );
-        heat::step(&mut self.field, &self.rules.elements);
+        heat::step(&mut self.field, &self.rules.elements, self.seed, self.tick);
         self.tick += 1;
     }
 

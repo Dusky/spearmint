@@ -1,7 +1,12 @@
 # Why it's a toy
 
 **Status:** diagnosis, recorded after nine rounds of feature work and the first sessions
-of actually playing the thing. The verdict from playing it is *"it's a toy, not a
+of actually playing the thing. **The finding in §1 has since been acted on** — see §6.
+The diagnosis is kept as written rather than edited into agreement with what came after,
+because it is the reason the work happened and it should stay falsifiable.
+
+Original status line: diagnosis, recorded after nine rounds of feature work and the
+first sessions of actually playing the thing. The verdict from playing it is *"it's a toy, not a
 system"* — the pieces work individually but do not compose into decisions. This document
 is the mechanical reason for that, and one proposal for fixing it.
 
@@ -62,6 +67,9 @@ Every machine is a one-tile black box with one input and one fixed output:
 | burner | residue | burntResidue |
 | compactor | burntResidue | fuel |
 | heater | fuel | heat — which nothing consumes |
+
+*(As of §6 the burner is gone and the heater's output is consumed. The other two rows
+still stand.)*
 
 A chain of fixed single-input transforms, with gravity as free lossless transport, has
 exactly **one** correct layout: a vertical column. Stack them in dependency order and
@@ -137,14 +145,17 @@ therefore a weaker answer to the same problem).
 
 Derived from `data/`, so nobody has to derive it again.
 
-**12 elements** — `structure`, `sand`, `water`, `wetSand`, `gold`, `residue`,
-`burntResidue`, `fuel`, `beltStructure` (internal), `moltenSand`, `steam`, `glass`.
+**13 elements** — `structure`, `sand`, `water`, `wetSand`, `gold`, `residue`,
+`burntResidue`, `fuel`, `beltStructure` (internal), `moltenSand`, `steam`, `glass`,
+`kilnStructure` (internal).
 
-**8 machines** — `emitter`, `press`, `vault`, `burner`, `compactor`, `belt`, `filter`,
-`heater`. All 1×1 except the compactor, which is 1×2.
+**8 machines** — `emitter`, `press`, `vault`, `compactor`, `belt`, `filter`, `heater`,
+`kiln`. All 1×1 except the compactor, which is 1×2. The burner was one of these and was
+deleted in §6; its id (4) is retired, not reused.
 
 **1 reaction** — `sand + water → wetSand + wetSand`, probability `0.04` per adjacent
-pair per tick. That is the entire reaction table.
+pair per tick. That is the entire reaction table. Burning is *not* in it: it is a
+threshold on the element, not a pair of reactants.
 
 **1 gold sink** — the spawner slot in the capability drawer (`spawnersMax → +1`).
 `state.upgrades` is `[]` (`src/state/initialState.ts:151`), so the drawer renders one
@@ -152,3 +163,40 @@ purchasable row and nothing else.
 
 **Phase changes** — `sand ⇄ moltenSand → glass`, `water ⇄ steam`. Both directions run.
 They are the only rules in the game that read temperature.
+
+## 6. What was done about it
+
+The proposal in §4 was taken, and then pushed one step further than it was written.
+
+**The cheap version was not enough on its own.** A temperature band on `Reaction` would
+have left the burner standing — and a burner strictly dominates a heat-driven burn: it
+is compact, deterministic, needs no fuel and no space. Nobody would ever have built the
+alternative. So the burner was deleted, and burning became a property of the material:
+`residue` declares `burnsInto` and an `ignitionPoint`, and `flammability` — dead data
+since Milestone 1 — became the chance per tick that an eligible cell converts. Dwell
+time is therefore the throughput dial.
+
+**The conductor had to be the conveyor.** Heat needs contact and contact needs time, but
+material that stops moving to be heated is a jam. The answer is the **kiln**: `belt` with
+`chassis: kilnStructure` (2.0) instead of `beltStructure` (0.0), and `convey` untouched.
+Cargo rides the row directly above a belt's body, so a kiln heats what it carries while
+carrying it. Belt length is dwell; heaters against the run are temperature; the plain
+belt becomes the deliberately insulated choice.
+
+**Two of §3.3's five factors are now real** — contact area and residence time — and both
+come out of the layout rather than a machine's settings. The conflicting-band puzzle
+§4 wanted came free: water boils at 373K and residue ignites at 800K, so a wash and a
+burn run cannot share a space.
+
+### What this does not settle
+
+The compactor is still a black box, and so is the press. Whether the column is really
+gone is a question for playing it, not for arguing about it — the same standard §1 held
+the last nine rounds to. The specific thing to watch for: whether routing fuel *to* the
+heat, and keeping a kiln run hot enough for long enough, is a decision or a chore.
+
+One finding worth carrying in either case: **a heater must be fed continuously, not just
+stocked.** `burn_fuel` empties its footprint bottom-up, so the face that touches what it
+is heating hollows out first, and a heater left to burn down goes cold long before it
+runs out of fuel. That is a logistics requirement, and it is most of what makes the
+layout non-trivial.

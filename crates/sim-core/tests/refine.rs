@@ -1,30 +1,42 @@
 //! One cell in, one cell out.
 //!
-//! A burner and a compactor are the same mechanism — `Behaviour::Refine` — reading two
-//! different rows of data: which element they accept, and what it becomes. So the
-//! things worth testing are the accepted input, the refusal to touch anything else
-//! (including its own output), and that the chain end to end conserves matter the same
-//! way pressing does.
+//! `Behaviour::Refine` is now one machine rather than two. The burner used to be the
+//! other, and is gone: residue burns wherever it is hot enough (see `ignition.rs`)
+//! rather than being converted on demand by a box. So everything here is the
+//! compactor — which means the mechanics that used to be tested through the burner,
+//! because it was the simpler geometry, are tested through a piston instead.
+//!
+//! What is worth testing is the accepted input, the refusal to touch anything else
+//! (including its own output), the beat it acts on, and that switching one off or
+//! retuning it does exactly what it says.
 
 mod common;
 
 use sim_core::chunk::TILE_CELLS;
 use sim_core::field::CellField;
-use sim_core::{paint, scene, Entity, World};
+use sim_core::{paint, scene, World};
 
 const CELLS: i32 = TILE_CELLS as i32;
 
-/// A machine sealed into a pocket of wall — left, right, and floored — so a fed charge
-/// stays put to be inspected mid-tick rather than falling anywhere.
-fn hopper(world: &mut World, tile_x: i32, tile_y: i32, structure: u8, machine: Entity) {
-    world.place(machine);
-    let field = world.field_mut();
-    paint::stroke(field, (tile_x - 1, tile_y + 1), (tile_x + 1, tile_y + 1), structure);
-    paint::stroke(field, (tile_x - 1, tile_y), (tile_x - 1, tile_y), structure);
-    paint::stroke(field, (tile_x + 1, tile_y), (tile_x + 1, tile_y), structure);
+/// The tile a compactor placed at `tile_y` crushes against: it reaches *below* itself,
+/// so material heaped on the anvil sits in the tile directly under the machine.
+fn under(tile_y: i32, height_tiles: i32) -> i32 {
+    tile_y + height_tiles
 }
 
-/// Puts `count` cells along the bottom row inside a machine, which is where it takes
+/// A compactor with an anvil beneath it and walls either side, so a fed charge stays
+/// put to be inspected rather than falling out from under the ram.
+fn press_rig(world: &mut World, tile_x: i32, tile_y: i32, structure: u8, height_tiles: i32) -> i32 {
+    let anvil = under(tile_y, height_tiles) + 1;
+    world.place(common::compactor(tile_x, tile_y));
+    let field = world.field_mut();
+    paint::stroke(field, (tile_x - 1, anvil), (tile_x + 1, anvil), structure);
+    paint::stroke(field, (tile_x - 1, anvil - 1), (tile_x - 1, anvil - 1), structure);
+    paint::stroke(field, (tile_x + 1, anvil - 1), (tile_x + 1, anvil - 1), structure);
+    anvil - 1
+}
+
+/// Puts `count` cells along the bottom row of a tile, which is where a machine takes
 /// from first.
 fn feed(world: &mut World, tile_x: i32, tile_y: i32, count: i32, id: u8) {
     let y = (tile_y + 1) * CELLS - 1;
@@ -45,70 +57,6 @@ fn count_in_body(world: &World, tile_x: i32, tile_y: i32, id: u8) -> i32 {
     found
 }
 
-#[test]
-fn a_burner_turns_residue_into_burnt_residue() {
-    let rules = common::rules_without_reactions();
-    let structure = rules.elements.id_of("structure").expect("structure");
-    let residue = rules.elements.id_of("residue").expect("residue");
-    let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
-    let rate = rules
-        .entities
-        .get(common::burner_kind())
-        .expect("burner")
-        .rate as i32;
-    let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, structure, common::burner(4, 6));
-
-    feed(&mut world, 4, 6, CELLS, residue);
-    world.step();
-
-    assert_eq!(count_in_body(&world, 4, 6, burnt), rate, "one tick, one rate's worth");
-    assert_eq!(count_in_body(&world, 4, 6, residue), CELLS - rate);
-}
-
-/// A machine acts on its own beat, not every tick.
-///
-/// Playtesting found the whole factory roughly six times too fast; `interval` is half
-/// the answer (the host halving its tick rate is the other half). What matters here is
-/// that the ticks *between* actions genuinely do nothing — a machine that quietly kept
-/// working between beats would look paced while running at the old speed.
-#[test]
-fn a_machine_only_acts_on_its_interval() {
-    let rules = common::rules_without_reactions();
-    let structure = rules.elements.id_of("structure").expect("structure");
-    let residue = rules.elements.id_of("residue").expect("residue");
-    let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
-    let definition = rules.entities.get(common::burner_kind()).expect("burner");
-    let (rate, interval) = (definition.rate as i32, definition.interval as u64);
-    assert!(
-        interval > 1,
-        "this test needs a paced machine, or it cannot tell pacing from its absence"
-    );
-
-    let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, structure, common::burner(4, 6));
-    feed(&mut world, 4, 6, CELLS, residue);
-
-    // Tick 0 is on the beat.
-    world.step();
-    assert_eq!(count_in_body(&world, 4, 6, burnt), rate);
-
-    // Every tick up to the next beat must change nothing at all.
-    world.step_many(interval - 1);
-    assert_eq!(
-        count_in_body(&world, 4, 6, burnt),
-        rate,
-        "the machine kept working between beats"
-    );
-
-    // And the next beat lands, finishing the row. Less than a full rate's worth is
-    // left by then — one row holds CELLS cells, and the first beat already took `rate`
-    // of them — so this checks the beat happened, not that it moved a full load.
-    world.step();
-    assert_eq!(count_in_body(&world, 4, 6, burnt), CELLS);
-    assert!(rate < CELLS, "a single beat should not be able to finish the whole row");
-}
-
 /// The compactor is a piston: it crushes what is piled *under* it, not what falls into
 /// it. Two tiles tall, so the tile it works on is the one below both of them.
 #[test]
@@ -121,114 +69,107 @@ fn a_compactor_crushes_what_is_piled_under_it() {
     let rate = definition.rate as i32;
     assert_eq!(definition.reach, sim_core::Reach::Below, "this test is about the reach");
 
-    // The machine occupies tiles 6 and 7; the anvil it presses against is tile 9, so
-    // material heaped on it sits in tile 8 — directly under the machine.
     let mut world = scene::arena(200, 200, 1, &rules);
-    let anvil = 6 + definition.height_tiles as i32 + 1;
-    world.place(common::compactor(4, 6));
-    paint::stroke(world.field_mut(), (3, anvil), (5, anvil), structure);
-    paint::stroke(world.field_mut(), (3, anvil - 1), (3, anvil - 1), structure);
-    paint::stroke(world.field_mut(), (5, anvil - 1), (5, anvil - 1), structure);
+    let floor = press_rig(&mut world, 4, 6, structure, definition.height_tiles as i32);
 
-    let under = anvil - 1;
-    feed(&mut world, 4, under, CELLS, burnt);
+    feed(&mut world, 4, floor, CELLS, burnt);
     world.step();
 
-    assert_eq!(count_in_body(&world, 4, under, fuel), rate, "it crushes what is under it");
-    assert_eq!(count_in_body(&world, 4, under, burnt), CELLS - rate);
-    // And it leaves its own body alone, which is where a burner would have looked.
+    assert_eq!(count_in_body(&world, 4, floor, fuel), rate, "it crushes what is under it");
+    assert_eq!(count_in_body(&world, 4, floor, burnt), CELLS - rate);
+    // And it leaves its own body alone — the ram works below, not inside.
     assert_eq!(count_in_body(&world, 4, 6, fuel), 0, "the ram works below, not inside");
 }
 
-/// A burner is not a demolition tool, and not a compactor: it works on residue and
-/// nothing else, including the raw product a press would recognise and the burnt
-/// residue one stage further down the chain.
+/// A machine acts on its own beat, not every tick.
+///
+/// Playtesting found the whole factory roughly six times too fast; `interval` is half
+/// the answer (the host halving its tick rate is the other half). What matters here is
+/// that the ticks *between* actions genuinely do nothing — a machine that quietly kept
+/// working between beats would look paced while running at the old speed.
 #[test]
-fn a_burner_leaves_everything_else_alone() {
+fn a_machine_only_acts_on_its_interval() {
+    let rules = common::rules_without_reactions();
+    let structure = rules.elements.id_of("structure").expect("structure");
+    let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
+    let fuel = rules.elements.id_of("fuel").expect("fuel");
+    let definition = rules.entities.get(common::compactor_kind()).expect("compactor");
+    let (rate, interval) = (definition.rate as i32, definition.interval as u64);
+    assert!(
+        interval > 1,
+        "this test needs a paced machine, or it cannot tell pacing from its absence"
+    );
+
+    let mut world = scene::arena(200, 200, 1, &rules);
+    let floor = press_rig(&mut world, 4, 6, structure, definition.height_tiles as i32);
+    feed(&mut world, 4, floor, CELLS, burnt);
+
+    // Tick 0 is on the beat.
+    world.step();
+    assert_eq!(count_in_body(&world, 4, floor, fuel), rate);
+
+    // Every tick up to the next beat must change nothing at all.
+    world.step_many(interval - 1);
+    assert_eq!(
+        count_in_body(&world, 4, floor, fuel),
+        rate,
+        "the machine kept working between beats"
+    );
+
+    // And the next beat lands, finishing the row. Less than a full rate's worth is
+    // left by then — one row holds CELLS cells, and the first beat already took `rate`
+    // of them — so this checks the beat happened, not that it moved a full load.
+    world.step();
+    assert_eq!(count_in_body(&world, 4, floor, fuel), CELLS);
+    assert!(rate < CELLS, "a single beat should not be able to finish the whole row");
+}
+
+/// A compactor is not a demolition tool: it works on burnt residue and nothing else,
+/// including the residue one stage *up* the chain — which now needs heat rather than a
+/// machine — and the fuel one stage down that it makes itself.
+#[test]
+fn a_compactor_leaves_everything_else_alone() {
     let rules = common::rules_without_reactions();
     let structure = rules.elements.id_of("structure").expect("structure");
     let sand = rules.elements.id_of("sand").expect("sand");
     let gold = rules.elements.id_of("gold").expect("gold");
-    let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
+    let residue = rules.elements.id_of("residue").expect("residue");
+    let fuel = rules.elements.id_of("fuel").expect("fuel");
+    let height = rules
+        .entities
+        .get(common::compactor_kind())
+        .expect("compactor")
+        .height_tiles as i32;
 
-    for other in [structure, sand, gold, burnt] {
+    for other in [structure, sand, gold, residue, fuel] {
         let mut world = scene::arena(200, 200, 1, &rules);
-        hopper(&mut world, 4, 6, structure, common::burner(4, 6));
-        feed(&mut world, 4, 6, CELLS, other);
+        let floor = press_rig(&mut world, 4, 6, structure, height);
+        feed(&mut world, 4, floor, CELLS, other);
         world.step_many(20);
         assert_eq!(
-            count_in_body(&world, 4, 6, other),
+            count_in_body(&world, 4, floor, other),
             CELLS,
-            "a burner touched element {other}, which is not its input"
+            "a compactor touched element {other}, which is not its input"
         );
     }
 }
 
 #[test]
-fn an_idle_burner_reads_as_blocked() {
+fn an_idle_compactor_reads_as_blocked() {
     let rules = common::rules_without_reactions();
     let structure = rules.elements.id_of("structure").expect("structure");
-    let residue = rules.elements.id_of("residue").expect("residue");
-    let definition = rules.entities.get(common::burner_kind()).expect("burner");
+    let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
+    let definition = rules.entities.get(common::compactor_kind()).expect("compactor");
     let mut world = scene::arena(200, 200, 1, &rules);
-    let burner = common::burner(4, 6);
-    hopper(&mut world, 4, 6, structure, burner);
+    let compactor = common::compactor(4, 6);
+    let floor = press_rig(&mut world, 4, 6, structure, definition.height_tiles as i32);
 
     assert!(
-        burner.is_blocked(definition, world.field(), &rules.elements),
-        "nothing has fallen in yet"
+        compactor.is_blocked(definition, world.field(), &rules.elements),
+        "nothing is heaped under it yet"
     );
-    feed(&mut world, 4, 6, CELLS, residue);
-    assert!(!burner.is_blocked(definition, world.field(), &rules.elements));
-}
-
-/// The chain end to end, tested the way `press.rs`'s accounting test is: not by routing
-/// through gravity between three separate machines, but by conservation. Each stage is
-/// exactly one cell in for one cell out, so residue fed in should equal fuel that comes
-/// out, with nothing lost or gained along the way.
-#[test]
-fn the_chain_conserves_every_cell_from_residue_to_fuel() {
-    let rules = common::rules_without_reactions();
-    let table = &rules.elements;
-    let structure = table.id_of("structure").expect("structure");
-    let residue = table.id_of("residue").expect("residue");
-    let burnt = table.id_of("burntResidue").expect("burntResidue");
-    let fuel = table.id_of("fuel").expect("fuel");
-
-    let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, structure, common::burner(4, 6));
-
-    feed(&mut world, 4, 6, CELLS, residue);
-    world.step_many(20);
-    assert_eq!(count_in_body(&world, 4, 6, residue), 0, "the burner should have kept up");
-    let burnt_count = count_in_body(&world, 4, 6, burnt);
-    assert_eq!(burnt_count, CELLS, "every grain became burnt residue");
-
-    // Stage two, in its own pocket. The compactor is a piston that works on the tile
-    // beneath it, so what the burner made is moved under a compactor rather than into
-    // one — this test is about the chain conserving cells, not about routing material
-    // between two machines by hand.
-    let definition = rules.entities.get(common::compactor_kind()).expect("compactor");
-    let anvil = 12 + definition.height_tiles as i32 + 1;
-    world.place(common::compactor(4, 12));
-    paint::stroke(world.field_mut(), (3, anvil), (5, anvil), structure);
-    paint::stroke(world.field_mut(), (3, anvil - 1), (3, anvil - 1), structure);
-    paint::stroke(world.field_mut(), (5, anvil - 1), (5, anvil - 1), structure);
-
-    let under = anvil - 1;
-    for offset in 0..CELLS {
-        let id = world.get(4 * CELLS + offset, 6 * CELLS + (CELLS - 1));
-        world.field_mut().set(4 * CELLS + offset, 6 * CELLS + (CELLS - 1), 0);
-        world.field_mut().set(4 * CELLS + offset, (under + 1) * CELLS - 1, id);
-    }
-    world.step_many(20);
-
-    assert_eq!(count_in_body(&world, 4, under, burnt), 0, "the compactor should have kept up");
-    assert_eq!(
-        count_in_body(&world, 4, under, fuel),
-        burnt_count,
-        "every cell of burnt residue should have become exactly one cell of fuel"
-    );
+    feed(&mut world, 4, floor, CELLS, burnt);
+    assert!(!compactor.is_blocked(definition, world.field(), &rules.elements));
 }
 
 /// A disabled machine does nothing at all, and picks straight back up when re-enabled.
@@ -240,21 +181,26 @@ fn the_chain_conserves_every_cell_from_residue_to_fuel() {
 fn a_disabled_machine_does_nothing_until_switched_back_on() {
     let rules = common::rules_without_reactions();
     let structure = rules.elements.id_of("structure").expect("structure");
-    let residue = rules.elements.id_of("residue").expect("residue");
     let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
+    let fuel = rules.elements.id_of("fuel").expect("fuel");
+    let height = rules
+        .entities
+        .get(common::compactor_kind())
+        .expect("compactor")
+        .height_tiles as i32;
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, structure, common::burner(4, 6));
-    feed(&mut world, 4, 6, CELLS, residue);
+    let floor = press_rig(&mut world, 4, 6, structure, height);
+    feed(&mut world, 4, floor, CELLS, burnt);
 
     assert!(world.retune(0, |entity| entity.enabled = false), "there is a machine at 0");
     world.step_many(200);
     assert_eq!(
-        count_in_body(&world, 4, 6, burnt),
+        count_in_body(&world, 4, floor, fuel),
         0,
         "a switched-off machine refined something anyway"
     );
     assert_eq!(
-        count_in_body(&world, 4, 6, residue),
+        count_in_body(&world, 4, floor, burnt),
         CELLS,
         "and its input should still be sitting there untouched"
     );
@@ -262,7 +208,7 @@ fn a_disabled_machine_does_nothing_until_switched_back_on() {
     world.retune(0, |entity| entity.enabled = true);
     world.step_many(200);
     assert_eq!(
-        count_in_body(&world, 4, 6, burnt),
+        count_in_body(&world, 4, floor, fuel),
         CELLS,
         "switching it back on should need no other repair"
     );
@@ -275,19 +221,19 @@ fn a_disabled_machine_does_nothing_until_switched_back_on() {
 fn a_per_instance_rate_overrides_the_types() {
     let rules = common::rules_without_reactions();
     let structure = rules.elements.id_of("structure").expect("structure");
-    let residue = rules.elements.id_of("residue").expect("residue");
     let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
-    let definition = rules.entities.get(common::burner_kind()).expect("burner");
+    let fuel = rules.elements.id_of("fuel").expect("fuel");
+    let definition = rules.entities.get(common::compactor_kind()).expect("compactor");
     assert!(definition.rate > 1, "this test needs room to slow the machine down");
 
     let mut world = scene::arena(200, 200, 1, &rules);
-    hopper(&mut world, 4, 6, structure, common::burner(4, 6));
-    feed(&mut world, 4, 6, CELLS, residue);
+    let floor = press_rig(&mut world, 4, 6, structure, definition.height_tiles as i32);
+    feed(&mut world, 4, floor, CELLS, burnt);
 
     world.retune(0, |entity| entity.rate = 1);
     world.step();
     assert_eq!(
-        count_in_body(&world, 4, 6, burnt),
+        count_in_body(&world, 4, floor, fuel),
         1,
         "one beat at a retuned rate of 1 should convert exactly one cell"
     );
@@ -297,7 +243,7 @@ fn a_per_instance_rate_overrides_the_types() {
     world.retune(0, |entity| entity.rate = 0);
     world.step_many(definition.interval as u64);
     assert_eq!(
-        count_in_body(&world, 4, 6, burnt),
+        count_in_body(&world, 4, floor, fuel),
         1 + definition.rate as i32,
         "a rate of zero should fall back to the type's"
     );

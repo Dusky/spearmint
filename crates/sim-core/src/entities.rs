@@ -35,10 +35,15 @@ pub enum Behaviour {
     /// rules themselves to destroy a particle, and a machine that consumes what it is
     /// fed is such a rule.
     Press,
-    /// Turns one specific element into whatever it is declared to refine into — a
-    /// burner and a compactor are both this, reading `EntityType::input` and each
-    /// element's `refined_into` (spec 5.3). Unlike a press, nothing is banked: one cell
-    /// in is one cell out, because there is no threshold to accumulate toward.
+    /// Turns one specific element into whatever it is declared to refine into, reading
+    /// `EntityType::input` and that element's `refined_into` (spec 5.3). Unlike a press,
+    /// nothing is banked: one cell in is one cell out, because there is no threshold to
+    /// accumulate toward.
+    ///
+    /// The compactor is the only one. Residue used to have a burner here and now burns
+    /// wherever it is hot enough instead (`Element::burns_into`), which is the same
+    /// conversion moved out of a machine and into the physics — so this behaviour is
+    /// still generic, but only one stage of the chain runs on it.
     Refine,
     /// Conveys whatever rests on top of it, and — when the instance names an element
     /// (`Entity.element`, the same field an emitter uses) — drops that one element
@@ -60,8 +65,9 @@ pub enum Behaviour {
 /// Where a machine looks for the material it works on.
 ///
 /// A data-declared field rather than a second `Behaviour`, for the same reason a filter
-/// turned out to be a belt with one more field: a burner and a piston compactor do the
-/// identical thing to whatever they find, and differ only in where they look.
+/// turned out to be a belt with one more field: a machine that takes what falls into it
+/// and a piston that crushes what is heaped under it do the identical thing to whatever
+/// they find, and differ only in where they look.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Reach {
     /// Inside its own footprint — material that has fallen in. Gravity is the conveyor,

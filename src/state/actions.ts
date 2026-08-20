@@ -189,7 +189,6 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
           return;
         case 'spawner':
         case 'press':
-        case 'burner':
         case 'compactor':
         case 'heater':
           this.placeMachine(world);
@@ -197,6 +196,7 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
         case 'vault':
         case 'belt':
         case 'filter':
+        case 'kiln':
           // These are marked out by dragging, and a press is a drag that has not
           // happened yet. `designateVault`/`paintBelt` runs on release.
           return;

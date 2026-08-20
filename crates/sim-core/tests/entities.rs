@@ -16,7 +16,7 @@ fn entity_types_load_from_data() {
     assert_eq!(
         rules.entities.len(),
         8,
-        "the emitter, the press, the vault, the burner, the compactor, the belt, the \
+        "the emitter, the press, the vault, the compactor, the belt, the \
          filter, and the heater"
     );
 

@@ -64,19 +64,20 @@ pub fn vault(tile_x: i32, tile_y: i32, width: u32, height: u32) -> Entity {
     Entity::sized(vault_kind(), tile_x, tile_y, width, height)
 }
 
-/// The burner's kind id.
+/// The kiln's kind id.
 #[allow(dead_code)]
-pub fn burner_kind() -> EntityKind {
+pub fn kiln_kind() -> EntityKind {
     rules()
         .entities
-        .id_of("burner")
-        .expect("a `burner` entity should be defined")
+        .id_of("kiln")
+        .expect("a `kiln` entity should be defined")
 }
 
-/// A burner on a tile. Its input is fixed by the data (residue), not chosen here.
+/// A kiln on a tile, conveying in `direction` (`1` or `-1`). A belt in every respect
+/// but the element its footprint is filled with, so it is built the same way.
 #[allow(dead_code)]
-pub fn burner(tile_x: i32, tile_y: i32) -> Entity {
-    sized(Entity::new(burner_kind(), tile_x, tile_y, sim_core::EMPTY))
+pub fn kiln(tile_x: i32, tile_y: i32, direction: i8) -> Entity {
+    sized(Entity::belt(kiln_kind(), tile_x, tile_y, direction))
 }
 
 /// The compactor's kind id.

@@ -13,7 +13,7 @@
 
   "paceNote": "`rate` is how much a machine does per action; `interval` is how many ticks it waits between actions (1 = every tick, the default). Both are here rather than in code because pacing is tuning, and tuning wants to be a data edit. Playtesting found everything roughly six times too fast: the host also halved the tick rate, and these intervals take the rest out. A belt at interval 3 moves about a tile a second, which is the reference point everything else was set against.",
 
-  "heaterNote": "Burns `input` (fuel) to hold its own footprint at `heatOutput` Kelvin while fed (spec 5.3) — no banking, the same shape a burner or compactor has none. The generic conduction pass in crates/sim-core/src/heat.rs carries that into whatever touches it, and cools the footprint back down on its own once fuel runs out; nothing here needs a cooldown.",
+  "heaterNote": "Burns `input` (fuel) to hold its own footprint at `heatOutput` Kelvin while fed (spec 5.3) — no banking, the same shape a compactor has none. The generic conduction pass in crates/sim-core/src/heat.rs carries that into whatever touches it, and cools the footprint back down on its own once fuel runs out; nothing here needs a cooldown.",
 
   "entities": [
     {
@@ -164,49 +164,6 @@
       "tool": "vault",
       "widthTiles": 1,
       "heightTiles": 1
-    },
-    {
-      "note": "Turns residue into burntResidue, one cell at a time (spec 5.3). Same shape as a compactor with a different input — both are Refine, distinguished by data, not by code.",
-      "id": 4,
-      "name": "burner",
-      "behaviour": "refine",
-      "tool": "burner",
-      "input": "residue",
-      "widthTiles": 1,
-      "heightTiles": 1,
-      "rate": 6,
-      "interval": 4,
-      "sprites": [
-        {
-          "note": "Nothing to burn. Idle rather than broken — usually a routing mistake worth seeing, same as an unfed press.",
-          "when": { "status": "blocked" },
-          "pixels": [
-            "  #####  ",
-            " #'''''# ",
-            " #'==='# ",
-            " #'==='# ",
-            "=#'==='#=",
-            "#'''''''#",
-            "#'#===#'#",
-            "#'#===#'#",
-            "=##===##="
-          ]
-        },
-        {
-          "when": {},
-          "pixels": [
-            "  #####  ",
-            " #'''''# ",
-            " #'ooo'# ",
-            " #'ooo'# ",
-            "=#'ooo'#=",
-            "#'''''''#",
-            "#'#ooo#'#",
-            "#'#ooo#'#",
-            "=##ooo##="
-          ]
-        }
-      ]
     },
     {
       "note": "Turns burntResidue into fuel (spec 5.3), by crushing what is piled UNDER it rather than what falls into it — `reach: below`. Two tiles tall so the stroke has somewhere to happen: row 0 is the gantry the ram hangs from, row 1 is the ram itself, and the ram's frames drive it down and back. Feed it by heaping material beneath, not by dropping material in.",
@@ -431,6 +388,62 @@
             "#########",
             "#=#=#=#=#",
             "  =====  "
+          ]
+        }
+      ]
+    },
+    {
+      "note": "A belt that conducts (spec 4.1-4.2). Mechanically it is `belt` with one field changed — `chassis` names kilnStructure instead of beltStructure — and that is deliberate: `convey` and `convey_one` are untouched, so a kiln carries cargo exactly the way a belt does. What differs is thermal. Cargo rides the row directly above the body, so on a kiln it is in contact with a 2.0-conductivity floor rather than a 0.0 one, and a heater set against the run heats everything the run is carrying. Length is therefore residence time and heaters are temperature, both of them things the player draws rather than sets. Nothing stops moving to be heated, which is the point: a pile that has to sit somewhere hot is a jam waiting to happen.",
+      "id": 9,
+      "name": "kiln",
+      "behaviour": "belt",
+      "tool": "kiln",
+      "widthTiles": 1,
+      "heightTiles": 1,
+      "interval": 3,
+      "chassis": "kilnStructure",
+      "sprites": [
+        {
+          "note": "Jammed, same as a plain belt: the tread stops.",
+          "when": { "status": "blocked" },
+          "pixels": [
+            "#########",
+            "=========",
+            "#########",
+            " ======= ",
+            " ''''''' ",
+            " ======= ",
+            " ''''''' ",
+            " ======= ",
+            "========="
+          ]
+        },
+        {
+          "note": "The belt silhouette, so it reads as one, with a barred interior instead of a plain one — the same visual grammar the heater's grate uses, saying this stretch of transport is also an element.",
+          "when": {},
+          "pixels": [
+            [
+              "#########",
+              "#=#=#=#=#",
+              "#########",
+              " ======= ",
+              " ''''''' ",
+              " ======= ",
+              " ''''''' ",
+              " ======= ",
+              "========="
+            ],
+            [
+              "#########",
+              "=#=#=#=#=",
+              "#########",
+              " ======= ",
+              " ''''''' ",
+              " ======= ",
+              " ''''''' ",
+              " ======= ",
+              "========="
+            ]
           ]
         }
       ]

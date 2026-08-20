@@ -320,13 +320,22 @@ body {
   border-top: 13px solid var(--text-faint-dimmer);
 }
 
-/* A flame: press's triangle, mirrored — press pushes down, this rises. */
-.glyph--burner {
-  width: 0;
-  height: 0;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-bottom: 13px solid var(--text-faint-dimmer);
+/* A belt's bar, doubled: the tread over the element that heats it. Deliberately the
+   belt glyph rather than a flame — a kiln is transport first, and the column groups it
+   with the belt and the filter. */
+.glyph--kiln {
+  width: 16px;
+  height: 9px;
+  border-radius: 1px;
+  background: linear-gradient(
+    to bottom,
+    var(--text-faint-dimmer) 0,
+    var(--text-faint-dimmer) 3px,
+    transparent 3px,
+    transparent 5px,
+    var(--text-faint-dimmer) 5px,
+    var(--text-faint-dimmer) 9px
+  );
 }
 
 /* Two plates squeezing together. */

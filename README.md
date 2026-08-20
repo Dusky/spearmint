@@ -11,9 +11,9 @@ you can draw a machine and watch material flow through it. See
 what is deliberately left out of it.
 
 - **`crates/sim-core`** — the simulation. Headless, deterministic and proven so, on
-  sparse chunks over an unbounded canvas, with viewport-gated sleeping. Twelve
-  elements, eight machines, a conducting heat field and phase changes in both
-  directions.
+  sparse chunks over an unbounded canvas, with viewport-gated sleeping. Thirteen
+  elements, eight machines, a conducting heat field, phase changes in both directions,
+  and material that burns where the layout makes it hot enough.
 - **`crates/sim-wasm`** — the browser bridge. Raw `extern "C"` exports and a
   hand-written binding, so the core keeps its zero dependencies.
 - **`crates/sim-harness`** — `sim-hash`, which runs the sim headless and prints world
@@ -35,9 +35,9 @@ them — residence needs a machine boundary that per-construct selection would g
 Inventing numbers to fill the panel would be worse than a shorter one.
 
 **Read [`docs/WHY-ITS-A-TOY.md`](docs/WHY-ITS-A-TOY.md) before adding anything.** The
-slice has now been played, and the verdict was that the pieces do not compose into
-decisions. That document has the mechanical reason and one proposal; the inventory it
-ends with is the current state of the build.
+slice was played and the verdict was that the pieces did not compose into decisions.
+That document has the mechanical reason, what was done about it, and the current
+inventory of the build.
 
 ## Running it
 
@@ -72,7 +72,7 @@ regenerates `public/fonts/` and `src/styles/fonts.css`.
 
 ### What to try
 
-Draw two sloping walls into a basin, switch to the spawner tool (`6`), put sand above
+Draw two sloping walls into a basin, switch to the spawner tool (`7`), put sand above
 one side and water above the other, and watch the inspector. Yield rises when sand and
 water actually touch, and the panel says so when they do not. That loop — draw, run,
 measure, redraw — is the thing worth judging.
@@ -183,7 +183,7 @@ verifier of §8.3 will take.
 
 | Key | Action |
 |---|---|
-| `1`–`9` | Select tool, in tool-column order — `1` select, `2` draw, `3` erase, `4` belt, `5` filter, `6` spawner, `7` press, `8` burner, `9` compactor |
+| `1`–`9` | Select tool, in tool-column order — `1` select, `2` draw, `3` erase, `4` belt, `5` filter, `6` kiln, `7` spawner, `8` press, `9` compactor |
 | `shift` | Constrain a stroke to a straight line |
 | `space` + drag | Pan |
 | `alt` + click | Pick the material under the cursor |
@@ -322,9 +322,12 @@ two halves (2d).
 Since then the vertical slice shipped and kept going, out of milestone order: the refine
 chain (burner, compactor, fuel), belts and filters with sprite animation, machines that
 can be switched off and retuned, a conducting heat field with a heater and an overlay to
-see it, and gas — steam, glass, and phase changes that run both ways. Nine rounds. What
-that produced, and why it is not yet a game, is
-[`docs/WHY-ITS-A-TOY.md`](docs/WHY-ITS-A-TOY.md).
+see it, and gas — steam, glass, and phase changes that run both ways. Nine rounds of
+that produced a toy: the pieces worked and nothing in the factory read the physics.
+[`docs/WHY-ITS-A-TOY.md`](docs/WHY-ITS-A-TOY.md) is the diagnosis, and §6 of it is the
+tenth round — the burner deleted, residue burning wherever the layout gets it hot, and
+the **kiln**, a belt that conducts, so material is heated while it moves instead of
+having to stop somewhere hot.
 
 ### Carried forward
 
@@ -345,11 +348,13 @@ Settled provisionally, and still open:
 - **Liquids spread one cell per tick** and never rise. Enough to level out and to let
   powders sink through, and slower than a real flow model; revisit when flow rate is
   something the game cares about.
-- **Heat exists, and nothing in the factory reads it.** The field conducts, phase
-  changes fire off it in both directions, and the overlay (`H`) shows it. But no
-  machine's rate or output conditions on temperature, and `Reaction` has no temperature
-  band — so heat is currently scenery. This is the central finding in
-  [`docs/WHY-ITS-A-TOY.md`](docs/WHY-ITS-A-TOY.md).
+- **Heat drives exactly one conversion.** Residue burns above its `ignitionPoint`, at a
+  rate set by `flammability` and therefore by how long the layout keeps it hot — see
+  [`docs/WHY-ITS-A-TOY.md`](docs/WHY-ITS-A-TOY.md) §6. Everything else still ignores
+  temperature: no machine's rate or output conditions on it, and `Reaction` has no
+  temperature band, so the wash is unaffected by heat. Whether one conversion is enough
+  to make the layout a decision is the open question, and it wants playing rather than
+  arguing about.
 - **Gas has one element.** `steam` is the only one, and it condenses back to water. The
   buoyancy rules were written for it rather than guessed at in the abstract, which means
   they are tuned against a single case.

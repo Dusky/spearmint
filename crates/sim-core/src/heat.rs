@@ -15,6 +15,11 @@
 use crate::elements::{ElementTable, EMPTY};
 use crate::field::CellField;
 use crate::fixed::Fixed;
+use crate::rng;
+
+/// Continues `step.rs`'s numbering — the salt space is global to `rng`, so a value
+/// reused across the two files would correlate two unrelated draws.
+const SALT_IGNITE: u32 = 6;
 
 /// Room temperature, in whole Kelvin. What any cell reads as until something heats or
 /// cools it, including storage that has never been allocated.
@@ -28,7 +33,12 @@ pub const AMBIENT_TEMPERATURE: i16 = 293;
 /// For each occupied cell, exchanges heat with its right and lower neighbour if that
 /// neighbour is also occupied: the same "each adjacent pair considered exactly once"
 /// contact pattern `step.rs`'s `react` uses, for the same reason.
-pub fn step<F: CellField + ?Sized>(field: &mut F, elements: &ElementTable) {
+pub fn step<F: CellField + ?Sized>(
+    field: &mut F,
+    elements: &ElementTable,
+    seed: u64,
+    tick: u64,
+) {
     let Some(bounds) = field.bounds() else {
         return;
     };
@@ -51,7 +61,7 @@ pub fn step<F: CellField + ?Sized>(field: &mut F, elements: &ElementTable) {
 
             // Re-read: the exchanges above may just have changed this cell's own
             // temperature, and that is exactly the value a transition checks against.
-            transition(field, elements, x, y);
+            transition(field, elements, x, y, seed, tick);
         }
     }
 }
@@ -121,10 +131,39 @@ fn exchange<F: CellField + ?Sized>(
 /// one cell of hysteresis is what keeps a cell sitting exactly on its threshold from
 /// changing identity every tick forever. Water boils at 373 and steam condenses below
 /// 373, so 373 itself is steam and stays steam.
-fn transition<F: CellField + ?Sized>(field: &mut F, elements: &ElementTable, x: i32, y: i32) {
+///
+/// Burning is checked before any of them and never falls through, because it is not a
+/// change of state — it is the cell being consumed. Anything hot enough to melt passed
+/// its own ignition point on the way up, so letting a failed burn roll fall through to
+/// melting would turn "did not burn this tick" into "melted instead", which is not what
+/// declaring `burnsInto` asks for.
+fn transition<F: CellField + ?Sized>(
+    field: &mut F,
+    elements: &ElementTable,
+    x: i32,
+    y: i32,
+    seed: u64,
+    tick: u64,
+) {
     let Some(id) = field.get(x, y) else { return };
     let Some(element) = elements.get(id) else { return };
     let temperature = i32::from(field.temperature(x, y));
+
+    if element.burns_into != EMPTY && temperature >= element.ignition_point {
+        // Eligible but unburnt still counts as something happening here, exactly as it
+        // does for two reactants in contact in `step.rs`'s `react`: a cell sitting in a
+        // hot stretch that has come to thermal equilibrium moves no heat, so nothing
+        // else would keep its chunk awake and the roll would never come round again.
+        field.mark_active(x, y);
+
+        // Probability is Q16.16, so the draw is out of 65536 — the same convention a
+        // reaction's probability uses.
+        let roll = rng::below(seed, tick, x, y, SALT_IGNITE, 1 << 16);
+        if i64::from(roll) < i64::from(element.flammability.raw()) {
+            field.set(x, y, element.burns_into);
+        }
+        return;
+    }
 
     let target = if element.boils_into != EMPTY && temperature >= element.boiling_point {
         element.boils_into

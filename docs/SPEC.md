@@ -485,10 +485,15 @@ code with different data rows, exactly as burn and compact are the same shape wi
 different verbs. Both new elements ship inert, same as residue did: nothing burns fuel
 yet.
 
+*Superseded in part.* The burner is gone; burning is physics now, not a machine — see
+**Burning is not a machine** below. `Behaviour::Refine` and `reach` are unchanged, and
+the compactor is the machine that still runs on them.
+
 **A machine also declares where it reaches.** `Refine` gained a `reach` field rather
 than a second behaviour, the same way a filter turned out to be a belt with one more
-field: a burner and a piston compactor do the identical thing to whatever they find and
-differ only in where they look. `body` is the machine's own footprint — material that
+field: a machine that takes what falls into it and a piston that crushes what is heaped
+under it do the identical thing to whatever they find and differ only in where they
+look. `body` is the machine's own footprint — material that
 has fallen in, with gravity as the conveyor. `below` is the tile directly beneath it.
 
 The compactor is `below`, and two tiles tall: a gantry over a ram that comes down on
@@ -538,6 +543,46 @@ to do with heat.
   if it burned any, holds its footprint at `heatOutput`. Cooldown is free and not
   special-cased: it simply stops forcing the temperature, and the same generic
   conduction pass carries the heat away.
+
+**Burning is not a machine, and the kiln is what makes that buildable.** Heat shipped,
+and then nothing in the factory read it: no machine's rate or output conditioned on
+temperature, and `Reaction` had no temperature term at all. A full thermal field with
+phase changes, and it was scenery. The fix is not another machine — it is deleting one.
+
+- **Residue burns where it is hot enough.** `burnsInto` names the product and
+  `ignitionPoint` the threshold, resolved in the same name pass the other six linked
+  fields use. Unlike melting, it is one-way and *probabilistic*: crossing the threshold
+  only makes a cell eligible, and `flammability` — a field parsed and stored since
+  Milestone 1 and read by nothing until now — is the chance per tick that it converts.
+  So **how long a cell spends hot is what sets the rate**, which makes residence time a
+  consequence of the layout rather than a number on a machine. That is the second of
+  §3.3's five yield factors to become real, after contact area.
+- **Burning never falls through to melting.** Anything hot enough to melt passed its own
+  ignition point on the way up, so a failed roll must not melt instead. Residue's
+  ignition point (800K) sits well clear of water's 373K boiling point in one direction —
+  so a burn run and a wash cannot share a space — and well under its own 1500K melting
+  point in the other.
+- **The kiln is `belt` with one field changed.** `chassis: kilnStructure` instead of
+  `beltStructure`, and `convey`/`convey_one` are untouched. Cargo rides the row directly
+  above a belt's body, so on a kiln it rests on a `2.0` conductor rather than a `0.0`
+  one: a heater set against the run heats everything the run is carrying, and **belt
+  length is dwell time** while **heaters are temperature**. Both are things the player
+  draws rather than sets.
+- **Nothing stops to be processed.** This is why a kiln rather than a hot basin. Heat
+  needs contact and contact needs time, but a pile that has to sit somewhere hot is a
+  jam waiting to happen; a conveyor gives dwell without ever holding material still.
+  `beltStructure`'s `0.0` becomes a real choice rather than trivia — the plain belt is
+  now the deliberately *insulated* one.
+- **A heater must be fed continuously, not merely stocked.** `burn_fuel` empties its
+  footprint from the bottom up, so the top row — the face that touches whatever sits on
+  it — hollows out first. A heater left to burn down stops heating long before it stops
+  having fuel. That is a logistics requirement rather than a bug, and it is what makes
+  routing fuel *to* the heat part of the puzzle.
+
+**[OPEN]** Whether the compactor should follow the burner out of the machine layer.
+Compaction has no obvious physical analogue the way ignition does, so it would need a
+new mechanism rather than reusing the threshold path — worth deciding only after this
+one has been played.
 
 **[OPEN]** The rest of the element roster and tech tree beyond this one chain.
 

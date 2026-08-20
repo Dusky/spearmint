@@ -10,11 +10,12 @@ fn the_shipped_data_file_loads() {
     let table = common::table();
     assert_eq!(
         table.len(),
-        12,
+        13,
         "structure, sand, water, the wet sand they react into, the gold it presses into, \
-         the residue left over, the burntResidue and fuel it refines into, the \
-         structural element a belt's own footprint is filled with, the moltenSand sand \
-         melts into, the steam water boils into, and the glass molten sand sets as"
+         the residue left over, the burntResidue it burns into and the fuel that \
+         compacts from, the two chassis elements a belt's own footprint can be filled \
+         with, the moltenSand sand melts into, the steam water boils into, and the \
+         glass molten sand sets as"
     );
 
     // Currency is matter like everything else, and exactly one element is money.
@@ -72,23 +73,63 @@ fn wet_sand_presses_into_a_declared_residue() {
     assert_eq!(residue.name, "residue");
 }
 
-/// The refine chain (spec 5.3): residue burns into burntResidue, which compacts into
-/// fuel. Same resolution as `residue` above — a name that has to resolve to a real
-/// element, not an id a machine could be pointed at nothing with.
+/// The chain from residue to fuel (spec 5.3), which is deliberately not one mechanism
+/// end to end: residue *burns* into burntResidue wherever it is hot enough, and
+/// burntResidue is *compacted* into fuel by a machine. Both links still have to resolve
+/// to a real element rather than an id pointed at nothing.
 #[test]
-fn residue_refines_all_the_way_to_fuel() {
+fn residue_burns_and_then_compacts_all_the_way_to_fuel() {
     let table = common::table();
     let residue = table.get(table.id_of("residue").unwrap()).unwrap();
     let burnt = table
-        .get(residue.refined_into)
-        .expect("residue's refinedInto should resolve");
+        .get(residue.burns_into)
+        .expect("residue's burnsInto should resolve");
     assert_eq!(burnt.name, "burntResidue");
+
+    assert_eq!(
+        residue.refined_into,
+        sim_core::EMPTY,
+        "nothing refines residue on demand any more — heat is the only thing that \
+         converts it, so a machine pointed at it should read as blocked"
+    );
 
     let fuel = table
         .get(burnt.refined_into)
         .expect("burntResidue's refinedInto should resolve");
     assert_eq!(fuel.name, "fuel");
     assert_eq!(fuel.refined_into, sim_core::EMPTY, "the chain ends at fuel, for now");
+}
+
+/// Burning needs `burnsInto`, `ignitionPoint` and `flammability` to agree. Two of the
+/// three default to "never", so a partial declaration describes something that silently
+/// does nothing — which the loader rejects rather than shipping.
+#[test]
+fn burning_without_a_threshold_or_a_chance_is_rejected() {
+    const BASE: &str = r##"{"elements":[
+        {"id":1,"name":"ash","state":"powder","density":1,"melting_point":9000,
+         "boiling_point":9001,"thermal_conductivity":0.1,"color":"#000000",
+         "color_variance":0,"flammability":0.0,"hardness":0.0},
+        {"id":2,"name":"straw","state":"powder","density":1,"melting_point":9000,
+         "boiling_point":9001,"thermal_conductivity":0.1,"color":"#000000",
+         "color_variance":0,"flammability":FLAM,"hardness":0.0,
+         "burnsInto":"ash"IGNITION}
+    ]}"##;
+
+    let source = |flammability: &str, ignition: &str| {
+        BASE.replace("FLAM", flammability).replace("IGNITION", ignition)
+    };
+
+    assert_eq!(
+        ElementTable::from_json(&source("0.5", "")).unwrap_err(),
+        DataError::BadField { field: "ignitionPoint" },
+        "burning with no threshold to cross would never fire"
+    );
+    assert_eq!(
+        ElementTable::from_json(&source("0.0", r#","ignitionPoint":800"#)).unwrap_err(),
+        DataError::BadField { field: "flammability" },
+        "burning with no chance per tick would never fire either"
+    );
+    assert!(ElementTable::from_json(&source("0.5", r#","ignitionPoint":800"#)).is_ok());
 }
 
 /// Ids are declared in the file, not derived from its order, so the table must be
