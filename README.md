@@ -11,8 +11,9 @@ you can draw a machine and watch material flow through it. See
 what is deliberately left out of it.
 
 - **`crates/sim-core`** — the simulation. Headless, deterministic and proven so, on
-  sparse chunks over an unbounded canvas, with viewport-gated sleeping. Wall, sand,
-  water, and the wet sand they react into.
+  sparse chunks over an unbounded canvas, with viewport-gated sleeping. Twelve
+  elements, eight machines, a conducting heat field and phase changes in both
+  directions.
 - **`crates/sim-wasm`** — the browser bridge. Raw `extern "C"` exports and a
   hand-written binding, so the core keeps its zero dependencies.
 - **`crates/sim-harness`** — `sim-hash`, which runs the sim headless and prints world
@@ -20,18 +21,23 @@ what is deliberately left out of it.
 - **`src/`** — the client: the HUD from the design handoff, drawing onto the real
   simulation.
 
-What is real: the world, the physics, drawing, spawners, reactions, and every number in
-the top bar and the inspector. Gold is washed sand, the spawner count is the sim's, and
-yield and contact area are measured from the world.
+What is real: the world, the physics, drawing, machines, belts, reactions, heat, and
+every number in the top bar and the inspector. Gold is washed sand, the spawner count is
+the sim's, and yield, contact area and temperature are measured from the world.
 
 What is not real: purchasing. The capability and blueprint drawers (`C` and `B`) still
 show placeholder rows, because the economy server and blueprints are both out of the
 slice.
 
-The inspector shows fewer measurements than the design handoff. Temperature, residence
-and mixing are missing because nothing computes them — there is no heat system, and
-residence needs a machine boundary that per-construct selection would give. Inventing
-numbers to fill the panel would be worse than a shorter one.
+The inspector shows fewer measurements than the design handoff. Temperature arrived
+with the heat system; residence and mixing are still missing because nothing computes
+them — residence needs a machine boundary that per-construct selection would give.
+Inventing numbers to fill the panel would be worse than a shorter one.
+
+**Read [`docs/WHY-ITS-A-TOY.md`](docs/WHY-ITS-A-TOY.md) before adding anything.** The
+slice has now been played, and the verdict was that the pieces do not compose into
+decisions. That document has the mechanical reason and one proposal; the inventory it
+ends with is the current state of the build.
 
 ## Running it
 
@@ -66,7 +72,7 @@ regenerates `public/fonts/` and `src/styles/fonts.css`.
 
 ### What to try
 
-Draw two sloping walls into a basin, switch to the spawner tool (`4`), put sand above
+Draw two sloping walls into a basin, switch to the spawner tool (`6`), put sand above
 one side and water above the other, and watch the inspector. Yield rises when sand and
 water actually touch, and the panel says so when they do not. That loop — draw, run,
 measure, redraw — is the thing worth judging.
@@ -177,18 +183,24 @@ verifier of §8.3 will take.
 
 | Key | Action |
 |---|---|
-| `1`–`6` | Select tool — `1` draw, `2` erase, `4` spawner |
+| `1`–`9` | Select tool, in tool-column order — `1` select, `2` draw, `3` erase, `4` belt, `5` filter, `6` spawner, `7` press, `8` burner, `9` compactor |
 | `shift` | Constrain a stroke to a straight line |
 | `space` + drag | Pan |
 | `alt` + click | Pick the material under the cursor |
 | click (spawner tool) | Place a spawner emitting the selected material |
 | `F` | Jump to the current problem notice |
 | `G` | Toggle the tile grid |
+| `T` | Toggle hover tooltips |
+| `H` | Toggle the heat overlay |
+| `P` | Pause |
 | `C` / `B` | Capability / Blueprints drawer |
 | `Escape` | Close the drawer, then clear the selection |
 
-`1`–`6`, `shift`, `space`, `alt` and `F` are from the handoff. `G`, `C`, `B` and
-`Escape` are not — see "Flagged back to design" below.
+The heater, vault, teleport and blueprint tools have no key — only single digits parse,
+and the tool column runs to thirteen. Click them.
+
+The tool keys, `shift`, `space`, `alt` and `F` are from the handoff. `G`, `T`, `H`, `P`,
+`C`, `B` and `Escape` are not — see "Flagged back to design" below.
 
 ## Layout
 
@@ -307,6 +319,13 @@ Milestones 1, 2a and 2b have met their gates. What remains of Milestone 2: evict
 §2.4's open question is answered (2c), and the WebGL2 renderer that finally connects the
 two halves (2d).
 
+Since then the vertical slice shipped and kept going, out of milestone order: the refine
+chain (burner, compactor, fuel), belts and filters with sprite animation, machines that
+can be switched off and retuned, a conducting heat field with a heater and an overlay to
+see it, and gas — steam, glass, and phase changes that run both ways. Nine rounds. What
+that produced, and why it is not yet a game, is
+[`docs/WHY-ITS-A-TOY.md`](docs/WHY-ITS-A-TOY.md).
+
 ### Carried forward
 
 Settled provisionally, and still open:
@@ -326,10 +345,14 @@ Settled provisionally, and still open:
 - **Liquids spread one cell per tick** and never rise. Enough to level out and to let
   powders sink through, and slower than a real flow model; revisit when flow rate is
   something the game cares about.
-- **No temperature field yet.** Melting points, boiling points and thermal conductivity
-  are parsed, validated and stored, but nothing reads them until reactions exist.
-- **The `gas` state has rules for nothing.** No gas element is defined, so the tick
-  loop leaves it alone rather than guessing at buoyancy.
+- **Heat exists, and nothing in the factory reads it.** The field conducts, phase
+  changes fire off it in both directions, and the overlay (`H`) shows it. But no
+  machine's rate or output conditions on temperature, and `Reaction` has no temperature
+  band — so heat is currently scenery. This is the central finding in
+  [`docs/WHY-ITS-A-TOY.md`](docs/WHY-ITS-A-TOY.md).
+- **Gas has one element.** `steam` is the only one, and it condenses back to water. The
+  buoyancy rules were written for it rather than guessed at in the abstract, which means
+  they are tuned against a single case.
 - **The flat world is kept deliberately.** It is the oracle the chunked world is
   measured against, and its hard edges are what make "nothing escaped" a meaningful
   claim — on an infinite canvas there is nowhere for escape to be observed. It should

@@ -1,8 +1,15 @@
 # Vertical slice — scope
 
-**Status:** built, unplayed. All six steps below are done; what is missing is the
-evidence they were built to produce. Deliberately cuts across the milestone order in
-[`SPEC.md`](SPEC.md) §10.
+**Status:** built, played, and it returned the falsifying result. All six steps below
+are done, and several milestones' worth of work landed on top of them. Deliberately cuts
+across the milestone order in [`SPEC.md`](SPEC.md) §10.
+
+**The result is recorded in [`WHY-ITS-A-TOY.md`](WHY-ITS-A-TOY.md).** In short: the
+pieces work individually but do not compose into decisions. Every machine past the wash
+is a fixed single-input transform, and with gravity as free transport that chain has
+exactly one correct layout — a vertical column. This slice was designed to surface
+exactly this kind of answer, which is why it is worth keeping as a result rather than
+losing.
 
 ## Why
 
@@ -82,8 +89,12 @@ capacity. Two things the build settled that the scope did not anticipate:
   through water. Between them a vault stops silting into an undifferentiated pile — gold
   settles to the bottom under whatever the press left behind.
 
-What remains is the part no amount of building substitutes for: sitting down with it and
-finding out whether tuning a washer is satisfying or fiddly.
+**Played.** The part no amount of building substitutes for has now happened, and the
+answer splits. Tuning the *washer* is satisfying: contact area is real, the yield number
+responds to intent, and watching the particles explains why it is low. Everything
+downstream of it is not a tuning problem at all, because there is nothing to tune — the
+refine chain has no parameters the layout can move. See
+[`WHY-ITS-A-TOY.md`](WHY-ITS-A-TOY.md).
 
 ## Decisions
 
@@ -115,6 +126,9 @@ Residence time is derivable from Little's law — inventory over flow — within
 selection. Temperature has no heat system behind it and should be **removed from the
 panel**, not faked. A smaller honest inspector beats the designed one filled with
 fiction.
+
+*Since superseded on one point:* the heat system was built, so temperature is back in
+the panel and is measured. Residence and mixing are still absent, on the same grounds.
 
 ## Explicitly out
 
@@ -153,6 +167,7 @@ is provisional, and it sits behind a seam built for replacing it.
   cap but says nothing about their form, footprint, or how output purity reads.
 - **What holds the world up?** (§3.6) The slice needs a floor. A scene-level container
   works for now, but the real answer is terrain.
-- **Is the washer buildable at all?** The design handoff shows one at 68% yield with a
-  residence problem. Nobody has built one. If the physics cannot produce a satisfying
-  washer, the flagship example is fiction and we need to know.
+- ~~**Is the washer buildable at all?**~~ **Answered: yes.** It is the one part of the
+  build that behaves the way §3.3 promises, because contact area is the one yield factor
+  that got implemented. The problem turned out to be everything *downstream* of it —
+  see [`WHY-ITS-A-TOY.md`](WHY-ITS-A-TOY.md).
