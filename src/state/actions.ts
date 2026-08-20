@@ -193,11 +193,12 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
           this.placeMachine(world);
           return;
         case 'vault':
+        case 'lift':
         case 'belt':
         case 'filter':
         case 'kiln':
           // These are marked out by dragging, and a press is a drag that has not
-          // happened yet. `designateVault`/`paintBelt` runs on release.
+          // happened yet. `designateRegion`/`paintBelt` runs on release.
           return;
         case 'erase':
           // Erase should erase. Removing an entity here rather than inventing another
@@ -247,31 +248,39 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
     },
 
     /**
-     * Declares a region a vault.
+     * Marks out a region for a machine whose footprint the player chooses.
      *
-     * Storage is something the player builds: dig a pit, wall it, then say that what
-     * lands inside counts (spec 5.1). Nothing here checks for walls — physics decides
-     * whether the gold stays in, which is the same bargain a press makes.
+     * Two tools do this and for the same reason — how big it is *is* the decision.
+     * A vault is storage the player builds: dig a pit, wall it, then say that what lands
+     * inside counts (spec 5.1). Nothing here checks for walls; physics decides whether
+     * the gold stays in, which is the same bargain a press makes. A lift is a shaft, and
+     * its height is what it costs: taller reaches further and takes longer to prime
+     * before anything comes out the top.
+     *
+     * A lift is pinned to one tile wide. A shaft is a vertical thing, and a dragged-out
+     * rectangle of them would be several independent shafts wearing one sprite — better
+     * to make the player place them side by side and see what they are getting.
      */
-    designateVault(from: Vec2, to: Vec2): void {
-      const machine = entityForTool('vault');
+    designateRegion(from: Vec2, to: Vec2): void {
+      const tool = store.state.ui.selectedTool;
+      const machine = entityForTool(tool);
       if (!machine) return;
 
       const { start, end } = strokeTiles(from, to);
       const x = Math.min(start.x, end.x);
       const y = Math.min(start.y, end.y);
-      const width = Math.abs(end.x - start.x) + 1;
       const height = Math.abs(end.y - start.y) + 1;
+      const width = tool === 'lift' ? 1 : Math.abs(end.x - start.x) + 1;
 
-      sim.placeEntity(machine.id, x, y, EMPTY_ELEMENT, width, height);
+      sim.placeEntity(machine.id, tool === 'lift' ? start.x : x, y, EMPTY_ELEMENT, width, height);
     },
 
     /**
      * Lays a line of belt or filter tiles along a drag.
      *
-     * Belts are horizontal only (spec 4's open question on vertical transport is
-     * unresolved), so only the drag's x extent matters — the row is wherever it
-     * started. Direction is the sign of the drag, resolved once here, matching how a
+     * Belts, filters and kilns are horizontal only — going up is the lift's job
+     * (spec 4.6), not an inclined belt's — so only the drag's x extent matters, and the
+     * row is wherever it started. Direction is the sign of the drag, resolved once here, matching how a
      * vault's region resolves from start/end on release. A filter additionally reads
      * `selectedMaterial`, the same swatch a spawner reads, for what it lets through.
      */

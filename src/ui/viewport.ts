@@ -16,7 +16,7 @@ export interface ViewportActions {
   /** A drag with the draw or erase tool. `straight` is shift being held. */
   paint(from: Vec2, to: Vec2, straight: boolean): void;
   /** A drag with the vault tool: the region it covered becomes storage. */
-  designateVault(from: Vec2, to: Vec2): void;
+  designateRegion(from: Vec2, to: Vec2): void;
   /** A drag with the belt or filter tool: the line it covered becomes conveyor. */
   paintBelt(from: Vec2, to: Vec2): void;
   /** What the pointer is doing to the world, for the ghost. */
@@ -40,6 +40,7 @@ const BUILD_TOOLS = new Set<Tool>([
   'belt',
   'filter',
   'kiln',
+  'lift',
 ]);
 
 export function createViewport(surface: SimSurface, actions: ViewportActions): Component {
@@ -63,7 +64,8 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
    *  each move draws from here — anchoring every move to the stroke's origin instead
    *  sweeps a fan of lines and fills the region between them. */
   let strokePrevious: Vec2 | null = null;
-  /** Whether this drag is marking out a region rather than painting one. */
+  /** Whether this drag is marking out a footprint the player chooses — a vault's
+   *  region or a lift's shaft — rather than painting one. */
   let marking = false;
   /** Whether this drag is laying out a line of belt or filter tiles. */
   let laying = false;
@@ -141,7 +143,7 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
       dragging = 'paint';
       strokeStart = world;
       strokePrevious = world;
-      marking = selectedTool === 'vault';
+      marking = selectedTool === 'vault' || selectedTool === 'lift';
       laying = selectedTool === 'belt' || selectedTool === 'filter' || selectedTool === 'kiln';
       reportStroke();
       // A stroke that previews — constrained, marking out a vault, or laying a belt
@@ -176,7 +178,7 @@ export function createViewport(surface: SimSurface, actions: ViewportActions): C
   const endDrag = (event: PointerEvent): void => {
     // All three of these have been a preview until now. This is the commit.
     if (dragging === 'paint' && strokeStart && lastWorld) {
-      if (marking) actions.designateVault(strokeStart, lastWorld);
+      if (marking) actions.designateRegion(strokeStart, lastWorld);
       else if (laying) actions.paintBelt(strokeStart, lastWorld);
       else if (straight) actions.paint(strokeStart, lastWorld, true);
     }

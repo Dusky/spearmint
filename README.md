@@ -12,7 +12,7 @@ what is deliberately left out of it.
 
 - **`crates/sim-core`** — the simulation. Headless, deterministic and proven so, on
   sparse chunks over an unbounded canvas, with viewport-gated sleeping. Thirteen
-  elements, seven machines, a conducting heat field, phase changes in both directions,
+  elements, eight machines, a conducting heat field, phase changes in both directions,
   and material that burns where the layout makes it hot enough and compacts where it
   makes it heavy enough.
 - **`crates/sim-wasm`** — the browser bridge. Raw `extern "C"` exports and a
@@ -184,7 +184,7 @@ verifier of §8.3 will take.
 
 | Key | Action |
 |---|---|
-| `1`–`9` | Select tool, in tool-column order — `1` select, `2` draw, `3` erase, `4` belt, `5` filter, `6` kiln, `7` spawner, `8` press, `9` heater |
+| `1`–`9` | Select tool, in tool-column order — `1` select, `2` draw, `3` erase, `4` belt, `5` filter, `6` kiln, `7` lift, `8` spawner, `9` press |
 | `shift` | Constrain a stroke to a straight line |
 | `space` + drag | Pan |
 | `alt` + click | Pick the material under the cursor |
@@ -197,9 +197,8 @@ verifier of §8.3 will take.
 | `C` / `B` | Capability / Blueprints drawer |
 | `Escape` | Close the drawer, then clear the selection |
 
-The vault, teleport and blueprint tools have no key — only single digits parse, and the
-tool column runs to twelve. Click them. (Deleting the burner and the compactor pulled
-the heater up to `9`, which is the first time it has had a key at all.)
+The heater, vault, teleport and blueprint tools have no key — only single digits parse,
+and the tool column runs past nine. Click them.
 
 The tool keys, `shift`, `space`, `alt` and `F` are from the handoff. `G`, `T`, `H`, `P`,
 `C`, `B` and `Escape` are not — see "Flagged back to design" below.
@@ -332,6 +331,11 @@ world already simulates. Residue **burns** where the layout gets it hot, carried
 by the **kiln**, a belt that conducts so material is heated while it moves. Burnt
 residue **compacts** where the layout gets it heavy, at the bottom of a pile deep
 enough to crush it. Machines now move, store and supply energy; physics converts.
+
+That chain then turned out not to close: compaction leaves fuel at the bottom of a silo
+and the heaters that burn it sit above, and nothing in the game moved a powder upward.
+The **lift** is the answer to spec open question 1, and the first thing built because
+running the factory proved it was needed rather than because it was next on a list.
 
 ### Carried forward
 

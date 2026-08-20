@@ -44,6 +44,22 @@ pub enum Behaviour {
     /// element at placement (`World::place`), so gravity already holds cargo up — this
     /// behaviour only ever touches the row directly above its own body.
     Belt,
+    /// Carries matter *upward*, which nothing else in the game does: gravity moves it
+    /// down, belts move it sideways, and neither ever decreases a cell's y (spec 11's
+    /// first open question). Without this the refine chain cannot close its own loop —
+    /// fuel compacts at the bottom of a silo and the heaters that burn it sit above.
+    ///
+    /// A shaft rather than a machine that swallows and re-emits: each beat the whole
+    /// column inside its footprint shifts up one cell and the top cell steps out of the
+    /// shaft, so what comes out is the same particles that went in (spec 4.2). Feed one
+    /// by running a belt directly beneath it — a belt's carry row *is* the bottom row of
+    /// the lift standing on it, so the two compose with no special case at either end.
+    ///
+    /// It does fight gravity, and has to: see `raise` for the two passes that do it, and
+    /// for the one assumption in this whole sim about how *fast* gravity is rather than
+    /// merely which way it points. A blocked mouth stalls the shaft rather than crushing
+    /// anything into it, so a lift wants a belt at the top as well as the bottom.
+    Lift,
     /// Burns fuel to hold its own footprint at `EntityType.heat_output`, so the
     /// generic conduction pass (`heat.rs`) can carry that into whatever touches it
     /// (spec 5.3). No banking: while it has fuel it forces its footprint hot, and once
@@ -60,6 +76,7 @@ impl Behaviour {
             "store" => Some(Behaviour::Store),
             "belt" => Some(Behaviour::Belt),
             "heater" => Some(Behaviour::Heater),
+            "lift" => Some(Behaviour::Lift),
             _ => None,
         }
     }
@@ -286,6 +303,15 @@ impl Entity {
                 (x0..=x1).any(|x| {
                     field.get(x, carry_y).is_some_and(|id| id != EMPTY)
                         && field.get(x + direction, carry_y) != Some(EMPTY)
+                })
+            }
+            // Blocked means backed up: the shaft has something at the top with nowhere
+            // to step out to. An empty shaft is not blocked — it has nothing to lift.
+            Behaviour::Lift => {
+                let (x0, y0, x1, _) = self.body();
+                (x0..=x1).any(|x| {
+                    field.get(x, y0).is_some_and(|id| id != EMPTY)
+                        && field.get(x, y0 - 1) != Some(EMPTY)
                 })
             }
             // Blocked means idle: no fuel anywhere in the body to burn. Pure id
@@ -531,17 +557,27 @@ pub fn tick<F: CellField + ?Sized>(
     // Belts run as their own pass, in a deliberate order, rather than inline in the
     // loop below with everything else — see `convey`'s doc for why order matters here
     // and nowhere else in this function.
-    convey(field, entities, types, tick);
+    convey(field, entities, types, elements, tick);
 
     let mut minted = 0;
     for (index, entity) in entities.iter_mut().enumerate() {
         let Some(definition) = types.get(entity.kind) else {
             continue;
         };
+        if !entity.enabled {
+            continue;
+        }
+        // A lift is the one behaviour that runs every tick rather than on its beat,
+        // because one of its two passes exists purely to cancel the fall gravity applies
+        // every tick. Its beat still sets how fast it actually climbs — see `raise`.
+        if definition.behaviour == Behaviour::Lift {
+            raise(field, entity, definition, elements, tick);
+            continue;
+        }
         // A disabled machine does nothing, whatever it is — one check rather than an
         // arm in each behaviour. Physics carries on around it untouched: what it
         // already made stays, and matter still falls through it.
-        if !entity.enabled || !acts_this_tick(definition, tick) {
+        if !acts_this_tick(definition, tick) {
             continue;
         }
         match definition.behaviour {
@@ -549,8 +585,9 @@ pub fn tick<F: CellField + ?Sized>(
             Behaviour::Press => minted += press(field, entity, definition, elements),
             Behaviour::Heater => heater(field, entity, definition),
             // A vault holds what falls into it and does nothing else. Gravity is the
-            // mechanism; the walls are the player's. A belt was already handled above.
-            Behaviour::Store | Behaviour::Belt => {}
+            // mechanism; the walls are the player's. A belt was already handled above,
+            // and a lift before the beat gate.
+            Behaviour::Store | Behaviour::Belt | Behaviour::Lift => {}
         }
     }
     minted
@@ -576,6 +613,7 @@ fn convey<F: CellField + ?Sized>(
     field: &mut F,
     entities: &[Entity],
     types: &EntityTable,
+    elements: &ElementTable,
     tick: u64,
 ) {
     let mut belts: Vec<usize> = entities
@@ -599,7 +637,7 @@ fn convey<F: CellField + ?Sized>(
     });
 
     for index in belts {
-        convey_one(field, &entities[index]);
+        convey_one(field, &entities[index], elements);
     }
 }
 
@@ -618,7 +656,7 @@ fn convey<F: CellField + ?Sized>(
 /// Walked from the downstream column backward within this one tile so a short line of
 /// cargo inside a single tile's row cannot cascade several cells in one tick, the same
 /// reason `press` and `refine` work bottom-up.
-fn convey_one<F: CellField + ?Sized>(field: &mut F, entity: &Entity) {
+fn convey_one<F: CellField + ?Sized>(field: &mut F, entity: &Entity, elements: &ElementTable) {
     let (x0, y0, x1, _) = entity.body();
     let carry_y = y0 - 1;
     let direction = i32::from(entity.direction);
@@ -634,6 +672,13 @@ fn convey_one<F: CellField + ?Sized>(field: &mut F, entity: &Entity) {
             continue;
         };
         if id == EMPTY {
+            continue;
+        }
+        // Structure is not cargo. Without this a belt whose carry row happens to cross
+        // another machine's body carries that machine off a cell at a time — a belt
+        // stacked directly under another shreds its chassis, and a belt feeding a lift
+        // walks away with the lift's walls.
+        if is_structure(id, elements) {
             continue;
         }
 
@@ -757,6 +802,80 @@ fn press<F: CellField + ?Sized>(
         }
     }
     minted
+}
+
+/// Carries a lift's contents upward.
+///
+/// **Two passes, and the first one is not progress.** Gravity moves a powder down one
+/// cell every tick, so a machine that raised its column one cell per beat would lose
+/// ground between beats and never lift anything. One pass every tick exactly cancels
+/// that — the column hovers, held by the machine, which is what a lift does — and a
+/// second pass on the beat is the climb. So `interval` means what it means everywhere
+/// else: how often the load actually gains a cell. At 4 against a belt's 3, going up is
+/// deliberately dearer than going along.
+///
+/// This is the one place in the sim that depends on *how fast* gravity is rather than
+/// merely on its direction. `an_unfed_lift_holds_its_charge_without_climbing` pins that
+/// coupling: if a powder ever falls more than a cell a tick, that test fails rather than
+/// lifts quietly becoming down-escalators.
+fn raise<F: CellField + ?Sized>(
+    field: &mut F,
+    entity: &Entity,
+    definition: &EntityType,
+    elements: &ElementTable,
+    tick: u64,
+) {
+    let passes = if acts_this_tick(definition, tick) { 2 } else { 1 };
+    for _ in 0..passes {
+        shift_up(field, entity, elements);
+    }
+}
+
+/// Whether this element is a machine's own structure rather than material anything
+/// should be carrying.
+fn is_structure(id: ElementId, elements: &ElementTable) -> bool {
+    elements.get(id).is_some_and(|element| element.internal)
+}
+
+/// Shifts everything inside a lift's shaft up one cell, stepping the top cell out.
+///
+/// One pass, top-down, is the whole thing: eject the top, then walk down closing each
+/// gap into the one above it. Because every cell moves into the space the cell above it
+/// just left, a single sweep shifts the entire column exactly one cell — no second pass,
+/// and no cell moved twice.
+///
+/// The shaft's own outermost columns are its walls, written at placement, so they are
+/// skipped: a powder with open sides slumps out of a bare shaft rather than riding it.
+/// Nothing is created or destroyed here — every step is a move (spec 1.1).
+fn shift_up<F: CellField + ?Sized>(field: &mut F, entity: &Entity, elements: &ElementTable) {
+    let (x0, y0, x1, y1) = entity.body();
+    let liftable = |field: &F, x: i32, y: i32| {
+        field
+            .get(x, y)
+            .is_some_and(|id| id != EMPTY && !is_structure(id, elements))
+    };
+
+    for x in (x0 + 1)..x1 {
+        // Out of the top, if there is anywhere to go. A blocked mouth stalls the whole
+        // shaft rather than crushing anything into it — the gap never opens, so the walk
+        // below finds nothing to close.
+        if liftable(field, x, y0) && field.get(x, y0 - 1) == Some(EMPTY) {
+            field.swap(x, y0, x, y0 - 1);
+            field.mark_active(x, y0);
+            field.mark_active(x, y0 - 1);
+        }
+
+        for y in y0..y1 {
+            if field.get(x, y) != Some(EMPTY) {
+                continue;
+            }
+            if liftable(field, x, y + 1) {
+                field.swap(x, y, x, y + 1);
+                field.mark_active(x, y);
+                field.mark_active(x, y + 1);
+            }
+        }
+    }
 }
 
 /// Burns up to `rate` cells of fuel a tick and, if it burned any, holds its own

@@ -52,7 +52,7 @@
             "##=====##",
             " #=====# ",
             " #=====# ",
-            "  #===#  ",
+            "#  ===  #",
             "  =###=  "
           ]
         },
@@ -134,9 +134,9 @@
             "'##   ##'",
             " '##=##' ",
             "  '###'  ",
-            "  #===#  ",
-            "  #===#  ",
-            "  #===#  ",
+            "#  ===  #",
+            "#  ===  #",
+            "#  ===  #",
             "  =###=  "
           ]
         },
@@ -243,7 +243,7 @@
             " # === # ",
             " # === # ",
             " # === # ",
-            "  =====  "
+            "#=======#"
           ]
         },
         {
@@ -300,7 +300,7 @@
             "=========",
             "#########",
             "=========",
-            "  =====  "
+            "#=======#"
           ]
         },
         {
@@ -314,7 +314,7 @@
             "=#=#=#=#=",
             "#########",
             "#=#=#=#=#",
-            "  =====  "
+            "#=======#"
           ]
         }
       ]
@@ -370,6 +370,62 @@
               " ''''''' ",
               " ======= ",
               "========="
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "note": "Carries matter upward, which nothing else does (spec 11 question 1): gravity goes down, belts go sideways, and neither ever decreases a cell's y. Without it the refine chain cannot close — fuel compacts at the bottom of a silo and the heaters that burn it sit above. A shaft, not a machine that swallows and re-emits: each beat the column inside its footprint shifts up one cell and the top cell steps out, so what comes out is the particles that went in (spec 4.2). It does not fight gravity and does not need to — the column rests on whatever is under the shaft, the way a belt's cargo rests on the belt. Feed one by running a belt directly beneath: a belt's carry row IS the bottom row of a lift standing on it, so they compose with no special case. Height is the player's, like a vault's footprint, and a taller shaft costs longer to prime before anything comes out the top. `interval` is 4 against a belt's 3, so going up is deliberately dearer than going along.",
+      "id": 10,
+      "name": "lift",
+      "behaviour": "lift",
+      "tool": "lift",
+      "chassis": "beltStructure",
+      "widthTiles": 1,
+      "heightTiles": 1,
+      "interval": 4,
+      "sprites": [
+        {
+          "note": "Backed up: something is at the mouth with nowhere to step out to.",
+          "when": { "status": "blocked" },
+          "pixels": [
+            "#=======#",
+            "#  ===  #",
+            "#  ===  #",
+            "#  ===  #",
+            "#  ===  #",
+            "#  ===  #",
+            "#  ===  #",
+            "#  ===  #",
+            "#=======#"
+          ]
+        },
+        {
+          "note": "Two frames of a chain climbing the shaft. The casing holds still; only the rungs move, so it reads as lifting rather than as the whole tower sliding.",
+          "when": {},
+          "pixels": [
+            [
+              "#=======#",
+              "#  o o  #",
+              "#       #",
+              "#  o o  #",
+              "#       #",
+              "#  o o  #",
+              "#       #",
+              "#  o o  #",
+              "#=======#"
+            ],
+            [
+              "#=======#",
+              "#       #",
+              "#  o o  #",
+              "#       #",
+              "#  o o  #",
+              "#       #",
+              "#  o o  #",
+              "#       #",
+              "#=======#"
             ]
           ]
         }

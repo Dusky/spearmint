@@ -310,8 +310,7 @@ of cells directly *above* its footprint: each tick it shoves whatever is resting
 one cell toward its declared direction (`Entity.direction`, `1` or `-1`), then physics
 settles it back onto the belt's now-solid surface, the same way it settles anything
 onto a floor. No entity-awareness was added to the generic physics sweep. Horizontal
-only for now — open question 1 (§11), how material moves upward, is unresolved and a
-vertical or inclined belt would need to answer it.
+only, deliberately and still: going up is the lift's job (§4.6), not an inclined belt's.
 
 ### 4.2 Belt semantics **[DECIDED]**
 
@@ -376,6 +375,50 @@ These cannot both be true. Pick one before implementing blueprints.
 **[OPEN]** Blueprint slot limits; whether blueprints are shareable between players.
 
 ---
+
+### 4.6 Lifts **[DECIDED]**
+
+**The chain could not close its own loop.** Compaction (§5.3) leaves fuel at the bottom
+of a silo; the heaters that burn it sit at kiln level above. Nothing in the game moved a
+powder upward — gravity goes down, belts go sideways, emitters only introduce matter, and
+none of those decrease a cell's y. Built and measured before building the fix: the
+factory ran, compacted 110 cells of fuel, and starved its own heaters to zero
+(`tests/chain.rs`).
+
+**A shaft, not a machine that swallows and re-emits.** §4.2 says a belt moves actual
+piles of particles and converts nothing to a count; a lift holds to that. Each beat the
+column inside its footprint shifts up one cell and the top cell steps out of the mouth,
+so what comes out is the particles that went in, in order.
+
+- **Two passes, and the first is not progress.** Gravity moves a powder down one cell
+  every tick, so a machine raising its column once per beat would lose ground between
+  beats. One pass every tick cancels the fall — the column hovers, held by the machine,
+  which is what a lift does — and a second pass on the beat is the climb. `interval` then
+  means what it means everywhere else: how often the load gains a cell. At 4 against a
+  belt's 3, up is dearer than along.
+- **This is the one rule that depends on how *fast* gravity is** rather than only on its
+  direction. A test pins the coupling, so a future accelerating gravity fails loudly
+  instead of turning every lift into a down-escalator.
+- **Its outermost columns are its walls**, written at placement like a belt's body — but
+  *not* on the bottom row, which is the mouth. A powder in an open-sided shaft slumps
+  straight out of it, so the walls have to exist; a wall across the bottom seals the
+  machine shut, and a belt trying to feed one jams against it instead.
+- **A belt underneath feeds it with no special case at either end**, because a belt's
+  carry row *is* the bottom row of a lift standing on it. Nothing was added to make that
+  work; it falls out of the two footprints.
+- **Machine structure is not cargo.** `internal` on an element stopped being a
+  client-only display flag and became a sim rule: nothing that carries cargo will carry
+  structure. Building the lift exposed this as a pre-existing bug rather than a new one —
+  a belt whose carry row crosses another machine's body drags that machine apart a cell
+  at a time, so a belt stacked directly under another already shredded its chassis.
+- **Height is the player's**, dragged out like a vault's region and pinned to one tile
+  wide. Taller reaches further and takes longer to prime before anything comes out.
+- **A blocked mouth stalls the shaft** rather than crushing anything into it, so a lift
+  wants a belt at the top as well as the bottom.
+
+**[OPEN]** Whether a lift should cost more than space and a beat — power, say. It is
+currently the cheapest way out of a hole the layout puts you in, and the point of the
+last three rounds was to make layout cost something.
 
 ## 5. Economy
 
@@ -816,7 +859,10 @@ bisect.
 
 ## 11. Open questions
 
-1. How does material move **upward**? (§2.2) — blocks belt design
+1. ~~How does material move **upward**? (§2.2) — blocks belt design~~ **Answered: the
+   lift.** See §4.6. It stopped being theoretical the moment the refine chain became
+   physics: compaction leaves fuel at the bottom of a silo and the heaters that burn it
+   sit above, so without upward transport the factory could not run on what it made.
 2. Final tile size (§2.3)
 3. Chunk eviction policy and threshold (§2.4) — constrained: it must be deterministic
    from simulation state and logged inputs, or replay verification breaks

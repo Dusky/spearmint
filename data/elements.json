@@ -123,7 +123,7 @@
       "hardness": 0.6
     },
     {
-      "note": "Not matter the player ever sees fall or pile up — it is what `World::place` fills a belt's own footprint with (spec 4.1), so gravity holds cargo up on it the same way it holds anything up on solid ground. Solid, so it already never moves; the density is absurd anyway, purely as a second guarantee against ever being displaced. `internal` is client-only (sim-core never reads it) and hides this row from any player-facing element picker, since it is scenery, not a material anyone chooses.",
+      "note": "Not matter the player ever sees fall or pile up — it is what `World::place` fills a belt's own footprint with (spec 4.1), so gravity holds cargo up on it the same way it holds anything up on solid ground. Solid, so it already never moves; the density is absurd anyway, purely as a second guarantee against ever being displaced. `internal` marks it machine structure rather than material: it hides the row from any player-facing element picker, and the sim reads it too — nothing that carries cargo will carry structure, or a belt whose carry row crossed another machine's body would drag that machine apart a cell at a time.",
       "id": 9,
       "name": "beltStructure",
       "state": "solid",

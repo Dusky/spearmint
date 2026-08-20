@@ -118,6 +118,15 @@ pub struct Element {
     /// slowly mostly does not — so residence time comes out of the layout instead of
     /// being a number on a machine (spec 3.3).
     pub burns_into: ElementId,
+    /// Whether this is machine structure rather than material.
+    ///
+    /// Set on the chassis elements a belt or a lift writes into its own footprint. They
+    /// are matter — gravity holds cargo up on them precisely because they are — but they
+    /// are not *cargo*, and anything that carries cargo has to refuse to carry them. A
+    /// belt whose carry row crosses another machine's structure would otherwise drag
+    /// that machine apart: a belt stacked under another belt shreds its chassis, and a
+    /// belt feeding a lift walks off with the lift's walls.
+    pub internal: bool,
     /// Kelvin. The temperature at or above which `burns_into` can fire. `i32::MAX` — the
     /// default when the field is absent — means never, so an element only burns by
     /// saying so.
@@ -311,6 +320,11 @@ fn parse_element(entry: &Json<'_>) -> Result<Element, DataError> {
         // the entry says, so this function never depends on parse order (spec 3.2).
         residue: EMPTY,
         compacts_into: EMPTY,
+        internal: entry
+            .get("internal")
+            .map(|flag| flag.as_bool().ok_or(bad("internal")))
+            .transpose()?
+            .unwrap_or(false),
         boils_into: EMPTY,
         melts_into: EMPTY,
         condenses_into: EMPTY,

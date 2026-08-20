@@ -46,23 +46,43 @@ fn content_hash<F: CellField + ?Sized>(field: &F) -> u64 {
     hasher.finish()
 }
 
-/// Fills a `Behaviour::Belt` entity's own footprint with its declared structural
-/// element, at the moment it is placed. Gravity and `entities::convey` then treat a
-/// belt's body as ordinary solid ground, because it is one — this is the one place that
-/// ground gets written.
+/// Writes a machine's declared structural element into its own footprint at the moment
+/// it is placed. Gravity then treats that structure as ordinary solid ground, because it
+/// is one — this is the one place that ground gets written.
+///
+/// Two shapes, for the two behaviours that need real matter to do their job:
+///
+/// - A **belt** fills its whole footprint, so cargo rests on top of it like any floor.
+/// - A **lift** fills only its outermost columns, leaving the shaft between them hollow.
+///   A powder in an open-sided shaft slumps straight out of it, so the walls are what
+///   make the shaft a shaft; and they have to be part of the machine rather than the
+///   player's problem, or every lift would need a hand-built casing to work at all.
 fn fill_structure<F: CellField + ?Sized>(
     field: &mut F,
     entity: &Entity,
     definition: &entities::EntityType,
 ) {
-    if definition.behaviour != Behaviour::Belt {
-        return;
-    }
     let (x0, y0, x1, y1) = entity.body();
-    for y in y0..=y1 {
-        for x in x0..=x1 {
-            field.set(x, y, definition.chassis);
+    match definition.behaviour {
+        Behaviour::Belt => {
+            for y in y0..=y1 {
+                for x in x0..=x1 {
+                    field.set(x, y, definition.chassis);
+                }
+            }
         }
+        Behaviour::Lift => {
+            // Every row but the last. The bottom row is the shaft's mouth: cargo has to
+            // get in from the side, and a wall there would seal the machine shut — a
+            // belt trying to feed one would simply jam against it. Leaving that row open
+            // is what lets a belt underneath feed a lift with no special case at either
+            // end, which is the whole reason the two compose.
+            for y in y0..y1 {
+                field.set(x0, y, definition.chassis);
+                field.set(x1, y, definition.chassis);
+            }
+        }
+        _ => {}
     }
 }
 

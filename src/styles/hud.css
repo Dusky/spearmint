@@ -338,6 +338,15 @@ body {
   );
 }
 
+/* A shaft: two uprights with a rung between them, and taller than it is wide. */
+.glyph--lift {
+  width: 11px;
+  height: 16px;
+  border-left: 2px solid var(--text-faint-dimmer);
+  border-right: 2px solid var(--text-faint-dimmer);
+  border-top: 2px solid var(--text-faint-dimmer);
+}
+
 /* An open box: a place, not a machine. */
 .glyph--vault {
   width: 16px;

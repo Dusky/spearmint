@@ -64,6 +64,21 @@ pub fn vault(tile_x: i32, tile_y: i32, width: u32, height: u32) -> Entity {
     Entity::sized(vault_kind(), tile_x, tile_y, width, height)
 }
 
+/// The lift's kind id.
+#[allow(dead_code)]
+pub fn lift_kind() -> EntityKind {
+    rules()
+        .entities
+        .id_of("lift")
+        .expect("a `lift` entity should be defined")
+}
+
+/// A lift `height` tiles tall. One tile wide, always — a shaft is a vertical thing.
+#[allow(dead_code)]
+pub fn lift(tile_x: i32, tile_y: i32, height: u32) -> Entity {
+    Entity::sized(lift_kind(), tile_x, tile_y, 1, height)
+}
+
 /// The kiln's kind id.
 #[allow(dead_code)]
 pub fn kiln_kind() -> EntityKind {

@@ -149,8 +149,8 @@ Derived from `data/`, so nobody has to derive it again.
 `burntResidue`, `fuel`, `beltStructure` (internal), `moltenSand`, `steam`, `glass`,
 `kilnStructure` (internal).
 
-**7 machines** — `emitter`, `press`, `vault`, `belt`, `filter`, `heater`, `kiln`. All
-1×1. The burner and the compactor were both deleted in §6; their ids (4 and 5) are
+**8 machines** — `emitter`, `press`, `vault`, `belt`, `filter`, `heater`, `kiln`,
+`lift`. All one tile wide; the lift's height is the player's. The burner and the compactor were both deleted in §6; their ids (4 and 5) are
 retired, not reused, and nothing shipped is taller than one tile any more.
 
 **1 reaction** — `sand + water → wetSand + wetSand`, probability `0.04` per adjacent
@@ -209,10 +209,15 @@ at 800K, so a wash and a burn run cannot share a space.
 
 **Whether the column is really gone is a question for playing it**, not for arguing
 about it — the same standard §1 held the last nine rounds to. The vertical layout is no
-longer free, because the two stages now want incompatible shapes: a burn wants a long
+longer free, because the two stages want incompatible shapes: a burn wants a long
 horizontal hot run, a compaction wants a tall vertical pile, and fuel has to get from
-the bottom of the chain back up to the heaters feeding the top of it. That *should* be a
-layout puzzle. Whether it is a puzzle or a chore is exactly what playing it will say.
+the bottom of the chain back up to the heaters feeding the top of it.
+
+**That last part was not possible when this was written.** Running the whole factory —
+rather than each stage on its own rig — showed it compacting 110 cells of fuel and
+starving its heaters to zero, because gravity goes down, belts go sideways, and nothing
+moved a powder up. §7 is the fix, and the fact that three rounds of design missed it
+until the thing was actually run is the most useful result in this document.
 
 The press is still a black box, and the wash reaction still has a flat probability with
 no temperature term — the most obvious remaining gap.
@@ -222,3 +227,33 @@ stocked.** `burn_fuel` empties its footprint bottom-up, so the face that touches
 is heating hollows out first, and a heater left to burn down goes cold long before it
 runs out of fuel. That is a logistics requirement, and it is most of what makes the
 layout non-trivial.
+
+## 7. The loop did not close
+
+Written after building the chain end to end instead of stage by stage — which should
+have happened one round earlier, and is the whole method this document exists to argue
+for.
+
+**The failure.** An emitter dropping residue onto a heated kiln, its output falling into
+a silo deep enough to compact: it worked. Residue burned, burnt residue compacted, 110
+cells of fuel accumulated. And the heaters that make the burn possible ran to zero, with
+110 cells of their fuel sitting at the bottom of a shaft they could not reach. Gravity
+moves matter down, belts move it sideways, emitters only introduce it — **not one of
+them decreases a cell's y.** The chain produced its own power source and could not use
+it.
+
+That is spec open question 1, *"How does material move upward?"*, which had sat as the
+first item on the list since the beginning and had never blocked anything. Making the
+conversions physical is what made it load-bearing.
+
+**The lift.** A shaft whose column shifts up one cell per beat, stepping the top cell out
+of the mouth — real particles, in order, as §4.2 requires of a belt. Two passes: one
+every tick that cancels the cell gravity pulls down, and one on the beat that is the
+actual climb. Its outermost columns are its walls, or the powder slumps out. A belt
+underneath feeds it with no special case, because a belt's carry row *is* the bottom row
+of a lift standing on it.
+
+**What it cost to find.** Nothing, in code — the lift is a small machine. What it cost
+was three rounds of confidently describing a loop that could not run. Each stage was
+tested on its own rig and each stage worked; the composition was never tested, so the
+one thing that was broken was the only thing nobody looked at.
