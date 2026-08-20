@@ -485,11 +485,15 @@ code with different data rows, exactly as burn and compact are the same shape wi
 different verbs. Both new elements ship inert, same as residue did: nothing burns fuel
 yet.
 
-*Superseded in part.* The burner is gone; burning is physics now, not a machine — see
-**Burning is not a machine** below. `Behaviour::Refine` and `reach` are unchanged, and
-the compactor is the machine that still runs on them.
+*Superseded entirely.* Both machines are gone, and so is the behaviour they ran on:
+`Behaviour::Refine`, `Reach`, `reach` and `refinedInto` were all deleted with them.
+Burning and compacting are physics now — see **Burning is not a machine** and
+**Compacting is not a machine either** below. The paragraph above is kept because it is
+the reasoning that produced the chain, and the chain survived; only its machinery did
+not.
 
-**A machine also declares where it reaches.** `Refine` gained a `reach` field rather
+**A machine also declares where it reaches.** *(Deleted along with `Refine` — kept for
+the reasoning.)* `Refine` gained a `reach` field rather
 than a second behaviour, the same way a filter turned out to be a belt with one more
 field: a machine that takes what falls into it and a piston that crushes what is heaped
 under it do the identical thing to whatever they find and differ only in where they
@@ -535,7 +539,7 @@ to do with heat.
   conductor would swap the two temperatures outright and flip which side is hotter.
 - **Melting and boiling are one generic mechanism.** `meltsInto`/`boilsInto` name what
   an element becomes on reaching its `melting_point`/`boiling_point`, resolved in the
-  same name pass `residue`/`refinedInto` already use. Boiling is checked first: anything
+  same name pass the other linked element fields already use. Boiling is checked first: anything
   hot enough to boil crossed its melting point on the way. Sand melts into
   **moltenSand**, a real liquid that flows and settles immediately. `boilsInto` ships
   real but unpopulated — steam needs gas-state physics, which is still a no-op.
@@ -579,10 +583,45 @@ phase changes, and it was scenery. The fix is not another machine — it is dele
   having fuel. That is a logistics requirement rather than a bug, and it is what makes
   routing fuel *to* the heat part of the puzzle.
 
-**[OPEN]** Whether the compactor should follow the burner out of the machine layer.
-Compaction has no obvious physical analogue the way ignition does, so it would need a
-new mechanism rather than reusing the threshold path — worth deciding only after this
-one has been played.
+**Compacting is not a machine either, and pressure is the quantity it reads.** The open
+question left by the burner — whether the compactor should follow it out — resolved yes,
+and the mechanism it needed turned out to be the third of §3.3's five factors.
+
+- **Load is the weight of the column standing on a cell.** The contiguous run of matter
+  directly above it, summed by density (`compress.rs`). A gap resets it to nothing: a
+  shelf with air under it presses on nothing, which is both the honest physical reading
+  and what keeps the chunked and flat worlds agreeing, since above the topmost matter
+  every column is empty however far its bounds reach.
+- **Derived, never stored.** Unlike temperature, load is recomputed every tick from the
+  arrangement of matter alone — a cell's temperature is history, its load is only where
+  it is right now. So there is no third parallel grid, nothing to swap when matter
+  moves, and nothing added to the save format. One top-down sweep carries a running
+  total per column, so the whole field costs a single pass rather than a walk up the
+  column at every cell.
+- **`compactsInto` and `compactionLoad`, with `hardness` as the resistance.** The exact
+  mirror of `burnsInto`/`ignitionPoint`/`flammability`, on the other quantity — and
+  `hardness` is the third field parsed and stored since Milestone 1 and read by nothing
+  until the round that needed it. The chance per tick scales with how far past the
+  threshold the load is, so a deeper pile compacts *faster* rather than merely
+  compacting at all: **depth is a dial with a range**, not a switch with two positions.
+- **All integer, and never through `Fixed::from_int`.** A load runs to tens of thousands
+  and Q16.16 tops out near 32767, so the ratio is taken first in i64 and only the ratio
+  is ever a Fixed quantity. The accumulator is i64 because an unbounded canvas puts no
+  ceiling on column height and `beltStructure`'s density is 999999.
+- **Weight is weight, wherever it comes from.** A lid of structure piled on a shallow
+  charge pushes it over the line, so "build a heavier roof" is a real alternative to
+  "dig a deeper hole". Nothing special-cases where the load originates.
+
+**The machine layer is now transport, storage and energy — never conversion.** What is
+left is the emitter (input), the press (the one licensed sink), the vault (storage), the
+belt, the filter and the kiln (transport), and the heater (energy). Every conversion in
+the chain past the press reads a physical quantity instead: contact area for the wash,
+temperature for the burn, load for the compaction. Three of §3.3's five factors are real,
+and all three come out of what the player drew.
+
+**[OPEN]** The press is still a black box, and so is the wash's fixed probability. The
+press is arguably fine — it is a sink rather than a conversion, and §1.1 licenses it —
+but the wash reaction having no temperature term is the next obvious gap.
 
 **[OPEN]** The rest of the element roster and tech tree beyond this one chain.
 

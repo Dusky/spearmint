@@ -68,8 +68,8 @@ Every machine is a one-tile black box with one input and one fixed output:
 | compactor | burntResidue | fuel |
 | heater | fuel | heat — which nothing consumes |
 
-*(As of §6 the burner is gone and the heater's output is consumed. The other two rows
-still stand.)*
+*(As of §6 the burner and the compactor are both gone, and the heater's output is
+consumed. Only the press row still stands.)*
 
 A chain of fixed single-input transforms, with gravity as free lossless transport, has
 exactly **one** correct layout: a vertical column. Stack them in dependency order and
@@ -149,9 +149,9 @@ Derived from `data/`, so nobody has to derive it again.
 `burntResidue`, `fuel`, `beltStructure` (internal), `moltenSand`, `steam`, `glass`,
 `kilnStructure` (internal).
 
-**8 machines** — `emitter`, `press`, `vault`, `compactor`, `belt`, `filter`, `heater`,
-`kiln`. All 1×1 except the compactor, which is 1×2. The burner was one of these and was
-deleted in §6; its id (4) is retired, not reused.
+**7 machines** — `emitter`, `press`, `vault`, `belt`, `filter`, `heater`, `kiln`. All
+1×1. The burner and the compactor were both deleted in §6; their ids (4 and 5) are
+retired, not reused, and nothing shipped is taller than one tile any more.
 
 **1 reaction** — `sand + water → wetSand + wetSand`, probability `0.04` per adjacent
 pair per tick. That is the entire reaction table. Burning is *not* in it: it is a
@@ -162,7 +162,11 @@ threshold on the element, not a pair of reactants.
 purchasable row and nothing else.
 
 **Phase changes** — `sand ⇄ moltenSand → glass`, `water ⇄ steam`. Both directions run.
-They are the only rules in the game that read temperature.
+They were the only rules in the game that read temperature; burning (§6) is the second,
+and the first one the factory depends on.
+
+**2 physical conversions** — residue burns above `ignitionPoint`, burnt residue compacts
+above `compactionLoad`. Neither is a machine. Both were, until §6.
 
 ## 6. What was done about it
 
@@ -183,17 +187,35 @@ Cargo rides the row directly above a belt's body, so a kiln heats what it carrie
 carrying it. Belt length is dwell; heaters against the run are temperature; the plain
 belt becomes the deliberately insulated choice.
 
-**Two of §3.3's five factors are now real** — contact area and residence time — and both
-come out of the layout rather than a machine's settings. The conflicting-band puzzle
-§4 wanted came free: water boils at 373K and residue ignites at 800K, so a wash and a
-burn run cannot share a space.
+**Then the compactor went the same way, on pressure.** Load is the weight of the
+contiguous column standing on a cell, derived every tick rather than stored — a cell's
+temperature is history, its load is only where it is right now. `compactsInto` and
+`compactionLoad` mirror the burn fields exactly, and `hardness` — the *third* dead field
+from Milestone 1 — is the resistance. The rate climbs with how far past the threshold
+the load is, so **depth is a dial with a range**, and a heavy lid works as well as a
+deep hole because nothing cares where the weight came from.
+
+**What that leaves is an architecture, not just two fixes.** The machine layer is now
+transport, storage and energy — the emitter, press, vault, belt, filter, kiln and
+heater. Not one of them converts anything except the press, which is a sink rather than
+a conversion. Every step in the chain past it reads a physical quantity: contact area
+for the wash, temperature for the burn, load for the compaction. Three of §3.3's five
+factors are real, and all three come out of what the player drew.
+
+The conflicting-band puzzle §4 wanted came free: water boils at 373K and residue ignites
+at 800K, so a wash and a burn run cannot share a space.
 
 ### What this does not settle
 
-The compactor is still a black box, and so is the press. Whether the column is really
-gone is a question for playing it, not for arguing about it — the same standard §1 held
-the last nine rounds to. The specific thing to watch for: whether routing fuel *to* the
-heat, and keeping a kiln run hot enough for long enough, is a decision or a chore.
+**Whether the column is really gone is a question for playing it**, not for arguing
+about it — the same standard §1 held the last nine rounds to. The vertical layout is no
+longer free, because the two stages now want incompatible shapes: a burn wants a long
+horizontal hot run, a compaction wants a tall vertical pile, and fuel has to get from
+the bottom of the chain back up to the heaters feeding the top of it. That *should* be a
+layout puzzle. Whether it is a puzzle or a chore is exactly what playing it will say.
+
+The press is still a black box, and the wash reaction still has a flat probability with
+no temperature term — the most obvious remaining gap.
 
 One finding worth carrying in either case: **a heater must be fed continuously, not just
 stocked.** `burn_fuel` empties its footprint bottom-up, so the face that touches what it

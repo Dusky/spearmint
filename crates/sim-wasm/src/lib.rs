@@ -785,8 +785,8 @@ mod tests {
     /// it, and the render pass draws it — but only when asked.
     ///
     /// Worth having as a test rather than as a screenshot, because getting a cell hot in
-    /// the running game means building the entire sand → press → kiln → compactor →
-    /// fuel → heater chain first. Here the arena's own wall is the probe.
+    /// the running game means building the entire sand → press → kiln → silo → fuel →
+    /// heater chain first. Here the arena's own wall is the probe.
     #[test]
     fn the_overlay_tints_a_hot_cell_and_only_when_it_is_switched_on() {
         const WINDOW: u32 = 16;

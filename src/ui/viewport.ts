@@ -35,7 +35,6 @@ const BUILD_TOOLS = new Set<Tool>([
   'erase',
   'spawner',
   'press',
-  'compactor',
   'heater',
   'vault',
   'belt',

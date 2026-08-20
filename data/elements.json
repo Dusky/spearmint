@@ -1,7 +1,7 @@
 {
   "note": "Element definitions live in data, not code. Adding an element means editing this file (spec 3.2). Ids are declared here and are permanent: they are baked into saves and world hashes, so reordering this list must never change behaviour. Id 0 is reserved for empty space.",
 
-  "valueNote": "`value` is what a cell is worth to a press, in points. A press takes only what has value, so zero also means the machine ignores it entirely and lets it fall through. `currency` marks the element those points are pressed into: currency has no value of its own, so no press ever takes it back, and currency inside a vault is the player's balance. `refinedInto` is separate from all of that: it names what a Refine machine (the compactor) turns this element into, one cell at a time, regardless of value. `burnsInto` is the other conversion, and deliberately not a machine at all: an element that declares it turns into that product wherever it is at or above its own `ignitionPoint`, with `flammability` as the chance per tick, so dwell time in the heat is what sets the rate.",
+  "valueNote": "`value` is what a cell is worth to a press, in points. A press takes only what has value, so zero also means the machine ignores it entirely and lets it fall through. `currency` marks the element those points are pressed into: currency has no value of its own, so no press ever takes it back, and currency inside a vault is the player's balance. `burnsInto` and `compactsInto` are the two conversions, and deliberately not machines at all. An element that declares `burnsInto` becomes that product wherever it is at or above its own `ignitionPoint`, with `flammability` as the chance per tick, so dwell time in the heat sets the rate. An element that declares `compactsInto` becomes that product wherever the column standing on it weighs at least `compactionLoad`, with `hardness` as the resistance, so depth sets the rate. Both read a physical quantity the world already has, which is the whole point: the burner and the compactor used to do these jobs and were deleted.",
   "heatNote": "`melting_point`/`boiling_point` are Kelvin; `thermal_conductivity` decides how fast a cell trades heat with whatever touches it (spec 5.3) — a heater is the source, everything else just conducts. `meltsInto`/`boilsInto` name what this becomes once its own temperature reaches the matching point; absent means nothing does, which is still true of most of the roster. `condensesInto`/`freezesInto` are the same transitions run backwards, and reuse the same two points rather than declaring thresholds of their own: a gas condenses below its boiling point, a liquid freezes below its melting point. Heating is checked hottest-first, so something hot enough to boil never gets stuck being evaluated as merely melted; cooling is checked nearest-first, so a very cold gas becomes liquid before it becomes solid instead of skipping a state. The comparisons are asymmetric on purpose — `>=` going up, `<` coming down — so a cell parked exactly on a threshold settles on one identity instead of flipping between two every tick.",
   "elements": [
     {
@@ -93,7 +93,7 @@
       "burnsInto": "burntResidue"
     },
     {
-      "note": "The next stage: what residue leaves behind once it has burned. Denser again — burning drives off what was loose in it — and, once compacted, waiting to be fuel.",
+      "note": "The next stage: what residue leaves behind once it has burned. Denser again — burning drives off what was loose in it. Compacts into fuel under enough weight, and nothing converts it on demand: `compactionLoad` is the summed density of the column standing on it, so roughly 23 cells of its own kind — about two and a half tiles — before anything happens at all, and past that the rate climbs with depth. `hardness` is the resistance, which is what stops a soft thing and a hard thing compacting alike.",
       "id": 7,
       "name": "burntResidue",
       "state": "powder",
@@ -105,7 +105,8 @@
       "color_variance": 10,
       "flammability": 0.0,
       "hardness": 0.5,
-      "refinedInto": "fuel"
+      "compactionLoad": 60000,
+      "compactsInto": "fuel"
     },
     {
       "note": "The end of the chain so far: nothing burns it yet, and nothing spends it. A generic heater is the intended consumer (spec 5.3), not one machine built just for this.",

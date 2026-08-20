@@ -59,7 +59,7 @@ export function entityByKind(kind: number): EntityInfo | undefined {
  *  A belt or a vault has a `rate` in the data only because the field defaults; nothing
  *  reads it, so a slider for it would be a lie. */
 export function hasRate(entity: EntityInfo): boolean {
-  return ['emit', 'press', 'refine', 'heater'].includes(entity.behaviour);
+  return ['emit', 'press', 'heater'].includes(entity.behaviour);
 }
 
 /** Tools that do something without placing a machine. Everything else has to exist in

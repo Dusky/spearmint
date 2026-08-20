@@ -80,26 +80,6 @@ pub fn kiln(tile_x: i32, tile_y: i32, direction: i8) -> Entity {
     sized(Entity::belt(kiln_kind(), tile_x, tile_y, direction))
 }
 
-/// The compactor's kind id.
-#[allow(dead_code)]
-pub fn compactor_kind() -> EntityKind {
-    rules()
-        .entities
-        .id_of("compactor")
-        .expect("a `compactor` entity should be defined")
-}
-
-/// A compactor on a tile. Its input is fixed by the data (burntResidue), not chosen here.
-#[allow(dead_code)]
-pub fn compactor(tile_x: i32, tile_y: i32) -> Entity {
-    sized(Entity::new(
-        compactor_kind(),
-        tile_x,
-        tile_y,
-        sim_core::EMPTY,
-    ))
-}
-
 /// The belt's kind id.
 #[allow(dead_code)]
 pub fn belt_kind() -> EntityKind {

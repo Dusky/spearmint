@@ -78,14 +78,22 @@ pub struct Element {
     /// grains in, eight cells out — one nugget and seven residue — and only spending
     /// ever removes matter from the world outright.
     pub residue: ElementId,
-    /// What a machine built to refine this turns it into — residue burns into burnt
-    /// residue, which compacts into fuel (spec 5.3). `EMPTY` means nothing refines it.
+    /// What this becomes when it is crushed under enough weight. `EMPTY` means weight
+    /// does nothing to it, which is true of everything but burnt residue.
     ///
-    /// Generic on purpose: a Refine machine is one behaviour reading this field on
-    /// whatever it is fed, not a hand-written machine per stage. The compactor is the
-    /// only one left — residue used to have a burner, and now burns instead (see
-    /// `burns_into`), which is why only one link in the chain still runs on this.
-    pub refined_into: ElementId,
+    /// The mirror of `burns_into`, on the other physical quantity: burning reads the
+    /// temperature a cell carries, compacting reads the load standing on it
+    /// (`compress.rs`). Neither is a machine any more — the burner and the compactor
+    /// were both deleted, because a one-tile box that converts on demand strictly
+    /// dominates anything the player would have to build a shape for.
+    pub compacts_into: ElementId,
+    /// The load, in density units, at or above which `compacts_into` can fire. Zero —
+    /// the default when the field is absent — means never, so an element only compacts
+    /// by saying so.
+    ///
+    /// Not a Fixed: a load is the summed density of a column and runs to tens of
+    /// thousands, well past what Q16.16 can hold as a whole number.
+    pub compaction_load: i32,
     /// What this becomes once its temperature (spec 5.3's heat system) reaches
     /// `boiling_point`. `EMPTY` means nothing boils it — true of everything shipped so
     /// far, since a real payoff needs gas-state physics that does not exist yet.
@@ -124,7 +132,7 @@ pub struct Element {
 type LinkedField = (&'static str, fn(&mut Element) -> &mut ElementId);
 const LINKED_FIELDS: [LinkedField; 7] = [
     ("residue", |element| &mut element.residue),
-    ("refinedInto", |element| &mut element.refined_into),
+    ("compactsInto", |element| &mut element.compacts_into),
     ("boilsInto", |element| &mut element.boils_into),
     ("meltsInto", |element| &mut element.melts_into),
     ("condensesInto", |element| &mut element.condenses_into),
@@ -181,19 +189,28 @@ impl ElementTable {
             }
         }
 
-        // Burning needs all three of its fields to agree, and two of them default to
-        // "never". Declaring `burnsInto` without a threshold to cross, or with no
-        // chance of ever firing, describes something that silently does nothing — the
+        // Both physical conversions need all their fields to agree, and the thresholds
+        // default to "never". Declaring a product without a threshold to cross, or with
+        // no chance of ever firing, describes something that silently does nothing — the
         // exact class of quiet wrongness this file validates against everywhere else.
         for element in table.slots.iter().flatten() {
-            if element.burns_into == EMPTY {
-                continue;
+            if element.burns_into != EMPTY {
+                if element.ignition_point == i32::MAX {
+                    return Err(DataError::BadField { field: "ignitionPoint" });
+                }
+                if element.flammability == Fixed::ZERO {
+                    return Err(DataError::BadField { field: "flammability" });
+                }
             }
-            if element.ignition_point == i32::MAX {
-                return Err(DataError::BadField { field: "ignitionPoint" });
-            }
-            if element.flammability == Fixed::ZERO {
-                return Err(DataError::BadField { field: "flammability" });
+            if element.compacts_into != EMPTY {
+                if element.compaction_load <= 0 {
+                    return Err(DataError::BadField { field: "compactionLoad" });
+                }
+                // Hardness is the resistance, so a perfectly hard thing never yields
+                // however much is piled on it.
+                if element.hardness >= Fixed::ONE {
+                    return Err(DataError::BadField { field: "hardness" });
+                }
             }
         }
 
@@ -293,7 +310,7 @@ fn parse_element(entry: &Json<'_>) -> Result<Element, DataError> {
         // exists — see `ElementTable::from_json`. Left as EMPTY here regardless of what
         // the entry says, so this function never depends on parse order (spec 3.2).
         residue: EMPTY,
-        refined_into: EMPTY,
+        compacts_into: EMPTY,
         boils_into: EMPTY,
         melts_into: EMPTY,
         condenses_into: EMPTY,
@@ -307,6 +324,14 @@ fn parse_element(entry: &Json<'_>) -> Result<Element, DataError> {
             .map(|point| point.as_i32().ok_or(bad("ignitionPoint")))
             .transpose()?
             .unwrap_or(i32::MAX),
+        // Optional, and absent means unreachable rather than zero, the same way
+        // `ignition_point` defaults — no threshold must never read as "compacts under
+        // no weight at all".
+        compaction_load: entry
+            .get("compactionLoad")
+            .map(|load| load.as_i32().ok_or(bad("compactionLoad")))
+            .transpose()?
+            .unwrap_or(0),
     })
 }
 

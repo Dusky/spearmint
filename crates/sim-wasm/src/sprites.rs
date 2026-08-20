@@ -279,15 +279,28 @@ mod tests {
 
     /// A machine taller than one tile draws different art per row — otherwise it is one
     /// tile stamped twice, which is no good for a piston that needs a gantry and a ram.
+    ///
+    /// Driven by a fixture rather than by the shipped file, because nothing shipped is
+    /// taller than one tile any more: the compactor was the only one, and it was deleted
+    /// when compacting became physics. The `when.row` matcher stays because it is a
+    /// property of the sprite format rather than of that machine, and an untested format
+    /// feature is how a format feature quietly breaks.
     #[test]
-    fn the_shipped_compactor_draws_a_different_sprite_per_row() {
-        let elements = ElementTable::from_json(ELEMENTS_JSON).expect("elements");
-        let entities = EntityTable::from_json(ENTITIES_JSON, &elements).expect("entities");
-        let table = SpriteTable::from_json(ENTITIES_JSON).expect("sprites");
+    fn a_multi_tile_machine_draws_a_different_sprite_per_row() {
+        // No `#` anywhere in the pixels: a raw string ends at the first `"` followed
+        // by its hashes, and a row like "#########" starts with exactly that.
+        const TALL: &str = r##"{"entities":[{
+            "id": 1, "name": "gantry", "behaviour": "press", "tool": "press",
+            "widthTiles": 1, "heightTiles": 2,
+            "sprites": [
+                { "when": { "row": 0 }, "pixels": ["=========","=========","=========","=========","=========","=========","=========","=========","========="] },
+                { "when": { "row": 1 }, "pixels": [
+                    ["ooooooooo","ooooooooo","ooooooooo","ooooooooo","ooooooooo","ooooooooo","ooooooooo","ooooooooo","ooooooooo"],
+                    ["    o    ","    o    ","    o    ","    o    ","    o    ","    o    ","    o    ","    o    ","    o    "]] }
+            ]}]}"##;
 
-        let kind = entities.id_of("compactor").expect("compactor kind");
-        let definition = entities.get(kind).expect("compactor");
-        assert!(definition.height_tiles > 1, "this test needs a multi-tile machine");
+        let table = SpriteTable::from_json(TALL).expect("sprites");
+        let kind = 1;
 
         let gantry = table.pick(kind, "", None, Status::Running, 0, 0);
         let ram = table.pick(kind, "", None, Status::Running, 0, 1);

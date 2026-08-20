@@ -73,10 +73,10 @@ fn wet_sand_presses_into_a_declared_residue() {
     assert_eq!(residue.name, "residue");
 }
 
-/// The chain from residue to fuel (spec 5.3), which is deliberately not one mechanism
-/// end to end: residue *burns* into burntResidue wherever it is hot enough, and
-/// burntResidue is *compacted* into fuel by a machine. Both links still have to resolve
-/// to a real element rather than an id pointed at nothing.
+/// The chain from residue to fuel (spec 5.3). Neither link is a machine any more, and
+/// each reads a different physical quantity: residue *burns* where it is hot enough,
+/// and burnt residue *compacts* under enough weight. Both still have to resolve to a
+/// real element rather than an id pointed at nothing.
 #[test]
 fn residue_burns_and_then_compacts_all_the_way_to_fuel() {
     let table = common::table();
@@ -86,18 +86,17 @@ fn residue_burns_and_then_compacts_all_the_way_to_fuel() {
         .expect("residue's burnsInto should resolve");
     assert_eq!(burnt.name, "burntResidue");
 
-    assert_eq!(
-        residue.refined_into,
-        sim_core::EMPTY,
-        "nothing refines residue on demand any more — heat is the only thing that \
-         converts it, so a machine pointed at it should read as blocked"
-    );
-
     let fuel = table
-        .get(burnt.refined_into)
-        .expect("burntResidue's refinedInto should resolve");
+        .get(burnt.compacts_into)
+        .expect("burntResidue's compactsInto should resolve");
     assert_eq!(fuel.name, "fuel");
-    assert_eq!(fuel.refined_into, sim_core::EMPTY, "the chain ends at fuel, for now");
+    assert_eq!(fuel.compacts_into, sim_core::EMPTY, "the chain ends at fuel, for now");
+    assert_eq!(fuel.burns_into, sim_core::EMPTY, "and fuel is not itself burnt further");
+
+    // Each stage answers to one quantity and not the other, or the two would be the
+    // same mechanism wearing different names.
+    assert_eq!(residue.compacts_into, sim_core::EMPTY, "weight does nothing to residue");
+    assert_eq!(burnt.burns_into, sim_core::EMPTY, "heat does nothing more to burnt residue");
 }
 
 /// Burning needs `burnsInto`, `ignitionPoint` and `flammability` to agree. Two of the
@@ -130,6 +129,36 @@ fn burning_without_a_threshold_or_a_chance_is_rejected() {
         "burning with no chance per tick would never fire either"
     );
     assert!(ElementTable::from_json(&source("0.5", r#","ignitionPoint":800"#)).is_ok());
+}
+
+/// Compacting has the same failure mode as burning, on the other quantity: a product
+/// with no load to reach, or a material too hard to ever yield, is a rule that can
+/// never fire.
+#[test]
+fn compacting_without_a_load_or_with_no_give_is_rejected() {
+    const BASE: &str = r##"{"elements":[
+        {"id":1,"name":"brick","state":"powder","density":1,"melting_point":9000,
+         "boiling_point":9001,"thermal_conductivity":0.1,"color":"#000000",
+         "color_variance":0,"flammability":0.0,"hardness":0.0},
+        {"id":2,"name":"dust","state":"powder","density":1,"melting_point":9000,
+         "boiling_point":9001,"thermal_conductivity":0.1,"color":"#000000",
+         "color_variance":0,"flammability":0.0,"hardness":HARD,
+         "compactsInto":"brick"LOAD}
+    ]}"##;
+
+    let source = |hardness: &str, load: &str| BASE.replace("HARD", hardness).replace("LOAD", load);
+
+    assert_eq!(
+        ElementTable::from_json(&source("0.5", "")).unwrap_err(),
+        DataError::BadField { field: "compactionLoad" },
+        "compacting with no load to reach would never fire"
+    );
+    assert_eq!(
+        ElementTable::from_json(&source("1.0", r#","compactionLoad":60000"#)).unwrap_err(),
+        DataError::BadField { field: "hardness" },
+        "a perfectly hard material never yields, however much is piled on it"
+    );
+    assert!(ElementTable::from_json(&source("0.5", r#","compactionLoad":60000"#)).is_ok());
 }
 
 /// Ids are declared in the file, not derived from its order, so the table must be

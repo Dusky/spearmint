@@ -11,6 +11,7 @@
 //! verification, and both must produce identical results.
 
 use crate::chunk::ChunkMap;
+use crate::compress;
 use crate::elements::{ElementId, EMPTY};
 use crate::entities::{Behaviour, self, Entity, EntityKind};
 use crate::field::{Bounds, CellField};
@@ -262,6 +263,7 @@ impl World {
             self.tick,
         );
         heat::step(&mut self.field, &self.rules.elements, self.seed, self.tick);
+        compress::step(&mut self.field, &self.rules.elements, self.seed, self.tick);
         self.tick += 1;
     }
 
@@ -386,6 +388,7 @@ impl FlatWorld {
             self.tick,
         );
         heat::step(&mut self.field, &self.rules.elements, self.seed, self.tick);
+        compress::step(&mut self.field, &self.rules.elements, self.seed, self.tick);
         self.tick += 1;
     }
 

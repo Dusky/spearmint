@@ -19,6 +19,7 @@
 #![warn(missing_debug_implementations)]
 
 pub mod chunk;
+pub mod compress;
 pub mod elements;
 pub mod entities;
 pub mod field;
@@ -37,7 +38,7 @@ pub mod world;
 
 pub use chunk::ChunkMap;
 pub use elements::{DataError, Element, ElementId, ElementTable, State, EMPTY};
-pub use entities::{Behaviour, Entity, EntityKind, EntityTable, EntityType, Reach};
+pub use entities::{Behaviour, Entity, EntityKind, EntityTable, EntityType};
 pub use field::{Bounds, CellField};
 pub use fixed::Fixed;
 pub use grid::Grid;

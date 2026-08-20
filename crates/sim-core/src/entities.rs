@@ -35,16 +35,6 @@ pub enum Behaviour {
     /// rules themselves to destroy a particle, and a machine that consumes what it is
     /// fed is such a rule.
     Press,
-    /// Turns one specific element into whatever it is declared to refine into, reading
-    /// `EntityType::input` and that element's `refined_into` (spec 5.3). Unlike a press,
-    /// nothing is banked: one cell in is one cell out, because there is no threshold to
-    /// accumulate toward.
-    ///
-    /// The compactor is the only one. Residue used to have a burner here and now burns
-    /// wherever it is hot enough instead (`Element::burns_into`), which is the same
-    /// conversion moved out of a machine and into the physics — so this behaviour is
-    /// still generic, but only one stage of the chain runs on it.
-    Refine,
     /// Conveys whatever rests on top of it, and — when the instance names an element
     /// (`Entity.element`, the same field an emitter uses) — drops that one element
     /// straight through instead. A filter is not a second behaviour; it is this, tuned
@@ -62,40 +52,12 @@ pub enum Behaviour {
     Heater,
 }
 
-/// Where a machine looks for the material it works on.
-///
-/// A data-declared field rather than a second `Behaviour`, for the same reason a filter
-/// turned out to be a belt with one more field: a machine that takes what falls into it
-/// and a piston that crushes what is heaped under it do the identical thing to whatever
-/// they find, and differ only in where they look.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Reach {
-    /// Inside its own footprint — material that has fallen in. Gravity is the conveyor,
-    /// and a machine is not matter (spec 4.1), so material falls straight through.
-    Body,
-    /// The tile directly beneath it: a head that comes down on whatever is under the
-    /// machine. Fed by piling material *under* it rather than dropping material *into*
-    /// it, which is a different thing to build around.
-    Below,
-}
-
-impl Reach {
-    fn parse(text: &str) -> Option<Reach> {
-        match text {
-            "body" => Some(Reach::Body),
-            "below" => Some(Reach::Below),
-            _ => None,
-        }
-    }
-}
-
 impl Behaviour {
     fn parse(text: &str) -> Option<Behaviour> {
         match text {
             "emit" => Some(Behaviour::Emit),
             "press" => Some(Behaviour::Press),
             "store" => Some(Behaviour::Store),
-            "refine" => Some(Behaviour::Refine),
             "belt" => Some(Behaviour::Belt),
             "heater" => Some(Behaviour::Heater),
             _ => None,
@@ -281,26 +243,6 @@ impl Entity {
         )
     }
 
-    /// The cells a machine works on, given where its type says it reaches.
-    ///
-    /// `Body` is its own footprint; `Below` is the one tile row directly beneath it,
-    /// as wide as the machine.
-    pub fn reach_area(&self, reach: Reach) -> (i32, i32, i32, i32) {
-        match reach {
-            Reach::Body => self.body(),
-            Reach::Below => {
-                let left = self.left();
-                let top = self.mouth();
-                (
-                    left,
-                    top,
-                    left + self.width_tiles as i32 * TILE_CELLS as i32 - 1,
-                    top + TILE_CELLS as i32 - 1,
-                )
-            }
-        }
-    }
-
     /// Whether this covers a tile, accounting for a footprint wider than one.
     pub fn covers(&self, tile_x: i32, tile_y: i32) -> bool {
         tile_x >= self.tile_x
@@ -332,12 +274,6 @@ impl Entity {
                 let (x0, y0, x1, y1) = self.body();
                 (y0..=y1).all(|y| (x0..=x1).all(|x| !is_pressable(field.get(x, y), elements)))
             }
-            Behaviour::Refine => {
-                let (x0, y0, x1, y1) = self.reach_area(definition.reach);
-                (y0..=y1).all(|y| {
-                    (x0..=x1).all(|x| !is_refinable(field.get(x, y), elements, definition.input))
-                })
-            }
             // A vault is a place, not a process. It cannot be blocked.
             Behaviour::Store => false,
             // Blocked means jammed: cargo is resting on it that cannot advance, because
@@ -354,7 +290,7 @@ impl Entity {
             }
             // Blocked means idle: no fuel anywhere in the body to burn. Pure id
             // equality against `input` — a heater does not consult the element table,
-            // unlike Press and Refine, because there is no further property to check.
+            // unlike a press, because there is no further property to check.
             Behaviour::Heater => {
                 let (x0, y0, x1, y1) = self.body();
                 (y0..=y1).all(|y| (x0..=x1).all(|x| field.get(x, y) != Some(definition.input)))
@@ -387,7 +323,7 @@ pub struct EntityType {
     pub interval: u32,
     /// Points a press must take in to make one cell of currency.
     pub gold_per: u32,
-    /// The one element a `Refine` machine acts on, or a `Heater`'s fuel. `EMPTY` for
+    /// The one element a `Heater` burns as fuel. `EMPTY` for
     /// anything else.
     pub input: ElementId,
     /// Where an emitter's opening actually is, in cells from the tile's left edge —
@@ -408,9 +344,6 @@ pub struct EntityType {
     /// The whole-Kelvin temperature a `Heater` holds its own footprint at while it has
     /// fuel (spec 5.3). Meaningless for anything else.
     pub heat_output: i16,
-    /// Where this machine looks for what it works on. Defaults to its own body, which
-    /// is what every machine did before a piston needed to reach underneath itself.
-    pub reach: Reach,
 }
 
 /// Entity types indexed by id — a `Vec`, never a map, so iteration order cannot reach
@@ -523,7 +456,7 @@ fn parse_entity(entry: &Json<'_>, elements: &ElementTable) -> Result<EntityType,
             .and_then(Json::as_i32)
             .unwrap_or(1)
             .max(1) as u32,
-        // Optional: only Refine machines declare one. Resolved directly against the
+        // Optional: only a heater declares one. Resolved directly against the
         // already-complete element table — unlike `residue` on Element, entities load
         // after elements finish, so there is no forward-reference problem to solve.
         input: match entry.get("input").and_then(Json::as_str) {
@@ -549,12 +482,6 @@ fn parse_entity(entry: &Json<'_>, elements: &ElementTable) -> Result<EntityType,
             Some(name) => elements.id_of(name).ok_or_else(|| bad("chassis"))?,
             None if behaviour == Behaviour::Belt => return Err(bad("chassis")),
             None => EMPTY,
-        },
-        // Optional: absent means a machine works on what falls into it, which is what
-        // everything did before a piston needed to reach under itself.
-        reach: match entry.get("reach").and_then(Json::as_str) {
-            Some(text) => Reach::parse(text).ok_or_else(|| bad("reach"))?,
-            None => Reach::Body,
         },
         // Required for a heater, the same way `chassis` is required for a belt.
         // Meaningless — and absent — for anything else.
@@ -620,7 +547,6 @@ pub fn tick<F: CellField + ?Sized>(
         match definition.behaviour {
             Behaviour::Emit => emit(field, entity, definition, elements, seed, tick, index),
             Behaviour::Press => minted += press(field, entity, definition, elements),
-            Behaviour::Refine => refine(field, entity, definition, elements),
             Behaviour::Heater => heater(field, entity, definition),
             // A vault holds what falls into it and does nothing else. Gravity is the
             // mechanism; the walls are the player's. A belt was already handled above.
@@ -731,22 +657,6 @@ fn convey_one<F: CellField + ?Sized>(field: &mut F, entity: &Entity) {
     }
 }
 
-/// Whether a `Refine` machine of this `input` would take this cell.
-///
-/// Checked against the element table rather than trusting `input` alone, the same way
-/// `is_pressable` does not trust `currency` alone — a machine whose input happens to
-/// name something with no declared `refined_into` should read as blocked, not quietly
-/// delete what it is fed.
-fn is_refinable(cell: Option<ElementId>, elements: &ElementTable, input: ElementId) -> bool {
-    let Some(id) = cell else {
-        return false;
-    };
-    if id != input {
-        return false;
-    }
-    elements.get(id).is_some_and(|element| element.refined_into != EMPTY)
-}
-
 /// Introduces matter. A machine cannot force material into an occupied cell, so a
 /// clogged factory starves itself and nothing special-cases that.
 #[allow(clippy::too_many_arguments)]
@@ -847,41 +757,6 @@ fn press<F: CellField + ?Sized>(
         }
     }
     minted
-}
-
-/// Turns cells of `definition.input` into their declared `refined_into`, up to `rate`
-/// a tick.
-///
-/// One cell in, one cell out — unlike `press`, there is no threshold to bank toward, so
-/// nothing here accumulates across ticks. Bottom row up, same reason `press` reads that
-/// way: the material that has fallen furthest in is the material about to fall out.
-fn refine<F: CellField + ?Sized>(
-    field: &mut F,
-    entity: &Entity,
-    definition: &EntityType,
-    elements: &ElementTable,
-) {
-    let (x0, y0, x1, y1) = entity.reach_area(definition.reach);
-
-    let mut taken = 0;
-    for y in (y0..=y1).rev() {
-        for x in x0..=x1 {
-            if taken == entity.effective_rate(definition) {
-                return;
-            }
-            if !is_refinable(field.get(x, y), elements, definition.input) {
-                continue;
-            }
-            // `is_refinable` already confirmed the id resolves and has a target.
-            let target = elements.get(definition.input).expect("refinable cell").refined_into;
-
-            field.set(x, y, target);
-            // Writing a cell is not a move, so nothing else reports it — and a pile
-            // that stops being told it is settling stops feeding the machine.
-            field.mark_active(x, y);
-            taken += 1;
-        }
-    }
 }
 
 /// Burns up to `rate` cells of fuel a tick and, if it burned any, holds its own

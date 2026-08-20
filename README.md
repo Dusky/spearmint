@@ -12,8 +12,9 @@ what is deliberately left out of it.
 
 - **`crates/sim-core`** — the simulation. Headless, deterministic and proven so, on
   sparse chunks over an unbounded canvas, with viewport-gated sleeping. Thirteen
-  elements, eight machines, a conducting heat field, phase changes in both directions,
-  and material that burns where the layout makes it hot enough.
+  elements, seven machines, a conducting heat field, phase changes in both directions,
+  and material that burns where the layout makes it hot enough and compacts where it
+  makes it heavy enough.
 - **`crates/sim-wasm`** — the browser bridge. Raw `extern "C"` exports and a
   hand-written binding, so the core keeps its zero dependencies.
 - **`crates/sim-harness`** — `sim-hash`, which runs the sim headless and prints world
@@ -183,7 +184,7 @@ verifier of §8.3 will take.
 
 | Key | Action |
 |---|---|
-| `1`–`9` | Select tool, in tool-column order — `1` select, `2` draw, `3` erase, `4` belt, `5` filter, `6` kiln, `7` spawner, `8` press, `9` compactor |
+| `1`–`9` | Select tool, in tool-column order — `1` select, `2` draw, `3` erase, `4` belt, `5` filter, `6` kiln, `7` spawner, `8` press, `9` heater |
 | `shift` | Constrain a stroke to a straight line |
 | `space` + drag | Pan |
 | `alt` + click | Pick the material under the cursor |
@@ -196,8 +197,9 @@ verifier of §8.3 will take.
 | `C` / `B` | Capability / Blueprints drawer |
 | `Escape` | Close the drawer, then clear the selection |
 
-The heater, vault, teleport and blueprint tools have no key — only single digits parse,
-and the tool column runs to thirteen. Click them.
+The vault, teleport and blueprint tools have no key — only single digits parse, and the
+tool column runs to twelve. Click them. (Deleting the burner and the compactor pulled
+the heater up to `9`, which is the first time it has had a key at all.)
 
 The tool keys, `shift`, `space`, `alt` and `F` are from the handoff. `G`, `T`, `H`, `P`,
 `C`, `B` and `Escape` are not — see "Flagged back to design" below.
@@ -324,10 +326,12 @@ chain (burner, compactor, fuel), belts and filters with sprite animation, machin
 can be switched off and retuned, a conducting heat field with a heater and an overlay to
 see it, and gas — steam, glass, and phase changes that run both ways. Nine rounds of
 that produced a toy: the pieces worked and nothing in the factory read the physics.
-[`docs/WHY-ITS-A-TOY.md`](docs/WHY-ITS-A-TOY.md) is the diagnosis, and §6 of it is the
-tenth round — the burner deleted, residue burning wherever the layout gets it hot, and
-the **kiln**, a belt that conducts, so material is heated while it moves instead of
-having to stop somewhere hot.
+[`docs/WHY-ITS-A-TOY.md`](docs/WHY-ITS-A-TOY.md) is the diagnosis, and §6 of it is what
+was done — both conversion machines deleted, and the chain rebuilt on quantities the
+world already simulates. Residue **burns** where the layout gets it hot, carried there
+by the **kiln**, a belt that conducts so material is heated while it moves. Burnt
+residue **compacts** where the layout gets it heavy, at the bottom of a pile deep
+enough to crush it. Machines now move, store and supply energy; physics converts.
 
 ### Carried forward
 
@@ -348,13 +352,18 @@ Settled provisionally, and still open:
 - **Liquids spread one cell per tick** and never rise. Enough to level out and to let
   powders sink through, and slower than a real flow model; revisit when flow rate is
   something the game cares about.
-- **Heat drives exactly one conversion.** Residue burns above its `ignitionPoint`, at a
-  rate set by `flammability` and therefore by how long the layout keeps it hot — see
-  [`docs/WHY-ITS-A-TOY.md`](docs/WHY-ITS-A-TOY.md) §6. Everything else still ignores
-  temperature: no machine's rate or output conditions on it, and `Reaction` has no
-  temperature band, so the wash is unaffected by heat. Whether one conversion is enough
-  to make the layout a decision is the open question, and it wants playing rather than
-  arguing about.
+- **The physics drives both conversions in the chain; nothing else reads it.** Residue
+  burns above its `ignitionPoint` at a rate set by `flammability`, and burnt residue
+  compacts above its `compactionLoad` at a rate set by `hardness` — so dwell time and
+  depth are the two dials, and both are drawn rather than set. But no *machine's* rate
+  or output conditions on temperature or load, and `Reaction` still has no temperature
+  band, so the wash is unaffected by either. Whether two conversions are enough to make
+  the layout a real decision wants playing rather than arguing about.
+- **Load is derived, never stored.** `compress.rs` recomputes it every tick from the
+  arrangement of matter, in one top-down sweep carrying a running total per column. So
+  there is nothing to persist, nothing to swap when matter moves, and no third parallel
+  grid beside the element and temperature ones — but it does mean a full-bounds walk
+  every tick, the same cost heat already pays and gated by sleeping just as little.
 - **Gas has one element.** `steam` is the only one, and it condenses back to water. The
   buoyancy rules were written for it rather than guessed at in the abstract, which means
   they are tuned against a single case.

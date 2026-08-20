@@ -338,14 +338,6 @@ body {
   );
 }
 
-/* Two plates squeezing together. */
-.glyph--compactor {
-  width: 16px;
-  height: 10px;
-  border-top: 4px solid var(--text-faint-dimmer);
-  border-bottom: 4px solid var(--text-faint-dimmer);
-}
-
 /* An open box: a place, not a machine. */
 .glyph--vault {
   width: 16px;

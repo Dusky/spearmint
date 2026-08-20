@@ -189,7 +189,6 @@ export function createActions(store: Store<GameState>, sim: SimBridge) {
           return;
         case 'spawner':
         case 'press':
-        case 'compactor':
         case 'heater':
           this.placeMachine(world);
           return;

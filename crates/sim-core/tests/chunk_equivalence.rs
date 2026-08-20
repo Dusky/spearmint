@@ -17,6 +17,7 @@
 mod common;
 
 use sim_core::chunk::CHUNK_CELLS;
+use sim_core::field::CellField;
 use sim_core::scene;
 
 /// Compares cell by cell over the scene's own extent, so a mismatch names a position
@@ -107,4 +108,61 @@ fn compaction_is_unobservable() {
     world.step_many(100);
     untouched.step_many(100);
     assert_eq!(world.hash(), untouched.hash());
+}
+
+/// Compaction is the one pass that carries state *down* a column rather than working
+/// cell-locally, and it walks `bounds()` — which is not the same rectangle in a chunked
+/// field as in a flat one. That combination is exactly the shape of thing that could
+/// diverge, and the shipped sandbox would never catch it: it contains structure, sand
+/// and water, none of which compact, so the pass never fires there at all.
+#[test]
+fn matches_the_flat_world_with_a_pile_deep_enough_to_compact() {
+    let rules = common::rules_without_reactions();
+    let (width, height, seed) = (96, 120, 0x0005_1105_u64);
+    let burnt = rules.elements.id_of("burntResidue").expect("burntResidue");
+    let structure = rules.elements.id_of("structure").expect("structure");
+    let element = rules.elements.get(burnt).expect("burntResidue");
+    let depth = element.compaction_load / element.density * 3;
+
+    let mut chunked = scene::sandbox(width, height, seed, &rules);
+    let mut flat = scene::sandbox_flat(width, height, seed, &rules);
+
+    // Two shafts: one against the left wall and one out in the middle, so the sweep is
+    // exercised both where a chunk boundary is near and where it is not.
+    let build = |field: &mut dyn CellField| {
+        for x in [8, 53] {
+            let floor = height as i32 - 2;
+            for y in (floor - depth - 1)..=floor {
+                field.set(x - 1, y, structure);
+                field.set(x + 1, y, structure);
+            }
+            for offset in 0..depth {
+                field.set(x, floor - offset, burnt);
+            }
+        }
+    };
+    build(chunked.field_mut());
+    build(flat.field_mut());
+
+    chunked.step_many(300);
+    flat.step_many(300);
+
+    for y in 0..height as i32 {
+        for x in 0..width as i32 {
+            assert_eq!(
+                chunked.get(x, y),
+                flat.get(x, y),
+                "differed at ({x}, {y}) after compacting, seed {seed:#x}"
+            );
+        }
+    }
+    assert_eq!(chunked.hash(), flat.hash(), "canonical hashes differ after compacting");
+
+    // And the scene has to have actually compacted, or this proves nothing.
+    let fuel = rules.elements.id_of("fuel").expect("fuel");
+    let converted = (0..height as i32)
+        .flat_map(|y| (0..width as i32).map(move |x| (x, y)))
+        .filter(|&(x, y)| flat.get(x, y) == fuel)
+        .count();
+    assert!(converted > 0, "the pile should have compacted something");
 }
